@@ -1,31 +1,26 @@
 /**
- * Smartklick Docking System
- * Ermoeglicht das Andocken an alle 4 Bildschirmkanten
+ * Smartklick Docking System - Nach Spezifikation
+ * Magnetisches Andocken an alle 4 Bildschirmkanten
  */
 
 class DockingManager {
   constructor() {
     this.isDocked = false;
     this.dockPosition = null; // 'top', 'bottom', 'left', 'right'
-    this.isApproaching = false;
-    this.approachingEdge = null;
-    this.snapThreshold = 80; // px vom Rand
-    this.settingsPanelOpen = false;
-
-    // Original Window-Groesse speichern
-    this.originalBounds = null;
+    this.settingsOpen = false;
 
     // DOM Elements
     this.dockBar = null;
-    this.indicators = {};
     this.settingsPanel = null;
+    this.indicators = {};
 
-    // Event handlers bound to this
+    // Bound handlers
     this.handleModeClick = this.handleModeClick.bind(this);
     this.handleLangClick = this.handleLangClick.bind(this);
     this.handleMicClick = this.handleMicClick.bind(this);
     this.handleSettingsClick = this.handleSettingsClick.bind(this);
     this.handleUndockClick = this.handleUndockClick.bind(this);
+    this.handlePositionChange = this.handlePositionChange.bind(this);
   }
 
   /**
@@ -34,28 +29,21 @@ class DockingManager {
   async init() {
     console.log('[Docking] Initialisiere...');
 
-    // DOM Elements finden
     this.dockBar = document.getElementById('dockBar');
+    this.settingsPanel = document.getElementById('dockSettingsPanel');
     this.indicators = {
       top: document.getElementById('dockIndicatorTop'),
       bottom: document.getElementById('dockIndicatorBottom'),
       left: document.getElementById('dockIndicatorLeft'),
       right: document.getElementById('dockIndicatorRight')
     };
-    this.settingsPanel = document.getElementById('dockSettingsPanel');
 
     if (!this.dockBar) {
       console.error('[Docking] Dock-Bar nicht gefunden!');
       return;
     }
 
-    // Event Listeners
     this.setupEventListeners();
-
-    // Settings laden
-    await this.loadSettings();
-
-    // IPC Events
     this.setupIpcListeners();
 
     console.log('[Docking] Initialisiert');
@@ -79,7 +67,7 @@ class DockingManager {
     const micBtn = this.dockBar.querySelector('#dockMic');
     if (micBtn) micBtn.addEventListener('click', this.handleMicClick);
 
-    // Settings
+    // Settings Button - oeffnet/schliesst Panel durch Klasse toggle
     const settingsBtn = this.dockBar.querySelector('#dockSettingsBtn');
     if (settingsBtn) settingsBtn.addEventListener('click', this.handleSettingsClick);
 
@@ -87,220 +75,169 @@ class DockingManager {
     const undockBtn = this.dockBar.querySelector('#dockUndockBtn');
     if (undockBtn) undockBtn.addEventListener('click', this.handleUndockClick);
 
-    // Settings Panel Checkboxes
-    if (this.settingsPanel) {
-      const autoSnap = this.settingsPanel.querySelector('#dockAutoSnap');
-      if (autoSnap) {
-        autoSnap.addEventListener('change', (e) => {
-          window.electronAPI.setSetting('dockAutoSnap', e.target.checked);
-        });
-      }
+    // Position Selector im Settings Panel
+    const positionSelect = document.getElementById('dockPositionSelect');
+    if (positionSelect) positionSelect.addEventListener('change', this.handlePositionChange);
 
-      const snapThreshold = this.settingsPanel.querySelector('#dockSnapThreshold');
-      if (snapThreshold) {
-        snapThreshold.addEventListener('change', (e) => {
-          this.snapThreshold = parseInt(e.target.value);
-          window.electronAPI.setSetting('dockSnapThreshold', this.snapThreshold);
-        });
-      }
-
-      const wakeWordToggle = this.settingsPanel.querySelector('#dockWakeWordToggle');
-      if (wakeWordToggle) {
-        wakeWordToggle.addEventListener('change', (e) => {
-          if (e.target.checked) {
-            window.electronAPI.wakeWord.start();
-          } else {
-            window.electronAPI.wakeWord.stop();
-          }
-        });
-      }
-    }
-
-    // Click outside Settings Panel schliessen
+    // Click ausserhalb Settings Panel schliesst es
     document.addEventListener('click', (e) => {
-      if (this.settingsPanelOpen &&
-          !this.settingsPanel.contains(e.target) &&
+      if (this.settingsOpen &&
+          !this.settingsPanel?.contains(e.target) &&
           !e.target.closest('#dockSettingsBtn')) {
-        this.closeSettingsPanel();
+        this.closeSettings();
       }
     });
   }
 
   /**
-   * IPC Event Listeners
+   * IPC Event Listeners vom Main Process
    */
   setupIpcListeners() {
-    // Window Position Updates vom Main Process
-    if (window.electronAPI.docking) {
+    if (window.electronAPI?.docking) {
       window.electronAPI.docking.onApproachingEdge((data) => {
-        this.showDockIndicator(data.edge);
+        this.showIndicator(data.edge, data.intensity || 0.6);
       });
 
       window.electronAPI.docking.onLeftEdge(() => {
-        this.hideDockIndicators();
+        this.hideIndicators();
       });
 
       window.electronAPI.docking.onDocked((data) => {
-        this.dock(data.position);
+        this.onDocked(data.position);
       });
 
       window.electronAPI.docking.onUndocked(() => {
-        this.undock();
+        this.onUndocked();
       });
     }
   }
 
   /**
-   * Settings laden
+   * Zeigt Dock-Indikator mit Intensitaet
    */
-  async loadSettings() {
-    try {
-      const settings = await window.electronAPI.getSettings();
+  showIndicator(edge, intensity = 0.6) {
+    this.hideIndicators();
+    const indicator = this.indicators[edge];
+    if (indicator) {
+      indicator.style.opacity = intensity;
+      indicator.classList.add('visible');
+    }
+  }
 
-      this.snapThreshold = settings.dockSnapThreshold || 80;
-
-      // Settings Panel aktualisieren
-      if (this.settingsPanel) {
-        const autoSnap = this.settingsPanel.querySelector('#dockAutoSnap');
-        if (autoSnap) autoSnap.checked = settings.dockAutoSnap !== false;
-
-        const snapThreshold = this.settingsPanel.querySelector('#dockSnapThreshold');
-        if (snapThreshold) snapThreshold.value = this.snapThreshold.toString();
+  /**
+   * Versteckt alle Indikatoren
+   */
+  hideIndicators() {
+    Object.values(this.indicators).forEach(ind => {
+      if (ind) {
+        ind.classList.remove('visible', 'snapping');
+        ind.style.opacity = '';
       }
-    } catch (e) {
-      console.error('[Docking] Fehler beim Laden der Settings:', e);
-    }
-  }
-
-  /**
-   * Zeigt den Dock-Indikator fuer eine Kante
-   */
-  showDockIndicator(edge) {
-    this.hideDockIndicators();
-
-    if (this.indicators[edge]) {
-      this.indicators[edge].classList.add('visible');
-      this.isApproaching = true;
-      this.approachingEdge = edge;
-    }
-  }
-
-  /**
-   * Versteckt alle Dock-Indikatoren
-   */
-  hideDockIndicators() {
-    Object.values(this.indicators).forEach(indicator => {
-      if (indicator) indicator.classList.remove('visible');
     });
-    this.isApproaching = false;
-    this.approachingEdge = null;
   }
 
   /**
-   * Dockt das Fenster an einer Kante an
+   * Wird aufgerufen wenn angedockt
    */
-  dock(position) {
-    console.log(`[Docking] Docke an: ${position}`);
+  onDocked(position) {
+    console.log(`[Docking] Angedockt: ${position}`);
 
     this.isDocked = true;
     this.dockPosition = position;
 
-    // Dock-Bar anzeigen
-    this.dockBar.classList.remove('hidden');
+    // Dock-Bar Klassen setzen
+    this.dockBar.classList.remove('hidden', 'horizontal', 'vertical', 'top', 'bottom', 'left', 'right');
 
-    // Orientation setzen
     if (position === 'top' || position === 'bottom') {
-      this.dockBar.classList.remove('vertical', 'left', 'right');
       this.dockBar.classList.add('horizontal', position);
     } else {
-      this.dockBar.classList.remove('horizontal', 'top', 'bottom');
       this.dockBar.classList.add('vertical', position);
     }
 
-    // Settings Panel Position anpassen
-    if (this.settingsPanel) {
-      this.settingsPanel.className = 'dock-settings-panel';
-      this.settingsPanel.classList.add(`from-${position}`);
-    }
-
-    // Haupt-UI ausblenden
-    this.hideMainUI();
+    // Haupt-App ausblenden
+    const mainApp = document.getElementById('app');
+    if (mainApp) mainApp.style.display = 'none';
 
     // Indikatoren verstecken
-    this.hideDockIndicators();
+    this.hideIndicators();
 
-    // Event fuer andere Komponenten
-    document.dispatchEvent(new CustomEvent('docking-changed', {
-      detail: { isDocked: true, position }
-    }));
+    // Position Selector aktualisieren
+    const posSelect = document.getElementById('dockPositionSelect');
+    if (posSelect) posSelect.value = position;
   }
 
   /**
-   * Loest das Fenster vom Dock
+   * Wird aufgerufen wenn abgedockt
    */
-  undock() {
-    console.log('[Docking] Undocke...');
+  onUndocked() {
+    console.log('[Docking] Abgedockt');
 
     this.isDocked = false;
     this.dockPosition = null;
 
     // Dock-Bar verstecken
     this.dockBar.classList.add('hidden');
+    this.closeSettings();
 
-    // Settings Panel schliessen
-    this.closeSettingsPanel();
-
-    // Haupt-UI anzeigen
-    this.showMainUI();
-
-    // Main Process informieren
-    if (window.electronAPI.docking) {
-      window.electronAPI.docking.undock();
-    }
-
-    // Event fuer andere Komponenten
-    document.dispatchEvent(new CustomEvent('docking-changed', {
-      detail: { isDocked: false, position: null }
-    }));
-  }
-
-  /**
-   * Versteckt die Haupt-UI (im Dock-Modus)
-   */
-  hideMainUI() {
-    const mainApp = document.getElementById('app');
-    if (mainApp) mainApp.style.display = 'none';
-  }
-
-  /**
-   * Zeigt die Haupt-UI (nach Undock)
-   */
-  showMainUI() {
+    // Haupt-App anzeigen
     const mainApp = document.getElementById('app');
     if (mainApp) mainApp.style.display = '';
   }
 
   /**
-   * Mode-Dot Click Handler
+   * Settings Panel oeffnen (Leiste expandiert)
+   */
+  openSettings() {
+    this.settingsOpen = true;
+    this.dockBar.classList.add('settings-open');
+  }
+
+  /**
+   * Settings Panel schliessen (Leiste schrumpft)
+   */
+  closeSettings() {
+    this.settingsOpen = false;
+    this.dockBar.classList.remove('settings-open');
+  }
+
+  /**
+   * Settings Toggle
+   */
+  handleSettingsClick(e) {
+    e.stopPropagation();
+    if (this.settingsOpen) {
+      this.closeSettings();
+    } else {
+      this.openSettings();
+    }
+  }
+
+  /**
+   * Position aendern (via Dropdown)
+   */
+  handlePositionChange(e) {
+    const newPosition = e.target.value;
+    if (newPosition && newPosition !== this.dockPosition) {
+      // Main Process informieren
+      if (window.electronAPI?.docking) {
+        window.electronAPI.docking.dock(newPosition);
+      }
+    }
+  }
+
+  /**
+   * Mode-Dot Click
    */
   handleModeClick(e) {
     const mode = e.target.dataset.mode;
     if (!mode) return;
 
-    // Alle deaktivieren
+    // Alle deaktivieren, angeklickten aktivieren
     this.dockBar.querySelectorAll('.dock-mode-dot').forEach(dot => {
-      dot.classList.remove('active');
+      dot.classList.toggle('active', dot.dataset.mode === mode);
     });
 
-    // Angeklickten aktivieren
-    e.target.classList.add('active');
-
-    // Mode setzen (via globale Funktion oder Event)
-    if (typeof window.setTonalityMode === 'function') {
-      window.setTonalityMode(mode);
-    }
-
-    // Event fuer app.js
+    // App.js informieren
     document.dispatchEvent(new CustomEvent('dock-mode-changed', {
       detail: { mode }
     }));
@@ -309,26 +246,18 @@ class DockingManager {
   }
 
   /**
-   * Language Button Click Handler
+   * Language Button Click
    */
   handleLangClick(e) {
     const lang = e.target.dataset.lang;
     if (lang === undefined) return;
 
-    // Alle deaktivieren
+    // Alle deaktivieren, angeklickten aktivieren
     this.dockBar.querySelectorAll('.dock-lang-btn').forEach(btn => {
-      btn.classList.remove('active');
+      btn.classList.toggle('active', btn.dataset.lang === lang);
     });
 
-    // Angeklickten aktivieren
-    e.target.classList.add('active');
-
-    // Sprache setzen
-    if (typeof window.setLanguage === 'function') {
-      window.setLanguage(lang);
-    }
-
-    // Event fuer app.js
+    // App.js informieren
     document.dispatchEvent(new CustomEvent('dock-lang-changed', {
       detail: { lang }
     }));
@@ -337,124 +266,65 @@ class DockingManager {
   }
 
   /**
-   * Mikrofon Click Handler
+   * Mikrofon Click
    */
   handleMicClick() {
     const micBtn = this.dockBar.querySelector('#dockMic');
+    if (!micBtn) return;
 
-    if (micBtn.classList.contains('recording')) {
-      // Aufnahme stoppen
-      if (window.electronAPI.wakeWord) {
-        window.electronAPI.wakeWord.send({ type: 'stop_recording' });
-      }
-      micBtn.classList.remove('recording');
-    } else {
-      // Aufnahme starten
-      if (window.electronAPI.wakeWord) {
-        window.electronAPI.wakeWord.send({ type: 'start_recording' });
-      }
-      micBtn.classList.add('recording');
-    }
+    // Toggle recording state (wird von app.js gesteuert)
+    document.dispatchEvent(new CustomEvent('dock-mic-clicked'));
   }
 
   /**
-   * Settings Button Click Handler
-   */
-  handleSettingsClick() {
-    if (this.settingsPanelOpen) {
-      this.closeSettingsPanel();
-    } else {
-      this.openSettingsPanel();
-    }
-  }
-
-  /**
-   * Oeffnet das Settings Panel
-   */
-  openSettingsPanel() {
-    if (this.settingsPanel) {
-      this.settingsPanel.classList.add('open');
-      this.settingsPanelOpen = true;
-    }
-  }
-
-  /**
-   * Schliesst das Settings Panel
-   */
-  closeSettingsPanel() {
-    if (this.settingsPanel) {
-      this.settingsPanel.classList.remove('open');
-      this.settingsPanelOpen = false;
-    }
-  }
-
-  /**
-   * Undock Button Click Handler
+   * Undock Click
    */
   handleUndockClick() {
-    this.undock();
+    if (window.electronAPI?.docking) {
+      window.electronAPI.docking.undock();
+    }
   }
 
   /**
-   * Aktualisiert den Recording-Status
+   * Recording-Status aktualisieren (von app.js)
    */
   setRecordingState(isRecording) {
     const micBtn = this.dockBar?.querySelector('#dockMic');
     if (micBtn) {
-      if (isRecording) {
-        micBtn.classList.add('recording');
-      } else {
-        micBtn.classList.remove('recording');
-      }
+      micBtn.classList.toggle('recording', isRecording);
     }
   }
 
   /**
-   * Aktualisiert den aktiven Mode
+   * Aktiven Mode setzen (von app.js)
    */
   setActiveMode(mode) {
     if (!this.dockBar) return;
-
     this.dockBar.querySelectorAll('.dock-mode-dot').forEach(dot => {
       dot.classList.toggle('active', dot.dataset.mode === mode);
     });
   }
 
   /**
-   * Aktualisiert die aktive Sprache
+   * Aktive Sprache setzen (von app.js)
    */
   setActiveLanguage(lang) {
     if (!this.dockBar) return;
-
     this.dockBar.querySelectorAll('.dock-lang-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.lang === lang);
     });
   }
-
-  /**
-   * Prueft ob gedockt
-   */
-  get docked() {
-    return this.isDocked;
-  }
-
-  /**
-   * Gibt die Dock-Position zurueck
-   */
-  get position() {
-    return this.dockPosition;
-  }
 }
 
-// Singleton Export
+// Singleton
 const dockingManager = new DockingManager();
 
-// Auto-Init wenn DOM ready
+// Auto-Init
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => dockingManager.init());
 } else {
   dockingManager.init();
 }
 
-// Global verfuegbar machen
+// Global verfuegbar
 window.dockingManager = dockingManager;

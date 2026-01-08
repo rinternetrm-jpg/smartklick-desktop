@@ -438,78 +438,100 @@
 
   <!-- ========== DOCK BAR ========== -->
   <div id="dockBar" class="dock-bar horizontal bottom hidden">
-    <!-- Mikrofon -->
-    <button id="dockMic" class="dock-mic" title="Aufnahme starten">
-      <svg viewBox="0 0 24 24">
-        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>
-      </svg>
-    </button>
+    <!-- Dock Content (Hauptleiste) -->
+    <div class="dock-content">
+      <!-- Linke Gruppe: Logo, A, Settings -->
+      <div class="dock-group">
+        <span class="dock-logo">Smartklick</span>
+        <button id="dockFontBtn" class="dock-font-btn" title="Schriftart">A</button>
+        <button id="dockSettingsBtn" class="dock-settings-btn" title="Einstellungen">
+          <svg viewBox="0 0 24 24">
+            <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+          </svg>
+        </button>
+        <div class="dock-divider"></div>
+      </div>
 
-    <div class="dock-separator"></div>
+      <!-- Mitte: Mikrofon -->
+      <div class="dock-group">
+        <button id="dockMic" class="dock-mic" title="Aufnahme starten">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>
+          </svg>
+        </button>
+        <div class="dock-divider"></div>
+      </div>
 
-    <!-- Mode Dots (2x3 Grid) -->
-    <div class="dock-modes" title="Modus waehlen">
-      <button class="dock-mode-dot active" data-mode="native" title="Native"></button>
-      <button class="dock-mode-dot" data-mode="private" title="Privat"></button>
-      <button class="dock-mode-dot" data-mode="prompt" title="Prompt"></button>
-      <button class="dock-mode-dot" data-mode="casual" title="Locker"></button>
-      <button class="dock-mode-dot" data-mode="learning" title="Lernen"></button>
-      <button class="dock-mode-dot" data-mode="smartklick" title="Smartklick"></button>
+      <!-- Modus Dots (2x3 Grid) -->
+      <div class="dock-group">
+        <div class="dock-modes" title="Modus waehlen">
+          <button class="dock-mode-dot active" data-mode="native" title="Native"></button>
+          <button class="dock-mode-dot" data-mode="private" title="Privat"></button>
+          <button class="dock-mode-dot" data-mode="friendly" title="Freundlich"></button>
+          <button class="dock-mode-dot" data-mode="casual" title="Locker"></button>
+          <button class="dock-mode-dot" data-mode="prompt" title="Prompt"></button>
+          <button class="dock-mode-dot" data-mode="smartklick" title="Smartklick"><span class="dot-label">S</span></button>
+        </div>
+        <div class="dock-divider"></div>
+      </div>
+
+      <!-- Sprach-Buttons (2x4 Grid) -->
+      <div class="dock-group">
+        <div class="dock-languages" title="Sprache waehlen">
+          <button class="dock-lang-btn active" data-lang="" title="Keine">—</button>
+          <button class="dock-lang-btn" data-lang="de" title="Deutsch">DE</button>
+          <button class="dock-lang-btn" data-lang="en" title="English">EN</button>
+          <button class="dock-lang-btn" data-lang="fr" title="Francais">FR</button>
+          <button class="dock-lang-btn" data-lang="es" title="Espanol">ES</button>
+          <button class="dock-lang-btn" data-lang="it" title="Italiano">IT</button>
+          <button class="dock-lang-btn" data-lang="da" title="Dansk">DA</button>
+          <button class="dock-lang-btn" data-lang="tr" title="Tuerkce">TR</button>
+        </div>
+        <div class="dock-divider"></div>
+      </div>
+
+      <!-- Undock Button (externes Fenster Icon) -->
+      <div class="dock-group">
+        <button id="dockUndockBtn" class="dock-undock-btn" title="Abdocken">
+          <svg viewBox="0 0 24 24">
+            <path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
-    <div class="dock-separator"></div>
-
-    <!-- Language Buttons (2x4 Grid) -->
-    <div class="dock-languages" title="Sprache waehlen">
-      <button class="dock-lang-btn active" data-lang="" title="Keine">—</button>
-      <button class="dock-lang-btn" data-lang="de" title="Deutsch">DE</button>
-      <button class="dock-lang-btn" data-lang="en" title="English">EN</button>
-      <button class="dock-lang-btn" data-lang="fr" title="Francais">FR</button>
-      <button class="dock-lang-btn" data-lang="es" title="Espanol">ES</button>
-      <button class="dock-lang-btn" data-lang="it" title="Italiano">IT</button>
-      <button class="dock-lang-btn" data-lang="da" title="Dansk">DA</button>
-      <button class="dock-lang-btn" data-lang="tr" title="Tuerkce">TR</button>
+    <!-- Settings Panel (schiebt sich auf) -->
+    <div id="dockSettingsPanel" class="dock-settings-panel">
+      <h3>Einstellungen</h3>
+      <div class="setting-row">
+        <label>Autostart</label>
+        <input type="checkbox" id="dockAutostart">
+      </div>
+      <div class="setting-row">
+        <label>Immer im Vordergrund</label>
+        <input type="checkbox" id="dockAlwaysOnTop" checked>
+      </div>
+      <div class="setting-row">
+        <label>Sound-Feedback</label>
+        <input type="checkbox" id="dockSoundFeedback">
+      </div>
+      <div class="setting-row">
+        <label>Dock Position</label>
+        <select id="dockPositionSelect">
+          <option value="bottom">Unten</option>
+          <option value="top">Oben</option>
+          <option value="left">Links</option>
+          <option value="right">Rechts</option>
+        </select>
+      </div>
     </div>
-
-    <div class="dock-separator"></div>
-
-    <!-- Settings Button -->
-    <button id="dockSettingsBtn" class="dock-settings-btn" title="Einstellungen">
-      <svg viewBox="0 0 24 24">
-        <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-      </svg>
-    </button>
-
-    <!-- Undock Button -->
-    <button id="dockUndockBtn" class="dock-undock-btn" title="Abdocken">
-      <svg viewBox="0 0 24 24">
-        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-      </svg>
-    </button>
   </div>
 
   <!-- Dock Indicators (Snap-Vorschau) -->
-  <div id="dockIndicatorTop" class="dock-indicator top"></div>
-  <div id="dockIndicatorBottom" class="dock-indicator bottom"></div>
-  <div id="dockIndicatorLeft" class="dock-indicator left"></div>
-  <div id="dockIndicatorRight" class="dock-indicator right"></div>
-
-  <!-- Settings Panel (Slide-Out) -->
-  <div id="dockSettingsPanel" class="dock-settings-panel from-bottom">
-    <h3>Einstellungen</h3>
-    <div class="setting-row">
-      <label>Automatisch docken</label>
-      <input type="checkbox" id="dockAutoSnap" checked>
-    </div>
-    <div class="setting-row">
-      <label>Snap-Schwelle</label>
-      <select id="dockSnapThreshold">
-        <option value="40">40px</option>
-        <option value="80" selected>80px</option>
-        <option value="120">120px</option>
-      </select>
-    </div>
-  </div>
+  <div id="dockIndicatorTop" class="dock-indicator top">Hier andocken</div>
+  <div id="dockIndicatorBottom" class="dock-indicator bottom">Hier andocken</div>
+  <div id="dockIndicatorLeft" class="dock-indicator left">Hier andocken</div>
+  <div id="dockIndicatorRight" class="dock-indicator right">Hier andocken</div>
 
   <script src="scripts/app.js"></script>
   <script src="scripts/docking.js"></script>

@@ -148,110 +148,89 @@ function createWindow() {
 }
 
 // ========================================
-// DOCKING FUNCTIONS
+// DOCKING FUNCTIONS - Magnetisches Andocken
 // ========================================
+
+const APPROACH_THRESHOLD = 150;  // Indikator erscheint
+const SNAP_THRESHOLD = 80;       // Magnet-Zone
+const SNAP_DURATION = 200;       // ms fuer Animation
+let isSnapping = false;
 
 /**
  * Prueft ob Fenster nahe an einer Bildschirmkante ist
  */
 function checkEdgeProximity(x, y) {
-  if (!mainWindow) return;
+  if (!mainWindow || isSnapping) return;
 
   const currentScreen = screen.getDisplayNearestPoint({ x, y });
   const { workArea } = currentScreen;
   const [width, height] = mainWindow.getSize();
-  const threshold = store.get('dockSnapThreshold') || snapThreshold;
 
-  let approachingEdge = null;
+  // Abstaende zu allen Raendern
+  const distances = {
+    top: y - workArea.y,
+    bottom: (workArea.y + workArea.height) - (y + height),
+    left: x - workArea.x,
+    right: (workArea.x + workArea.width) - (x + width)
+  };
 
-  // Check top edge
-  if (y <= workArea.y + threshold) {
-    approachingEdge = 'top';
-  }
-  // Check bottom edge
-  else if (y + height >= workArea.y + workArea.height - threshold) {
-    approachingEdge = 'bottom';
-  }
-  // Check left edge
-  else if (x <= workArea.x + threshold) {
-    approachingEdge = 'left';
-  }
-  // Check right edge
-  else if (x + width >= workArea.x + workArea.width - threshold) {
-    approachingEdge = 'right';
-  }
+  // Finde naechsten Rand
+  let nearestEdge = null;
+  let nearestDistance = Infinity;
 
-  // Notify renderer about edge proximity
-  if (approachingEdge !== currentApproachingEdge) {
-    currentApproachingEdge = approachingEdge;
-
-    if (approachingEdge) {
-      isApproachingEdge = true;
-      mainWindow.webContents.send('docking-approaching-edge', { edge: approachingEdge });
-
-      // Auto-snap wenn Fenster losgelassen wird (nach kurzer Verzoegerung)
-      setTimeout(() => {
-        if (currentApproachingEdge === approachingEdge && !isDocked) {
-          // Check if still near edge
-          const [currentX, currentY] = mainWindow.getPosition();
-          const stillNear = isStillNearEdge(currentX, currentY, approachingEdge, workArea, threshold);
-          if (stillNear) {
-            dockToEdge(approachingEdge);
-          }
-        }
-      }, 300);
-    } else {
-      isApproachingEdge = false;
-      mainWindow.webContents.send('docking-left-edge');
+  for (const [edge, distance] of Object.entries(distances)) {
+    if (distance < nearestDistance && distance >= 0) {
+      nearestDistance = distance;
+      nearestEdge = edge;
     }
   }
-}
 
-/**
- * Prueft ob Fenster noch nahe an einer Kante ist
- */
-function isStillNearEdge(x, y, edge, workArea, threshold) {
-  if (!mainWindow) return false;
-  const [width, height] = mainWindow.getSize();
-
-  switch (edge) {
-    case 'top': return y <= workArea.y + threshold;
-    case 'bottom': return y + height >= workArea.y + workArea.height - threshold;
-    case 'left': return x <= workArea.x + threshold;
-    case 'right': return x + width >= workArea.x + workArea.width - threshold;
-    default: return false;
+  // Phase 1: Annaeherung (150px - 80px) - Indikator zeigen
+  if (nearestDistance < APPROACH_THRESHOLD && nearestDistance >= SNAP_THRESHOLD) {
+    const intensity = 1 - (nearestDistance / APPROACH_THRESHOLD);
+    mainWindow.webContents.send('docking-approaching-edge', {
+      edge: nearestEdge,
+      intensity: intensity * 0.6
+    });
+    currentApproachingEdge = nearestEdge;
+    isApproachingEdge = true;
+  }
+  // Phase 2: Snap-Zone (< 80px) - Magnetisch andocken
+  else if (nearestDistance < SNAP_THRESHOLD && nearestDistance >= 0) {
+    triggerMagneticSnap(nearestEdge, workArea);
+  }
+  // Ausserhalb - Indikator verstecken
+  else if (currentApproachingEdge) {
+    mainWindow.webContents.send('docking-left-edge');
+    currentApproachingEdge = null;
+    isApproachingEdge = false;
   }
 }
 
 /**
- * Dockt das Fenster an einer Kante an
+ * Triggert das magnetische Andocken mit Animation
  */
-function dockToEdge(edge) {
-  if (!mainWindow || isDocked) return;
+async function triggerMagneticSnap(edge, workArea) {
+  if (!mainWindow || isDocked || isSnapping) return;
 
-  console.log(`[Docking] Docke an Kante: ${edge}`);
+  isSnapping = true;
+  console.log(`[Docking] Magnetisches Snap zu: ${edge}`);
 
   // Aktuelle Bounds speichern
   preDockBounds = mainWindow.getBounds();
 
-  // Bildschirm ermitteln
-  const currentScreen = screen.getDisplayNearestPoint(mainWindow.getBounds());
-  const { workArea } = currentScreen;
-
-  // Neue Position und Groesse berechnen
-  let newBounds = {};
+  // Ziel-Bounds berechnen
+  let targetBounds = {};
 
   if (edge === 'top' || edge === 'bottom') {
-    // Horizontal dock
-    newBounds = {
+    targetBounds = {
       x: workArea.x,
       y: edge === 'top' ? workArea.y : workArea.y + workArea.height - DOCK_SIZES.horizontal.height,
       width: workArea.width,
       height: DOCK_SIZES.horizontal.height
     };
   } else {
-    // Vertical dock
-    newBounds = {
+    targetBounds = {
       x: edge === 'left' ? workArea.x : workArea.x + workArea.width - DOCK_SIZES.vertical.width,
       y: workArea.y,
       width: DOCK_SIZES.vertical.width,
@@ -259,9 +238,12 @@ function dockToEdge(edge) {
     };
   }
 
-  // Fenster anpassen
+  // Renderer: Snapping-Effekt
+  mainWindow.webContents.send('docking-snapping', { edge });
+
+  // Animierte Bewegung zum Rand
   mainWindow.setResizable(true);
-  mainWindow.setBounds(newBounds);
+  await animateWindowTo(mainWindow, targetBounds, SNAP_DURATION);
   mainWindow.setResizable(false);
 
   // Status aktualisieren
@@ -273,7 +255,57 @@ function dockToEdge(edge) {
   // Renderer informieren
   mainWindow.webContents.send('docking-docked', { position: edge });
 
-  console.log(`[Docking] Gedockt an: ${edge}, Bounds:`, newBounds);
+  isSnapping = false;
+  currentApproachingEdge = null;
+
+  console.log(`[Docking] Angedockt an: ${edge}`);
+}
+
+/**
+ * Animierte Fensterbewegung mit easeOutCubic
+ */
+function animateWindowTo(window, targetBounds, duration) {
+  return new Promise(resolve => {
+    const startBounds = window.getBounds();
+    const startTime = Date.now();
+
+    function step() {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // easeOutCubic fuer "magnetisches" Gefuehl
+      const eased = 1 - Math.pow(1 - progress, 3);
+
+      const currentBounds = {
+        x: Math.round(startBounds.x + (targetBounds.x - startBounds.x) * eased),
+        y: Math.round(startBounds.y + (targetBounds.y - startBounds.y) * eased),
+        width: Math.round(startBounds.width + (targetBounds.width - startBounds.width) * eased),
+        height: Math.round(startBounds.height + (targetBounds.height - startBounds.height) * eased)
+      };
+
+      window.setBounds(currentBounds);
+
+      if (progress < 1) {
+        setImmediate(step);
+      } else {
+        resolve();
+      }
+    }
+
+    step();
+  });
+}
+
+/**
+ * Dockt das Fenster manuell an einer Kante an (ohne Animation)
+ */
+function dockToEdge(edge) {
+  if (!mainWindow || isDocked) return;
+
+  const currentScreen = screen.getDisplayNearestPoint(mainWindow.getBounds());
+  const { workArea } = currentScreen;
+
+  triggerMagneticSnap(edge, workArea);
 }
 
 /**
