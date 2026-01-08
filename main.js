@@ -20,6 +20,17 @@ const calendarService = require('./src/services/calendarService');
 const gmailService = require('./src/services/gmailService');
 const notesService = require('./src/services/notesService');
 
+// Multi-Provider Email
+const EmailProviderManager = require('./src/services/emailProviderManager');
+let emailProviderManager = null;
+
+// Outlook OAuth Configuration
+const OUTLOOK_CONFIG = {
+  clientId: '5c7ce6e5-5d5d-4c0c-b0c0-5e5e5e5e5e5e', // Placeholder - User needs to set this
+  redirectUri: 'http://localhost:5678/outlook/callback',
+  scopes: ['Mail.Read', 'Mail.Send', 'Mail.ReadWrite', 'offline_access', 'User.Read']
+};
+
 // WebSocket Server für Chrome Extension
 let wsServer = null;
 
@@ -2901,6 +2912,194 @@ ipcMain.on('email-command', (_, command) => {
   }
 });
 
+// =============================================================================
+// OUTLOOK OAUTH AND MULTI-ACCOUNT HANDLERS
+// =============================================================================
+
+// Outlook OAuth Server (temporary for OAuth callback)
+let outlookOAuthServer = null;
+
+ipcMain.handle('outlook:startAuth', async () => {
+  const { shell } = require('electron');
+
+  const clientId = store.get('outlook_client_id') || OUTLOOK_CONFIG.clientId;
+
+  if (clientId === '5c7ce6e5-5d5d-4c0c-b0c0-5e5e5e5e5e5e') {
+    return {
+      success: false,
+      error: 'Bitte zuerst Outlook Client ID in den Einstellungen konfigurieren'
+    };
+  }
+
+  // Start local server for OAuth callback
+  return new Promise((resolve) => {
+    if (outlookOAuthServer) {
+      outlookOAuthServer.close();
+    }
+
+    outlookOAuthServer = http.createServer(async (req, res) => {
+      const url = new URL(req.url, 'http://localhost:5678');
+
+      if (url.pathname === '/outlook/callback') {
+        const code = url.searchParams.get('code');
+        const error = url.searchParams.get('error');
+
+        if (error) {
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end('<html><body><h1>Fehler</h1><p>Outlook-Anmeldung abgebrochen.</p><script>setTimeout(() => window.close(), 2000)</script></body></html>');
+          outlookOAuthServer.close();
+          resolve({ success: false, error });
+          return;
+        }
+
+        if (code) {
+          try {
+            // Exchange code for tokens
+            const tokenResponse = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({
+                client_id: clientId,
+                code,
+                redirect_uri: OUTLOOK_CONFIG.redirectUri,
+                grant_type: 'authorization_code',
+                scope: OUTLOOK_CONFIG.scopes.join(' ')
+              })
+            });
+
+            const tokens = await tokenResponse.json();
+
+            if (tokens.error) {
+              throw new Error(tokens.error_description || tokens.error);
+            }
+
+            // Get user info
+            const userResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+              headers: { 'Authorization': `Bearer ${tokens.access_token}` }
+            });
+            const userInfo = await userResponse.json();
+
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(`<html><body><h1>Erfolgreich!</h1><p>Outlook-Konto ${userInfo.mail || userInfo.userPrincipalName} verbunden.</p><script>setTimeout(() => window.close(), 2000)</script></body></html>`);
+
+            outlookOAuthServer.close();
+
+            // Add account to provider manager
+            const credentials = {
+              accessToken: tokens.access_token,
+              refreshToken: tokens.refresh_token,
+              expiresAt: new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+            };
+
+            const result = await emailProviderManager.addOutlookAccount(
+              'Outlook',
+              userInfo.mail || userInfo.userPrincipalName,
+              credentials
+            );
+
+            resolve(result);
+          } catch (err) {
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(`<html><body><h1>Fehler</h1><p>${err.message}</p></body></html>`);
+            outlookOAuthServer.close();
+            resolve({ success: false, error: err.message });
+          }
+        }
+      }
+    });
+
+    outlookOAuthServer.listen(5678, () => {
+      console.log('[OUTLOOK] OAuth callback server started on port 5678');
+
+      // Open Microsoft login page
+      const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+        `client_id=${clientId}` +
+        `&response_type=code` +
+        `&redirect_uri=${encodeURIComponent(OUTLOOK_CONFIG.redirectUri)}` +
+        `&scope=${encodeURIComponent(OUTLOOK_CONFIG.scopes.join(' '))}` +
+        `&response_mode=query`;
+
+      shell.openExternal(authUrl);
+    });
+
+    // Timeout after 5 minutes
+    setTimeout(() => {
+      if (outlookOAuthServer) {
+        outlookOAuthServer.close();
+        resolve({ success: false, error: 'Timeout' });
+      }
+    }, 5 * 60 * 1000);
+  });
+});
+
+ipcMain.handle('outlook:setClientId', (_, clientId) => {
+  store.set('outlook_client_id', clientId);
+  return { success: true };
+});
+
+ipcMain.handle('outlook:getClientId', () => {
+  return store.get('outlook_client_id') || '';
+});
+
+// Multi-Account Email Handlers
+ipcMain.handle('email:getAccounts', () => {
+  if (!emailProviderManager) {
+    return { success: false, error: 'Provider manager not initialized' };
+  }
+  return { success: true, accounts: emailProviderManager.getAccounts() };
+});
+
+ipcMain.handle('email:removeAccount', async (_, accountId) => {
+  if (!emailProviderManager) {
+    return { success: false, error: 'Provider manager not initialized' };
+  }
+  return await emailProviderManager.removeAccount(accountId);
+});
+
+ipcMain.handle('email:setDefaultAccount', (_, accountId) => {
+  if (!emailProviderManager) {
+    return { success: false, error: 'Provider manager not initialized' };
+  }
+  emailProviderManager.setDefaultAccount(accountId);
+  return { success: true };
+});
+
+ipcMain.handle('email:getUnreadCounts', async () => {
+  if (!emailProviderManager) {
+    return { success: false, error: 'Provider manager not initialized' };
+  }
+  try {
+    const counts = await emailProviderManager.getUnreadCounts();
+    return { success: true, counts };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 20) => {
+  if (!emailProviderManager) {
+    return { success: false, error: 'Provider manager not initialized' };
+  }
+  try {
+    const emails = await emailProviderManager.getEmails({ accountId, maxResults });
+    return { success: true, emails };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 20) => {
+  if (!emailProviderManager) {
+    return { success: false, error: 'Provider manager not initialized' };
+  }
+  try {
+    const emails = await emailProviderManager.getEmails({ unified: true, maxResults });
+    return { success: true, emails };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // App Events
 app.whenReady().then(() => {
   // Initialize user ID (generate on first launch)
@@ -2915,6 +3114,16 @@ app.whenReady().then(() => {
 
   // Set user ID in notesService
   notesService.setUserId(userId);
+
+  // Initialize Email Provider Manager
+  emailProviderManager = new EmailProviderManager({
+    outlook: {
+      clientId: store.get('outlook_client_id') || OUTLOOK_CONFIG.clientId
+    }
+  });
+  emailProviderManager.initialize(gmailService).catch(err => {
+    console.error('[EMAIL] Provider manager init error:', err);
+  });
 
   createWindow();
   createTray();

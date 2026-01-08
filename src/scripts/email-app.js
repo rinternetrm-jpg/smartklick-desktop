@@ -7,6 +7,8 @@ let currentEmail = null;
 let currentTab = 'inbox';
 let currentReplyType = 'professional';
 let isGeneratingReply = false;
+let accounts = [];
+let selectedAccountId = 'all'; // 'all' for unified inbox
 
 // DOM Elements
 const emailItems = document.getElementById('emailItems');
@@ -33,9 +35,18 @@ const replyText = document.getElementById('replyText');
 const replyToAddress = document.getElementById('replyToAddress');
 const quickRepliesList = document.getElementById('quickRepliesList');
 
+// Account Elements
+const accountSelector = document.getElementById('accountSelector');
+const addAccountModal = document.getElementById('addAccountModal');
+const addAccountContent = document.getElementById('addAccountContent');
+const outlookSetup = document.getElementById('outlookSetup');
+const accountOptions = document.querySelector('.account-options');
+const accountLoadingState = document.getElementById('accountLoadingState');
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
+  loadAccounts();
   loadEmails();
 });
 
@@ -104,6 +115,33 @@ function setupEventListeners() {
 
   // Refresh quick replies
   document.getElementById('refreshQuickReplies').addEventListener('click', loadQuickReplies);
+
+  // Account selector
+  accountSelector.addEventListener('change', (e) => {
+    selectedAccountId = e.target.value;
+    loadEmails();
+  });
+
+  // Add account button
+  document.getElementById('addAccountBtn').addEventListener('click', openAddAccountModal);
+
+  // Close add account modal
+  document.getElementById('closeAddAccountBtn').addEventListener('click', closeAddAccountModal);
+
+  // Outlook option click
+  document.querySelector('[data-provider="outlook"]').addEventListener('click', showOutlookSetup);
+
+  // Back to options
+  document.getElementById('backToOptionsBtn').addEventListener('click', () => {
+    outlookSetup.classList.add('hidden');
+    accountOptions.classList.remove('hidden');
+  });
+
+  // Connect Outlook
+  document.getElementById('connectOutlookBtn').addEventListener('click', connectOutlook);
+
+  // Add account modal backdrop
+  addAccountModal.querySelector('.modal-backdrop').addEventListener('click', closeAddAccountModal);
 }
 
 // Load Emails
@@ -111,7 +149,20 @@ async function loadEmails() {
   showLoading();
 
   try {
-    const result = await ipcRenderer.invoke('email:getRecent', 20);
+    let result;
+
+    if (selectedAccountId === 'all') {
+      // Unified inbox
+      result = await ipcRenderer.invoke('email:getUnifiedInbox', 20);
+    } else {
+      // Specific account
+      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, 20);
+    }
+
+    // Fallback to old method if new methods not available
+    if (!result || result.error === 'Provider manager not initialized') {
+      result = await ipcRenderer.invoke('email:getRecent', 20);
+    }
 
     if (result.success) {
       emails = result.emails || [];
@@ -177,6 +228,7 @@ function createEmailItem(email) {
   const item = document.createElement('div');
   item.className = 'email-item';
   item.dataset.id = email.id;
+  item.dataset.accountId = email.accountId || '';
 
   if (email.isUnread) item.classList.add('unread');
   if (currentEmail && currentEmail.id === email.id) item.classList.add('active');
@@ -185,9 +237,15 @@ function createEmailItem(email) {
   if (email.isStarred) badges.push('<span class="email-badge starred">Markiert</span>');
   if (email.isImportant) badges.push('<span class="email-badge important">Wichtig</span>');
 
+  // Provider badge for unified inbox
+  let providerBadge = '';
+  if (selectedAccountId === 'all' && email.provider) {
+    providerBadge = `<span class="provider-badge ${email.provider}">${email.provider === 'outlook' ? 'Outlook' : 'Gmail'}</span>`;
+  }
+
   item.innerHTML = `
     <div class="email-top">
-      <span class="email-from">${escapeHtml(email.fromName || email.from)}</span>
+      <span class="email-from">${escapeHtml(email.fromName || email.from)}${providerBadge}</span>
       <span class="email-date">${email.dateFormatted || formatDate(email.date)}</span>
     </div>
     <div class="email-subject">${escapeHtml(email.subject)}</div>
@@ -449,6 +507,107 @@ function renderBriefing(result) {
 
     ${highlightsHtml}
   `;
+}
+
+// =============================================================================
+// ACCOUNT FUNCTIONS
+// =============================================================================
+
+async function loadAccounts() {
+  try {
+    const result = await ipcRenderer.invoke('email:getAccounts');
+    if (result.success) {
+      accounts = result.accounts || [];
+      updateAccountSelector();
+    }
+  } catch (error) {
+    console.error('Error loading accounts:', error);
+  }
+}
+
+function updateAccountSelector() {
+  // Clear existing options (except 'all')
+  while (accountSelector.options.length > 1) {
+    accountSelector.remove(1);
+  }
+
+  // Add account options
+  accounts.forEach(account => {
+    const option = document.createElement('option');
+    option.value = account.id;
+    option.textContent = `${account.name} (${account.email})`;
+    if (account.isDefault) {
+      option.textContent += ' *';
+    }
+    accountSelector.appendChild(option);
+  });
+
+  // Select current account
+  accountSelector.value = selectedAccountId;
+}
+
+function openAddAccountModal() {
+  addAccountModal.classList.remove('hidden');
+  outlookSetup.classList.add('hidden');
+  accountOptions.classList.remove('hidden');
+  accountLoadingState.classList.add('hidden');
+}
+
+function closeAddAccountModal() {
+  addAccountModal.classList.add('hidden');
+}
+
+function showOutlookSetup() {
+  accountOptions.classList.add('hidden');
+  outlookSetup.classList.remove('hidden');
+
+  // Load saved client ID
+  ipcRenderer.invoke('outlook:getClientId').then(clientId => {
+    document.getElementById('outlookClientId').value = clientId || '';
+  });
+}
+
+async function connectOutlook() {
+  const clientId = document.getElementById('outlookClientId').value.trim();
+
+  if (!clientId) {
+    alert('Bitte gib eine Client ID ein');
+    return;
+  }
+
+  // Validate format (UUID)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(clientId)) {
+    alert('Ungueltige Client ID Format. Erwarte: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
+    return;
+  }
+
+  // Save client ID
+  await ipcRenderer.invoke('outlook:setClientId', clientId);
+
+  // Show loading
+  outlookSetup.classList.add('hidden');
+  accountLoadingState.classList.remove('hidden');
+
+  try {
+    const result = await ipcRenderer.invoke('outlook:startAuth');
+
+    if (result.success) {
+      showNotification('Outlook-Konto erfolgreich verbunden!');
+      await loadAccounts();
+      closeAddAccountModal();
+      loadEmails();
+    } else {
+      alert('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'));
+      accountLoadingState.classList.add('hidden');
+      outlookSetup.classList.remove('hidden');
+    }
+  } catch (error) {
+    console.error('Outlook auth error:', error);
+    alert('Fehler bei der Outlook-Verbindung');
+    accountLoadingState.classList.add('hidden');
+    outlookSetup.classList.remove('hidden');
+  }
 }
 
 // =============================================================================

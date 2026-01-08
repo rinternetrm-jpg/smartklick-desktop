@@ -147,7 +147,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getQuickReplies: (data) => ipcRenderer.invoke('email:getQuickReplies', data),
     sendReply: (messageId, body) => ipcRenderer.invoke('email:sendReply', messageId, body),
     // Send command to email window
-    sendCommand: (command) => ipcRenderer.send('email-command', command)
+    sendCommand: (command) => ipcRenderer.send('email-command', command),
+    // Multi-Account functions
+    getAccounts: () => ipcRenderer.invoke('email:getAccounts'),
+    removeAccount: (accountId) => ipcRenderer.invoke('email:removeAccount', accountId),
+    setDefaultAccount: (accountId) => ipcRenderer.invoke('email:setDefaultAccount', accountId),
+    getUnreadCounts: () => ipcRenderer.invoke('email:getUnreadCounts'),
+    getEmailsFromAccount: (accountId, max) => ipcRenderer.invoke('email:getEmailsFromAccount', accountId, max),
+    getUnifiedInbox: (max) => ipcRenderer.invoke('email:getUnifiedInbox', max)
+  },
+
+  // Outlook
+  outlook: {
+    startAuth: () => ipcRenderer.invoke('outlook:startAuth'),
+    setClientId: (clientId) => ipcRenderer.invoke('outlook:setClientId', clientId),
+    getClientId: () => ipcRenderer.invoke('outlook:getClientId')
   }
 });
 
