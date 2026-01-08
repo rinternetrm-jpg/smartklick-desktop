@@ -125,7 +125,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   captureScreenshotNote: () => ipcRenderer.invoke('capture-screenshot-note'),
 
   // Analyze Page to Notes (AI text summary)
-  analyzePageNote: () => ipcRenderer.invoke('analyze-page-note')
+  analyzePageNote: () => ipcRenderer.invoke('analyze-page-note'),
+
+  // Email Service
+  email: {
+    openWindow: () => ipcRenderer.invoke('email:openWindow'),
+    getRecent: (count) => ipcRenderer.invoke('email:getRecent', count),
+    getUnread: () => ipcRenderer.invoke('email:getUnread'),
+    getFromSender: (name) => ipcRenderer.invoke('email:getFromSender', name),
+    getThread: (threadId) => ipcRenderer.invoke('email:getThread', threadId),
+    markAsRead: (id) => ipcRenderer.invoke('email:markAsRead', id),
+    star: (id) => ipcRenderer.invoke('email:star', id),
+    unstar: (id) => ipcRenderer.invoke('email:unstar', id),
+    archive: (id) => ipcRenderer.invoke('email:archive', id),
+    delete: (id) => ipcRenderer.invoke('email:delete', id),
+    getForBriefing: (max) => ipcRenderer.invoke('email:getForBriefing', max),
+    analyze: (emailData) => ipcRenderer.invoke('email:analyze', emailData),
+    briefing: (emails) => ipcRenderer.invoke('email:briefing', emails)
+  }
 });
 
 // Expose platform info

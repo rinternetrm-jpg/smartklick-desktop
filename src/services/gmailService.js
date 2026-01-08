@@ -352,6 +352,147 @@ class GmailService {
 
     return parts.join(' ');
   }
+
+  // Get emails from a specific sender (by name or email)
+  async getEmailsFromSender(senderName, maxResults = 5) {
+    const gmail = this.getGmail();
+
+    // Search for sender - Gmail accepts both name and email in from: query
+    const query = `from:(${senderName})`;
+
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      q: query,
+      maxResults: maxResults
+    });
+
+    const messages = response.data.messages || [];
+    const emails = [];
+
+    for (const msg of messages) {
+      const email = await this.getEmail(msg.id);
+      if (email) {
+        emails.push(email);
+      }
+    }
+
+    return emails;
+  }
+
+  // Get full email thread/conversation
+  async getThread(threadId) {
+    const gmail = this.getGmail();
+
+    try {
+      const response = await gmail.users.threads.get({
+        userId: 'me',
+        id: threadId,
+        format: 'full'
+      });
+
+      const messages = response.data.messages || [];
+      return messages.map(msg => this.formatEmail(msg));
+    } catch (error) {
+      console.error('Failed to get thread:', error);
+      return [];
+    }
+  }
+
+  // Mark email as starred
+  async markAsStarred(messageId) {
+    const gmail = this.getGmail();
+
+    await gmail.users.messages.modify({
+      userId: 'me',
+      id: messageId,
+      resource: {
+        addLabelIds: ['STARRED']
+      }
+    });
+
+    return { success: true };
+  }
+
+  // Remove star from email
+  async unstar(messageId) {
+    const gmail = this.getGmail();
+
+    await gmail.users.messages.modify({
+      userId: 'me',
+      id: messageId,
+      resource: {
+        removeLabelIds: ['STARRED']
+      }
+    });
+
+    return { success: true };
+  }
+
+  // Archive email (remove from inbox)
+  async archiveEmail(messageId) {
+    const gmail = this.getGmail();
+
+    await gmail.users.messages.modify({
+      userId: 'me',
+      id: messageId,
+      resource: {
+        removeLabelIds: ['INBOX']
+      }
+    });
+
+    return { success: true };
+  }
+
+  // Get emails for briefing (with minimal data for faster loading)
+  async getEmailsForBriefing(maxResults = 20) {
+    const gmail = this.getGmail();
+
+    // Get recent inbox emails
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      labelIds: ['INBOX'],
+      maxResults: maxResults
+    });
+
+    const messages = response.data.messages || [];
+    const emails = [];
+
+    for (const msg of messages) {
+      try {
+        // Get minimal email info (metadata only)
+        const emailResponse = await gmail.users.messages.get({
+          userId: 'me',
+          id: msg.id,
+          format: 'metadata',
+          metadataHeaders: ['From', 'Subject', 'Date']
+        });
+
+        const headers = emailResponse.data.payload?.headers || [];
+        const getHeader = (name) => {
+          const header = headers.find(h => h.name.toLowerCase() === name.toLowerCase());
+          return header?.value || '';
+        };
+
+        const labels = emailResponse.data.labelIds || [];
+
+        emails.push({
+          id: emailResponse.data.id,
+          sender: this.extractName(getHeader('From')),
+          senderEmail: this.extractEmail(getHeader('From')),
+          subject: getHeader('Subject') || 'Kein Betreff',
+          snippet: emailResponse.data.snippet || '',
+          date: emailResponse.data.internalDate,
+          isUnread: labels.includes('UNREAD'),
+          isImportant: labels.includes('IMPORTANT'),
+          isStarred: labels.includes('STARRED')
+        });
+      } catch (error) {
+        console.error('Failed to get email for briefing:', error);
+      }
+    }
+
+    return emails;
+  }
 }
 
 // Singleton instance

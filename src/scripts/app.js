@@ -1943,12 +1943,229 @@ async function handleGoogleAction(action) {
         }
         break;
 
+      // ========== EMAIL ASSISTANT ACTIONS ==========
+      case 'email_show':
+        console.log('Opening email window...');
+        await handleEmailAction('show');
+        break;
+
+      case 'email_read_last':
+        console.log('Reading last email...');
+        await handleEmailAction('read_last');
+        break;
+
+      case 'email_analyze':
+        console.log('Analyzing email...');
+        await handleEmailAction('analyze');
+        break;
+
+      case 'email_briefing':
+        console.log('Creating email briefing...');
+        await handleEmailAction('briefing');
+        break;
+
       default:
-        console.log('Unknown Google action:', action);
+        // Check for email_read_from:{name} and email_intent:{name}
+        if (action.startsWith('email_read_from:')) {
+          const senderName = action.replace('email_read_from:', '');
+          console.log('Reading email from:', senderName);
+          await handleEmailAction('read_from', senderName);
+        } else if (action.startsWith('email_intent:')) {
+          const senderName = action.replace('email_intent:', '');
+          console.log('Analyzing intent from:', senderName);
+          await handleEmailAction('intent', senderName);
+        } else {
+          console.log('Unknown Google action:', action);
+        }
     }
   } catch (error) {
     console.error('Google action error:', error);
     hidePanel('google-panel');
+  }
+}
+
+// ========== EMAIL ASSISTANT FUNCTIONS ==========
+
+async function handleEmailAction(action, param = null) {
+  const label = document.getElementById('mic-label');
+
+  // Check if email service is available
+  if (!window.electronAPI?.email) {
+    speakText('E-Mail-Service ist nicht verfuegbar.');
+    return;
+  }
+
+  // Check Google connection
+  const status = await window.electronAPI.google.getAuthStatus();
+  if (!status.connected) {
+    speakText('Bitte verbinde zuerst dein Google-Konto in den Einstellungen.');
+    return;
+  }
+
+  try {
+    switch (action) {
+      case 'show':
+        // Open email window
+        await window.electronAPI.email.openWindow();
+        speakText('E-Mail-Fenster geoeffnet.');
+        break;
+
+      case 'read_last':
+        // Open email window and read the last email
+        if (label) {
+          label.textContent = 'Lade E-Mails...';
+          label.style.color = '#3b82f6';
+        }
+
+        const recentResult = await window.electronAPI.email.getRecent(1);
+        if (recentResult.success && recentResult.emails && recentResult.emails.length > 0) {
+          const email = recentResult.emails[0];
+          await window.electronAPI.email.openWindow();
+          speakText(`Letzte E-Mail von ${email.fromName || 'unbekannt'}. Betreff: ${email.subject}. ${email.snippet || ''}`);
+        } else {
+          speakText('Keine E-Mails gefunden.');
+        }
+
+        if (label) {
+          label.textContent = 'Smartklick';
+          label.style.color = '';
+        }
+        break;
+
+      case 'read_from':
+        // Read emails from a specific sender
+        if (!param) {
+          speakText('Kein Absender angegeben.');
+          return;
+        }
+
+        if (label) {
+          label.textContent = `Suche E-Mails von ${param}...`;
+          label.style.color = '#3b82f6';
+        }
+
+        const fromResult = await window.electronAPI.email.getFromSender(param);
+        if (fromResult.success && fromResult.emails && fromResult.emails.length > 0) {
+          const email = fromResult.emails[0];
+          await window.electronAPI.email.openWindow();
+          speakText(`E-Mail von ${email.fromName || param}. Betreff: ${email.subject}. ${email.snippet || ''}`);
+        } else {
+          speakText(`Keine E-Mails von ${param} gefunden.`);
+        }
+
+        if (label) {
+          label.textContent = 'Smartklick';
+          label.style.color = '';
+        }
+        break;
+
+      case 'analyze':
+        // Analyze the last email
+        if (label) {
+          label.textContent = 'Analysiere E-Mail...';
+          label.style.color = '#8b5cf6';
+        }
+
+        const lastEmail = await window.electronAPI.email.getRecent(1);
+        if (lastEmail.success && lastEmail.emails && lastEmail.emails.length > 0) {
+          const email = lastEmail.emails[0];
+          const analysis = await window.electronAPI.email.analyze({
+            text: email.body || email.snippet,
+            subject: email.subject,
+            sender: email.fromName || email.from
+          });
+
+          if (analysis.success && analysis.analysis) {
+            const a = analysis.analysis;
+            await window.electronAPI.email.openWindow();
+            speakText(`Analyse der E-Mail von ${email.fromName || 'unbekannt'}. ${a.summary || ''} Dringlichkeit: ${a.urgency || 'mittel'}. ${a.suggestedAction || ''}`);
+          } else {
+            speakText('Analyse konnte nicht durchgefuehrt werden.');
+          }
+        } else {
+          speakText('Keine E-Mail zum Analysieren gefunden.');
+        }
+
+        if (label) {
+          label.textContent = 'Smartklick';
+          label.style.color = '';
+        }
+        break;
+
+      case 'intent':
+        // Analyze what a sender wants from me
+        if (!param) {
+          speakText('Kein Absender angegeben.');
+          return;
+        }
+
+        if (label) {
+          label.textContent = `Analysiere ${param}...`;
+          label.style.color = '#8b5cf6';
+        }
+
+        const intentEmails = await window.electronAPI.email.getFromSender(param);
+        if (intentEmails.success && intentEmails.emails && intentEmails.emails.length > 0) {
+          const email = intentEmails.emails[0];
+          const intentAnalysis = await window.electronAPI.email.analyze({
+            text: email.body || email.snippet,
+            subject: email.subject,
+            sender: email.fromName || email.from
+          });
+
+          if (intentAnalysis.success && intentAnalysis.analysis) {
+            const a = intentAnalysis.analysis;
+            speakText(`${param} moechte: ${a.intent || 'unklar'}. ${a.summary || ''}`);
+          } else {
+            speakText('Konnte nicht analysieren was der Absender moechte.');
+          }
+        } else {
+          speakText(`Keine E-Mails von ${param} gefunden.`);
+        }
+
+        if (label) {
+          label.textContent = 'Smartklick';
+          label.style.color = '';
+        }
+        break;
+
+      case 'briefing':
+        // Create a daily briefing
+        if (label) {
+          label.textContent = 'Erstelle Briefing...';
+          label.style.color = '#f59e0b';
+        }
+
+        const briefingEmails = await window.electronAPI.email.getForBriefing(20);
+        if (briefingEmails.success && briefingEmails.emails) {
+          const briefing = await window.electronAPI.email.briefing(briefingEmails.emails);
+
+          if (briefing.success && briefing.briefing) {
+            await window.electronAPI.email.openWindow();
+            speakText(briefing.briefing);
+          } else {
+            speakText('Briefing konnte nicht erstellt werden.');
+          }
+        } else {
+          speakText('Keine E-Mails fuer das Briefing gefunden.');
+        }
+
+        if (label) {
+          label.textContent = 'Smartklick';
+          label.style.color = '';
+        }
+        break;
+
+      default:
+        console.log('Unknown email action:', action);
+    }
+  } catch (error) {
+    console.error('Email action error:', error);
+    speakText('Fehler bei der E-Mail-Aktion.');
+    if (label) {
+      label.textContent = 'Smartklick';
+      label.style.color = '';
+    }
   }
 }
 

@@ -56,6 +56,9 @@ let screenReadingActive = false;
 // Notes Webview Window
 let notesWindow = null;
 
+// Email Window
+let emailWindow = null;
+
 // Window sizes for each mode
 const WINDOW_SIZES = {
   mini: { width: 80, height: 190 },
@@ -2649,6 +2652,191 @@ function openNotesWebview() {
   notesWindow.on('closed', () => {
     notesWindow = null;
   });
+}
+
+// =============================================================================
+// EMAIL WINDOW AND HANDLERS
+// =============================================================================
+
+ipcMain.handle('email:openWindow', () => {
+  try {
+    openEmailWindow();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+function openEmailWindow() {
+  // If window exists, just show and focus it
+  if (emailWindow && !emailWindow.isDestroyed()) {
+    emailWindow.show();
+    emailWindow.focus();
+    return emailWindow;
+  }
+
+  // Create new window
+  emailWindow = new BrowserWindow({
+    width: 1100,
+    height: 700,
+    minWidth: 900,
+    minHeight: 500,
+    title: 'Smartklick E-Mail',
+    icon: path.join(__dirname, 'src/assets/icons/icon.png'),
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  emailWindow.loadFile('src/email-window.html');
+
+  // Remove menu bar on Windows
+  emailWindow.setMenuBarVisibility(false);
+
+  emailWindow.on('closed', () => {
+    emailWindow = null;
+  });
+
+  return emailWindow;
+}
+
+// Email IPC Handlers
+ipcMain.handle('email:getRecent', async (_, count = 20) => {
+  try {
+    const emails = await gmailService.getRecentEmails(count);
+    return { success: true, emails };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:getUnread', async () => {
+  try {
+    const emails = await gmailService.getUnreadEmails();
+    return { success: true, emails };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:getFromSender', async (_, senderName) => {
+  try {
+    const emails = await gmailService.getEmailsFromSender(senderName);
+    return { success: true, emails };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:getThread', async (_, threadId) => {
+  try {
+    const emails = await gmailService.getThread(threadId);
+    return { success: true, emails };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:markAsRead', async (_, messageId) => {
+  try {
+    await gmailService.markAsRead(messageId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:star', async (_, messageId) => {
+  try {
+    await gmailService.markAsStarred(messageId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:unstar', async (_, messageId) => {
+  try {
+    await gmailService.unstar(messageId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:archive', async (_, messageId) => {
+  try {
+    await gmailService.archiveEmail(messageId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:delete', async (_, messageId) => {
+  try {
+    await gmailService.deleteEmail(messageId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('email:getForBriefing', async (_, maxResults = 20) => {
+  try {
+    const emails = await gmailService.getEmailsForBriefing(maxResults);
+    return { success: true, emails };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Email KI-Analyse (via Server)
+ipcMain.handle('email:analyze', async (_, emailData) => {
+  try {
+    const response = await fetch('http://188.40.97.126:8080/email-analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: emailData.text,
+        subject: emailData.subject,
+        sender: emailData.sender,
+        language: 'de'
+      })
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Email Briefing (via Server)
+ipcMain.handle('email:briefing', async (_, emails) => {
+  try {
+    const response = await fetch('http://188.40.97.126:8080/email-briefing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        emails: emails,
+        language: 'de'
+      })
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Helper function to send commands to email window
+function sendToEmailWindow(channel, ...args) {
+  if (emailWindow && !emailWindow.isDestroyed()) {
+    emailWindow.webContents.send(channel, ...args);
+  }
 }
 
 // App Events
