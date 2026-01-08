@@ -78,6 +78,20 @@ const WINDOW_SIZES = {
   normal_with_panel: { width: 500, height: 420 }
 };
 
+// Dock sizes for each edge
+const DOCK_SIZES = {
+  horizontal: { height: 44 },  // top, bottom
+  vertical: { width: 48 }       // left, right
+};
+
+// Docking state
+let isDocked = false;
+let dockPosition = null; // 'top', 'bottom', 'left', 'right'
+let preDockBounds = null; // Window bounds before docking
+let snapThreshold = 80; // Pixels from edge to trigger snap
+let isApproachingEdge = false;
+let currentApproachingEdge = null;
+
 function createWindow() {
   const viewMode = store.get('view_mode');
   const size = WINDOW_SIZES[viewMode] || WINDOW_SIZES.compact;
@@ -105,10 +119,19 @@ function createWindow() {
 
   mainWindow.loadFile('src/index.html');
 
-  // Save position on move
+  // Save position on move + Docking detection
   mainWindow.on('moved', () => {
     const [x, y] = mainWindow.getPosition();
     store.set('window_position', { x, y });
+
+    // Skip if already docked
+    if (isDocked) return;
+
+    // Check for edge proximity (snap detection)
+    const autoSnap = store.get('dockAutoSnap') !== false;
+    if (autoSnap) {
+      checkEdgeProximity(x, y);
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -123,6 +146,195 @@ function createWindow() {
     }
   });
 }
+
+// ========================================
+// DOCKING FUNCTIONS
+// ========================================
+
+/**
+ * Prueft ob Fenster nahe an einer Bildschirmkante ist
+ */
+function checkEdgeProximity(x, y) {
+  if (!mainWindow) return;
+
+  const currentScreen = screen.getDisplayNearestPoint({ x, y });
+  const { workArea } = currentScreen;
+  const [width, height] = mainWindow.getSize();
+  const threshold = store.get('dockSnapThreshold') || snapThreshold;
+
+  let approachingEdge = null;
+
+  // Check top edge
+  if (y <= workArea.y + threshold) {
+    approachingEdge = 'top';
+  }
+  // Check bottom edge
+  else if (y + height >= workArea.y + workArea.height - threshold) {
+    approachingEdge = 'bottom';
+  }
+  // Check left edge
+  else if (x <= workArea.x + threshold) {
+    approachingEdge = 'left';
+  }
+  // Check right edge
+  else if (x + width >= workArea.x + workArea.width - threshold) {
+    approachingEdge = 'right';
+  }
+
+  // Notify renderer about edge proximity
+  if (approachingEdge !== currentApproachingEdge) {
+    currentApproachingEdge = approachingEdge;
+
+    if (approachingEdge) {
+      isApproachingEdge = true;
+      mainWindow.webContents.send('docking-approaching-edge', { edge: approachingEdge });
+
+      // Auto-snap wenn Fenster losgelassen wird (nach kurzer Verzoegerung)
+      setTimeout(() => {
+        if (currentApproachingEdge === approachingEdge && !isDocked) {
+          // Check if still near edge
+          const [currentX, currentY] = mainWindow.getPosition();
+          const stillNear = isStillNearEdge(currentX, currentY, approachingEdge, workArea, threshold);
+          if (stillNear) {
+            dockToEdge(approachingEdge);
+          }
+        }
+      }, 300);
+    } else {
+      isApproachingEdge = false;
+      mainWindow.webContents.send('docking-left-edge');
+    }
+  }
+}
+
+/**
+ * Prueft ob Fenster noch nahe an einer Kante ist
+ */
+function isStillNearEdge(x, y, edge, workArea, threshold) {
+  if (!mainWindow) return false;
+  const [width, height] = mainWindow.getSize();
+
+  switch (edge) {
+    case 'top': return y <= workArea.y + threshold;
+    case 'bottom': return y + height >= workArea.y + workArea.height - threshold;
+    case 'left': return x <= workArea.x + threshold;
+    case 'right': return x + width >= workArea.x + workArea.width - threshold;
+    default: return false;
+  }
+}
+
+/**
+ * Dockt das Fenster an einer Kante an
+ */
+function dockToEdge(edge) {
+  if (!mainWindow || isDocked) return;
+
+  console.log(`[Docking] Docke an Kante: ${edge}`);
+
+  // Aktuelle Bounds speichern
+  preDockBounds = mainWindow.getBounds();
+
+  // Bildschirm ermitteln
+  const currentScreen = screen.getDisplayNearestPoint(mainWindow.getBounds());
+  const { workArea } = currentScreen;
+
+  // Neue Position und Groesse berechnen
+  let newBounds = {};
+
+  if (edge === 'top' || edge === 'bottom') {
+    // Horizontal dock
+    newBounds = {
+      x: workArea.x,
+      y: edge === 'top' ? workArea.y : workArea.y + workArea.height - DOCK_SIZES.horizontal.height,
+      width: workArea.width,
+      height: DOCK_SIZES.horizontal.height
+    };
+  } else {
+    // Vertical dock
+    newBounds = {
+      x: edge === 'left' ? workArea.x : workArea.x + workArea.width - DOCK_SIZES.vertical.width,
+      y: workArea.y,
+      width: DOCK_SIZES.vertical.width,
+      height: workArea.height
+    };
+  }
+
+  // Fenster anpassen
+  mainWindow.setResizable(true);
+  mainWindow.setBounds(newBounds);
+  mainWindow.setResizable(false);
+
+  // Status aktualisieren
+  isDocked = true;
+  dockPosition = edge;
+  store.set('dock_position', edge);
+  store.set('pre_dock_bounds', preDockBounds);
+
+  // Renderer informieren
+  mainWindow.webContents.send('docking-docked', { position: edge });
+
+  console.log(`[Docking] Gedockt an: ${edge}, Bounds:`, newBounds);
+}
+
+/**
+ * Loest das Fenster vom Dock
+ */
+function undockWindow() {
+  if (!mainWindow || !isDocked) return;
+
+  console.log('[Docking] Undocke...');
+
+  // Alte Position wiederherstellen
+  const savedBounds = preDockBounds || store.get('pre_dock_bounds');
+
+  if (savedBounds) {
+    mainWindow.setResizable(true);
+    mainWindow.setBounds(savedBounds);
+    mainWindow.setResizable(false);
+  } else {
+    // Fallback: Standard-Groesse in der Mitte
+    const viewMode = store.get('view_mode') || 'compact';
+    const size = WINDOW_SIZES[viewMode] || WINDOW_SIZES.compact;
+    const primaryScreen = screen.getPrimaryDisplay();
+    const { workArea } = primaryScreen;
+
+    mainWindow.setResizable(true);
+    mainWindow.setBounds({
+      x: Math.round(workArea.x + (workArea.width - size.width) / 2),
+      y: Math.round(workArea.y + (workArea.height - size.height) / 2),
+      width: size.width,
+      height: size.height
+    });
+    mainWindow.setResizable(false);
+  }
+
+  // Status zuruecksetzen
+  isDocked = false;
+  dockPosition = null;
+  preDockBounds = null;
+  store.delete('dock_position');
+  store.delete('pre_dock_bounds');
+
+  // Renderer informieren
+  mainWindow.webContents.send('docking-undocked');
+
+  console.log('[Docking] Undocked');
+}
+
+/**
+ * Gibt aktuellen Docking-Status zurueck
+ */
+function getDockingStatus() {
+  return {
+    isDocked,
+    position: dockPosition,
+    preDockBounds
+  };
+}
+
+// ========================================
+// END DOCKING FUNCTIONS
+// ========================================
 
 function createTray() {
   // Create a simple tray icon (16x16 colored square)
@@ -1795,6 +2007,15 @@ async function startScreenReading(withScroll = true, mode = 'summary') {
 ipcMain.handle('get-settings', () => store.store);
 ipcMain.handle('set-setting', (_, key, value) => store.set(key, value));
 ipcMain.handle('get-view-mode', () => store.get('view_mode'));
+
+// Docking IPC handlers
+ipcMain.handle('docking:getStatus', () => getDockingStatus());
+ipcMain.handle('docking:dock', (_, edge) => dockToEdge(edge));
+ipcMain.handle('docking:undock', () => undockWindow());
+ipcMain.handle('docking:setSnapThreshold', (_, threshold) => {
+  snapThreshold = threshold;
+  store.set('dockSnapThreshold', threshold);
+});
 
 // Screen Reading IPC handlers
 // mode can be 'summary' (default) or 'learning' (violet - correction analysis)

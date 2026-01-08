@@ -162,6 +162,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     startAuth: () => ipcRenderer.invoke('outlook:startAuth'),
     setClientId: (clientId) => ipcRenderer.invoke('outlook:setClientId', clientId),
     getClientId: () => ipcRenderer.invoke('outlook:getClientId')
+  },
+
+  // Docking System
+  docking: {
+    getStatus: () => ipcRenderer.invoke('docking:getStatus'),
+    dock: (edge) => ipcRenderer.invoke('docking:dock', edge),
+    undock: () => ipcRenderer.invoke('docking:undock'),
+    setSnapThreshold: (threshold) => ipcRenderer.invoke('docking:setSnapThreshold', threshold),
+
+    // Event listeners
+    onApproachingEdge: (callback) => ipcRenderer.on('docking-approaching-edge', (_, data) => callback(data)),
+    onLeftEdge: (callback) => ipcRenderer.on('docking-left-edge', () => callback()),
+    onDocked: (callback) => ipcRenderer.on('docking-docked', (_, data) => callback(data)),
+    onUndocked: (callback) => ipcRenderer.on('docking-undocked', () => callback())
   }
 });
 
