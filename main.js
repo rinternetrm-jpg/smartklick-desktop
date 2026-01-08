@@ -1827,6 +1827,13 @@ ipcMain.on('hide-panel', () => {
   mainWindow?.webContents.send('view-mode-changed', currentMode);
 });
 
+// Click-through for transparent areas
+ipcMain.on('set-ignore-mouse-events', (_, ignore, options) => {
+  if (mainWindow) {
+    mainWindow.setIgnoreMouseEvents(ignore, options || {});
+  }
+});
+
 // Paste text into active application (like pyautogui in Python version)
 ipcMain.handle('paste-text', async (_, text) => {
   console.log('=== PASTE TEXT HANDLER ===');

@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showPanel: (panelType) => ipcRenderer.send('show-panel', panelType),
   hidePanel: () => ipcRenderer.send('hide-panel'),
 
+  // Click-through for transparent areas
+  setIgnoreMouseEvents: (ignore, options) => ipcRenderer.send('set-ignore-mouse-events', ignore, options),
+
   // Event listeners
   onViewModeChanged: (callback) => {
     ipcRenderer.on('view-mode-changed', (_, mode) => callback(mode));

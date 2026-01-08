@@ -1,0 +1,22 @@
+# Smartklick Wake Word Service Dependencies
+
+# Wake Word Detection
+openwakeword>=0.5.0
+
+# Audio Processing
+pyaudio>=0.2.13
+numpy>=1.24.0
+sounddevice>=0.4.6
+
+# HTTP Client for Whisper API
+aiohttp>=3.9.0
+requests>=2.31.0
+
+# Async Support
+asyncio-throttle>=1.0.2
+
+# JSON and Config
+python-dotenv>=1.0.0
+
+# Logging
+colorlog>=6.7.0

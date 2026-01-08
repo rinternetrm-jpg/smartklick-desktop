@@ -15,8 +15,22 @@ body {
 }
 
 button, input, select, .tone-buttons, .lang-buttons, .mini-buttons, .action-buttons,
-.text-box, .panel, .side-panel, .correction-panel, .agent-panel, .settings-panel {
+.text-box, .panel-content, .correction-panel, .agent-panel {
   -webkit-app-region: no-drag;
+}
+
+/* Panel headers are draggable for moving the window */
+.panel-header {
+  -webkit-app-region: drag;
+  cursor: move;
+}
+
+/* But buttons inside panel headers are not draggable */
+.panel-header button,
+.panel-header .close-btn,
+.panel-header .refresh-btn {
+  -webkit-app-region: no-drag;
+  cursor: pointer;
 }
 
 /* Drag regions for window movement */

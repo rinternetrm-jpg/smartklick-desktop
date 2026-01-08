@@ -69,10 +69,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Wake Word DISABLED - removed from app
     // setupWakeWordListeners();
     // Wake word toggle removed from UI
+
+    // Click-through for transparent areas
+    setupClickThrough();
   }
 
   console.log('Smartklick Desktop initialized');
 });
+
+// ========== CLICK-THROUGH FOR TRANSPARENT AREAS ==========
+function setupClickThrough() {
+  if (!window.electronAPI || !window.electronAPI.setIgnoreMouseEvents) return;
+
+  // Elements that should receive mouse events (not click-through)
+  const interactiveSelectors = [
+    '.mini-pill', '.compact-window', '.normal-window',
+    '.side-panel', '.panel-header', '.panel-content',
+    'button', 'input', 'select', '.text-box',
+    '.tone-btn', '.lang-btn', '.mic-btn', '.action-btn',
+    '.settings-item', '.note-card', '.calendar-event',
+    '.month-day.has-events', '.week-day-row'
+  ];
+
+  document.addEventListener('mousemove', (e) => {
+    // Check if mouse is over any interactive element
+    const isOverInteractive = interactiveSelectors.some(selector => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      return el && (el.matches(selector) || el.closest(selector));
+    });
+
+    if (isOverInteractive) {
+      // Mouse is over interactive element - receive events
+      window.electronAPI.setIgnoreMouseEvents(false);
+    } else {
+      // Mouse is over transparent area - pass through clicks
+      window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
+    }
+  });
+
+  // When mouse leaves the window, reset to allow events
+  document.addEventListener('mouseleave', () => {
+    window.electronAPI.setIgnoreMouseEvents(false);
+  });
+}
 
 // ========== VIEW MODE ==========
 const VIEW_MODES = ['mini', 'compact', 'normal'];
