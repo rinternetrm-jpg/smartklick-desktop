@@ -1,6 +1,6 @@
 {
   "name": "smartklick-desktop",
-  "version": "2.12.0",
+  "version": "2.13.0",
   "description": "Desktop Voice App mit KI-Korrektur",
   "main": "main.js",
   "scripts": {

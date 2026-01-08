@@ -2832,12 +2832,74 @@ ipcMain.handle('email:briefing', async (_, emails) => {
   }
 });
 
+// Email Reply - Generate KI Reply (via Server)
+ipcMain.handle('email:generateReply', async (_, data) => {
+  try {
+    const response = await fetch('http://188.40.97.126:8080/email-reply-generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        original_text: data.originalText,
+        original_subject: data.originalSubject,
+        original_sender: data.originalSender,
+        reply_type: data.replyType || 'professional',
+        context: data.context || '',
+        language: 'de'
+      })
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Email Reply - Get Quick Replies (via Server)
+ipcMain.handle('email:getQuickReplies', async (_, data) => {
+  try {
+    const response = await fetch('http://188.40.97.126:8080/email-quick-replies', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        original_text: data.originalText,
+        original_subject: data.originalSubject,
+        original_sender: data.originalSender,
+        language: 'de'
+      })
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Email Reply - Send Reply
+ipcMain.handle('email:sendReply', async (_, messageId, body) => {
+  try {
+    const result = await gmailService.replyToEmail(messageId, body);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Helper function to send commands to email window
 function sendToEmailWindow(channel, ...args) {
   if (emailWindow && !emailWindow.isDestroyed()) {
     emailWindow.webContents.send(channel, ...args);
   }
 }
+
+// Listen for email commands from main window
+ipcMain.on('email-command', (_, command) => {
+  console.log('[EMAIL] Received command:', command);
+  if (emailWindow && !emailWindow.isDestroyed()) {
+    emailWindow.webContents.send('email-command', command);
+  }
+});
 
 // App Events
 app.whenReady().then(() => {

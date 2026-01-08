@@ -141,7 +141,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id) => ipcRenderer.invoke('email:delete', id),
     getForBriefing: (max) => ipcRenderer.invoke('email:getForBriefing', max),
     analyze: (emailData) => ipcRenderer.invoke('email:analyze', emailData),
-    briefing: (emails) => ipcRenderer.invoke('email:briefing', emails)
+    briefing: (emails) => ipcRenderer.invoke('email:briefing', emails),
+    // Reply functions
+    generateReply: (data) => ipcRenderer.invoke('email:generateReply', data),
+    getQuickReplies: (data) => ipcRenderer.invoke('email:getQuickReplies', data),
+    sendReply: (messageId, body) => ipcRenderer.invoke('email:sendReply', messageId, body),
+    // Send command to email window
+    sendCommand: (command) => ipcRenderer.send('email-command', command)
   }
 });
 

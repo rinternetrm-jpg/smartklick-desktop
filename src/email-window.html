@@ -77,15 +77,21 @@
           </div>
 
           <div class="detail-actions">
-            <button id="analyzeBtn" class="action-btn primary">
+            <button id="replyBtn" class="action-btn primary">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
+              </svg>
+              Antworten
+            </button>
+            <button id="analyzeBtn" class="action-btn">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                 <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
               </svg>
-              KI-Analyse
+              Analyse
             </button>
-            <button id="markReadBtn" class="action-btn">Als gelesen</button>
-            <button id="starBtn" class="action-btn">Markieren</button>
-            <button id="archiveBtn" class="action-btn">Archivieren</button>
+            <button id="markReadBtn" class="action-btn">Gelesen</button>
+            <button id="starBtn" class="action-btn">Stern</button>
+            <button id="archiveBtn" class="action-btn">Archiv</button>
             <button id="deleteBtn" class="action-btn danger">Loeschen</button>
           </div>
 
@@ -101,6 +107,61 @@
             </div>
             <div class="analysis-content" id="analysisContent">
               <!-- Analyse wird hier eingefuegt -->
+            </div>
+          </div>
+
+          <!-- Reply Panel -->
+          <div class="reply-panel hidden" id="replyPanel">
+            <div class="reply-header">
+              <span>Antwort verfassen</span>
+              <button id="closeReplyBtn" class="close-btn">&times;</button>
+            </div>
+
+            <!-- Quick Replies -->
+            <div class="quick-replies" id="quickReplies">
+              <div class="quick-replies-header">
+                <span>Schnell-Antworten</span>
+                <button id="refreshQuickReplies" class="refresh-quick-btn" title="Neu generieren">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="quick-replies-list" id="quickRepliesList">
+                <!-- Quick replies werden hier eingefuegt -->
+              </div>
+            </div>
+
+            <!-- Reply Type Selector -->
+            <div class="reply-type-selector">
+              <span class="reply-type-label">Stil:</span>
+              <div class="reply-type-buttons">
+                <button class="reply-type-btn active" data-type="professional">Formell</button>
+                <button class="reply-type-btn" data-type="friendly">Freundlich</button>
+                <button class="reply-type-btn" data-type="short">Kurz</button>
+              </div>
+            </div>
+
+            <!-- Reply Composer -->
+            <div class="reply-composer">
+              <div class="reply-to-info" id="replyToInfo">
+                An: <span id="replyToAddress">empfaenger@email.de</span>
+              </div>
+              <textarea id="replyText" class="reply-textarea" placeholder="Antwort schreiben oder KI-Vorschlag generieren..."></textarea>
+            </div>
+
+            <!-- Reply Actions -->
+            <div class="reply-actions">
+              <button id="generateReplyBtn" class="reply-action-btn generate">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5z"/>
+                </svg>
+                KI-Antwort generieren
+              </button>
+              <div class="reply-send-group">
+                <button id="discardReplyBtn" class="reply-action-btn discard">Verwerfen</button>
+                <button id="sendReplyBtn" class="reply-action-btn send">Senden</button>
+              </div>
             </div>
           </div>
         </div>

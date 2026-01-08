@@ -1964,12 +1964,31 @@ async function handleGoogleAction(action) {
         await handleEmailAction('briefing');
         break;
 
+      case 'email_reply':
+        console.log('Opening reply panel...');
+        await handleEmailAction('reply');
+        break;
+
+      case 'email_generate_reply':
+        console.log('Generating KI reply...');
+        await handleEmailAction('generate_reply');
+        break;
+
+      case 'email_send_reply':
+        console.log('Sending reply...');
+        await handleEmailAction('send_reply');
+        break;
+
       default:
-        // Check for email_read_from:{name} and email_intent:{name}
+        // Check for email_read_from:{name}, email_intent:{name}, and email_reply_type:{type}
         if (action.startsWith('email_read_from:')) {
           const senderName = action.replace('email_read_from:', '');
           console.log('Reading email from:', senderName);
           await handleEmailAction('read_from', senderName);
+        } else if (action.startsWith('email_reply_type:')) {
+          const replyType = action.replace('email_reply_type:', '');
+          console.log('Setting reply type:', replyType);
+          await handleEmailAction('reply_type', replyType);
         } else if (action.startsWith('email_intent:')) {
           const senderName = action.replace('email_intent:', '');
           console.log('Analyzing intent from:', senderName);
@@ -2154,6 +2173,39 @@ async function handleEmailAction(action, param = null) {
           label.textContent = 'Smartklick';
           label.style.color = '';
         }
+        break;
+
+      case 'reply':
+        // Open reply panel in email window
+        await window.electronAPI.email.openWindow();
+        // Send command to email window to open reply panel
+        setTimeout(() => {
+          window.electronAPI.email.sendCommand({ action: 'openReply' });
+        }, 500);
+        speakText('Antwort-Panel geoeffnet.');
+        break;
+
+      case 'generate_reply':
+        // Generate KI reply
+        speakText('Generiere KI-Antwort.');
+        window.electronAPI.email.sendCommand({ action: 'generateReply' });
+        break;
+
+      case 'reply_type':
+        // Set reply type
+        const typeNames = {
+          'professional': 'formell',
+          'friendly': 'freundlich',
+          'short': 'kurz'
+        };
+        speakText(`Antwort-Stil: ${typeNames[param] || param}`);
+        window.electronAPI.email.sendCommand({ action: 'setReplyType', type: param });
+        break;
+
+      case 'send_reply':
+        // Send the reply
+        speakText('Sende Antwort.');
+        window.electronAPI.email.sendCommand({ action: 'sendReply' });
         break;
 
       default:

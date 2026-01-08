@@ -5,6 +5,8 @@ const { ipcRenderer } = require('electron');
 let emails = [];
 let currentEmail = null;
 let currentTab = 'inbox';
+let currentReplyType = 'professional';
+let isGeneratingReply = false;
 
 // DOM Elements
 const emailItems = document.getElementById('emailItems');
@@ -24,6 +26,12 @@ const analysisContent = document.getElementById('analysisContent');
 
 const briefingModal = document.getElementById('briefingModal');
 const briefingContent = document.getElementById('briefingContent');
+
+// Reply Panel Elements
+const replyPanel = document.getElementById('replyPanel');
+const replyText = document.getElementById('replyText');
+const replyToAddress = document.getElementById('replyToAddress');
+const quickRepliesList = document.getElementById('quickRepliesList');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -69,6 +77,33 @@ function setupEventListeners() {
   document.querySelector('.modal-backdrop').addEventListener('click', () => {
     briefingModal.classList.add('hidden');
   });
+
+  // Reply button
+  document.getElementById('replyBtn').addEventListener('click', openReplyPanel);
+
+  // Close reply panel
+  document.getElementById('closeReplyBtn').addEventListener('click', closeReplyPanel);
+
+  // Reply type buttons
+  document.querySelectorAll('.reply-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.reply-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentReplyType = btn.dataset.type;
+    });
+  });
+
+  // Generate KI reply
+  document.getElementById('generateReplyBtn').addEventListener('click', generateKiReply);
+
+  // Send reply
+  document.getElementById('sendReplyBtn').addEventListener('click', sendReply);
+
+  // Discard reply
+  document.getElementById('discardReplyBtn').addEventListener('click', closeReplyPanel);
+
+  // Refresh quick replies
+  document.getElementById('refreshQuickReplies').addEventListener('click', loadQuickReplies);
 }
 
 // Load Emails
@@ -416,6 +451,170 @@ function renderBriefing(result) {
   `;
 }
 
+// =============================================================================
+// REPLY FUNCTIONS
+// =============================================================================
+
+function openReplyPanel() {
+  if (!currentEmail) return;
+
+  replyPanel.classList.remove('hidden');
+  analysisPanel.classList.add('hidden');
+
+  // Set recipient
+  replyToAddress.textContent = currentEmail.from;
+
+  // Clear previous text
+  replyText.value = '';
+
+  // Load quick replies
+  loadQuickReplies();
+}
+
+function closeReplyPanel() {
+  replyPanel.classList.add('hidden');
+  replyText.value = '';
+  quickRepliesList.innerHTML = '';
+}
+
+async function loadQuickReplies() {
+  if (!currentEmail) return;
+
+  quickRepliesList.innerHTML = `
+    <div class="loading-quick-replies">
+      <div class="spinner small"></div>
+      <span>Lade Vorschlaege...</span>
+    </div>
+  `;
+
+  try {
+    const result = await ipcRenderer.invoke('email:getQuickReplies', {
+      originalText: currentEmail.body || currentEmail.snippet,
+      originalSubject: currentEmail.subject,
+      originalSender: currentEmail.fromName || currentEmail.from
+    });
+
+    if (result.success && result.quick_replies) {
+      renderQuickReplies(result.quick_replies);
+    } else {
+      quickRepliesList.innerHTML = `<div class="quick-reply-error">Keine Vorschlaege verfuegbar</div>`;
+    }
+  } catch (error) {
+    console.error('Quick replies error:', error);
+    quickRepliesList.innerHTML = `<div class="quick-reply-error">Fehler beim Laden</div>`;
+  }
+}
+
+function renderQuickReplies(replies) {
+  quickRepliesList.innerHTML = replies.map((reply, index) => `
+    <button class="quick-reply-btn" data-index="${index}">
+      <span class="quick-reply-text">${escapeHtml(reply)}</span>
+    </button>
+  `).join('');
+
+  // Add click handlers
+  quickRepliesList.querySelectorAll('.quick-reply-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const text = replies[parseInt(btn.dataset.index)];
+      replyText.value = text;
+    });
+  });
+}
+
+async function generateKiReply() {
+  if (!currentEmail || isGeneratingReply) return;
+
+  isGeneratingReply = true;
+  const generateBtn = document.getElementById('generateReplyBtn');
+  generateBtn.innerHTML = `
+    <div class="spinner small"></div>
+    <span>Generiere...</span>
+  `;
+  generateBtn.disabled = true;
+
+  try {
+    const result = await ipcRenderer.invoke('email:generateReply', {
+      originalText: currentEmail.body || currentEmail.snippet,
+      originalSubject: currentEmail.subject,
+      originalSender: currentEmail.fromName || currentEmail.from,
+      replyType: currentReplyType,
+      context: replyText.value || ''
+    });
+
+    if (result.success && result.reply) {
+      replyText.value = result.reply;
+    } else {
+      alert('Fehler beim Generieren: ' + (result.error || 'Unbekannter Fehler'));
+    }
+  } catch (error) {
+    console.error('Generate reply error:', error);
+    alert('Fehler beim Generieren der Antwort');
+  } finally {
+    isGeneratingReply = false;
+    generateBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+        <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5z"/>
+      </svg>
+      KI-Antwort generieren
+    `;
+    generateBtn.disabled = false;
+  }
+}
+
+async function sendReply() {
+  if (!currentEmail || !replyText.value.trim()) {
+    alert('Bitte schreibe zuerst eine Antwort');
+    return;
+  }
+
+  const sendBtn = document.getElementById('sendReplyBtn');
+  sendBtn.textContent = 'Sende...';
+  sendBtn.disabled = true;
+
+  try {
+    const result = await ipcRenderer.invoke('email:sendReply', currentEmail.id, replyText.value);
+
+    if (result.success) {
+      // Show success
+      closeReplyPanel();
+      showNotification('Antwort gesendet!');
+
+      // Mark original as read
+      if (currentEmail.isUnread) {
+        await ipcRenderer.invoke('email:markAsRead', currentEmail.id);
+        currentEmail.isUnread = false;
+        updateUnreadBadge();
+        renderEmailList();
+      }
+    } else {
+      alert('Fehler beim Senden: ' + (result.error || 'Unbekannter Fehler'));
+    }
+  } catch (error) {
+    console.error('Send reply error:', error);
+    alert('Fehler beim Senden der Antwort');
+  } finally {
+    sendBtn.textContent = 'Senden';
+    sendBtn.disabled = false;
+  }
+}
+
+function showNotification(message) {
+  // Create toast notification
+  const toast = document.createElement('div');
+  toast.className = 'toast-notification';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add('show');
+  }, 10);
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
 // Helpers
 function formatDate(timestamp) {
   if (!timestamp) return '';
@@ -486,4 +685,46 @@ ipcRenderer.on('email:analyzeLast', async () => {
 
 ipcRenderer.on('email:showBriefing', () => {
   showBriefing();
+});
+
+// Handle voice commands from main window
+ipcRenderer.on('email-command', (_, command) => {
+  console.log('[EMAIL] Received voice command:', command);
+
+  switch (command.action) {
+    case 'openReply':
+      if (currentEmail) {
+        openReplyPanel();
+      } else if (emails.length > 0) {
+        selectEmail(emails[0]);
+        setTimeout(openReplyPanel, 100);
+      }
+      break;
+
+    case 'generateReply':
+      if (currentEmail && !replyPanel.classList.contains('hidden')) {
+        generateKiReply();
+      } else if (currentEmail) {
+        openReplyPanel();
+        setTimeout(generateKiReply, 500);
+      }
+      break;
+
+    case 'setReplyType':
+      currentReplyType = command.type || 'professional';
+      // Update UI
+      document.querySelectorAll('.reply-type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === currentReplyType);
+      });
+      break;
+
+    case 'sendReply':
+      if (!replyPanel.classList.contains('hidden') && replyText.value.trim()) {
+        sendReply();
+      }
+      break;
+
+    default:
+      console.log('Unknown email command:', command);
+  }
 });
