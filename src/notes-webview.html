@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smartklick Notizen</title>
+  <link rel="stylesheet" href="styles/notes-webview.css">
+</head>
+<body>
+
+  <!-- SVG Icon Definitions -->
+  <svg style="display: none;">
+    <symbol id="icon-menu" viewBox="0 0 24 24">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </symbol>
+
+    <symbol id="icon-search" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"></circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </symbol>
+
+    <symbol id="icon-refresh" viewBox="0 0 24 24">
+      <polyline points="23 4 23 10 17 10"></polyline>
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+    </symbol>
+
+    <symbol id="icon-grid" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+      <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+      <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+      <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+    </symbol>
+
+    <symbol id="icon-list" viewBox="0 0 24 24">
+      <line x1="8" y1="6" x2="21" y2="6"></line>
+      <line x1="8" y1="12" x2="21" y2="12"></line>
+      <line x1="8" y1="18" x2="21" y2="18"></line>
+      <line x1="3" y1="6" x2="3.01" y2="6"></line>
+      <line x1="3" y1="12" x2="3.01" y2="12"></line>
+      <line x1="3" y1="18" x2="3.01" y2="18"></line>
+    </symbol>
+
+    <symbol id="icon-settings" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    </symbol>
+
+    <symbol id="icon-note" viewBox="0 0 24 24">
+      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+      <polyline points="14 2 14 8 20 8"></polyline>
+    </symbol>
+
+    <symbol id="icon-bell" viewBox="0 0 24 24">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+    </symbol>
+
+    <symbol id="icon-link" viewBox="0 0 24 24">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+    </symbol>
+
+    <symbol id="icon-code" viewBox="0 0 24 24">
+      <polyline points="16 18 22 12 16 6"></polyline>
+      <polyline points="8 6 2 12 8 18"></polyline>
+    </symbol>
+
+    <symbol id="icon-lightbulb" viewBox="0 0 24 24">
+      <path d="M9 18h6"></path>
+      <path d="M10 22h4"></path>
+      <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>
+    </symbol>
+
+    <symbol id="icon-edit" viewBox="0 0 24 24">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </symbol>
+
+    <symbol id="icon-archive" viewBox="0 0 24 24">
+      <polyline points="21 8 21 21 3 21 3 8"></polyline>
+      <rect x="1" y="3" width="22" height="5"></rect>
+      <line x1="10" y1="12" x2="14" y2="12"></line>
+    </symbol>
+
+    <symbol id="icon-trash" viewBox="0 0 24 24">
+      <polyline points="3 6 5 6 21 6"></polyline>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+    </symbol>
+
+    <symbol id="icon-pin" viewBox="0 0 24 24">
+      <path d="M12 2L12 12"></path>
+      <path d="M18.5 8.5L17 10L14 7L15.5 5.5C16.33 4.67 17.67 4.67 18.5 5.5C19.33 6.33 19.33 7.67 18.5 8.5Z"></path>
+      <path d="M5.5 15.5L7 14L10 17L8.5 18.5C7.67 19.33 6.33 19.33 5.5 18.5C4.67 17.67 4.67 16.33 5.5 15.5Z"></path>
+      <path d="M14 7L7 14"></path>
+      <path d="M10 17L7 20"></path>
+    </symbol>
+
+    <symbol id="icon-pin-filled" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M16 4a1 1 0 0 1 .117 1.993L16 6H8a1 1 0 0 1-.117-1.993L8 4h8zm-3 5V6h-2v3a8.5 8.5 0 0 1-1.076 4.172l-.218.363-.105.162-.048.088A8.5 8.5 0 0 0 8.5 17.5v.5h7v-.5a8.5 8.5 0 0 0-1.053-4.115l-.048-.088-.105-.162a8.5 8.5 0 0 1-1.276-4.335L13 9zM11 18v4h2v-4h-2z"></path>
+    </symbol>
+
+    <symbol id="icon-user" viewBox="0 0 24 24">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+      <circle cx="12" cy="7" r="4"></circle>
+    </symbol>
+
+    <symbol id="icon-palette" viewBox="0 0 24 24">
+      <circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"></circle>
+      <circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"></circle>
+      <circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"></circle>
+      <circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"></circle>
+      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c0.926 0 1.648-0.746 1.648-1.688 0-0.437-0.18-0.835-0.437-1.125-0.29-0.289-0.438-0.652-0.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"></path>
+    </symbol>
+
+    <symbol id="icon-image" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+      <polyline points="21 15 16 10 5 21"></polyline>
+    </symbol>
+
+    <symbol id="icon-more" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="1"></circle>
+      <circle cx="12" cy="5" r="1"></circle>
+      <circle cx="12" cy="19" r="1"></circle>
+    </symbol>
+
+    <symbol id="icon-check-square" viewBox="0 0 24 24">
+      <polyline points="9 11 12 14 22 4"></polyline>
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+    </symbol>
+
+    <symbol id="icon-mic" viewBox="0 0 24 24">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+      <line x1="12" y1="19" x2="12" y2="23"></line>
+      <line x1="8" y1="23" x2="16" y2="23"></line>
+    </symbol>
+
+    <symbol id="icon-copy" viewBox="0 0 24 24">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </symbol>
+
+    <symbol id="icon-share" viewBox="0 0 24 24">
+      <circle cx="18" cy="5" r="3"></circle>
+      <circle cx="6" cy="12" r="3"></circle>
+      <circle cx="18" cy="19" r="3"></circle>
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+    </symbol>
+
+    <symbol id="icon-tag" viewBox="0 0 24 24">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+      <line x1="7" y1="7" x2="7.01" y2="7"></line>
+    </symbol>
+
+    <symbol id="icon-check" viewBox="0 0 24 24">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </symbol>
+
+    <symbol id="icon-sun" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </symbol>
+
+    <symbol id="icon-moon" viewBox="0 0 24 24">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+    </symbol>
+
+    <symbol id="icon-calendar" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+      <line x1="16" y1="2" x2="16" y2="6"></line>
+      <line x1="8" y1="2" x2="8" y2="6"></line>
+      <line x1="3" y1="10" x2="21" y2="10"></line>
+    </symbol>
+
+    <symbol id="icon-x" viewBox="0 0 24 24">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </symbol>
+
+    <symbol id="icon-undo" viewBox="0 0 24 24">
+      <polyline points="1 4 1 10 7 10"></polyline>
+      <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+    </symbol>
+
+    <symbol id="icon-file-text" viewBox="0 0 24 24">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+      <polyline points="14 2 14 8 20 8"></polyline>
+      <line x1="16" y1="13" x2="8" y2="13"></line>
+      <line x1="16" y1="17" x2="8" y2="17"></line>
+      <polyline points="10 9 9 9 8 9"></polyline>
+    </symbol>
+  </svg>
+
+  <!-- Header -->
+  <header class="header">
+    <button class="header-btn menu-btn" id="menuBtn" title="Menü">
+      <svg class="icon"><use href="#icon-menu"/></svg>
+    </button>
+
+    <div class="logo">
+      <div class="logo-icon">
+        <svg class="icon icon-white"><use href="#icon-note"/></svg>
+      </div>
+      <span class="logo-text">Smartklick Notizen</span>
+    </div>
+
+    <div class="search-container">
+      <svg class="icon search-icon"><use href="#icon-search"/></svg>
+      <input type="text" class="search-bar" id="searchBar" placeholder="Notizen durchsuchen...">
+    </div>
+
+    <div class="header-actions">
+      <button class="theme-toggle" id="themeToggle" title="Theme wechseln">
+        <svg class="icon-sm" id="themeIconMoon"><use href="#icon-moon"/></svg>
+        <svg class="icon-sm hidden" id="themeIconSun"><use href="#icon-sun"/></svg>
+        <span id="themeLabel">Dunkel</span>
+      </button>
+      <button class="header-btn" id="refreshBtn" title="Aktualisieren">
+        <svg class="icon"><use href="#icon-refresh"/></svg>
+      </button>
+      <button class="header-btn" id="gridViewBtn" title="Kachelansicht">
+        <svg class="icon"><use href="#icon-grid"/></svg>
+      </button>
+      <button class="header-btn" id="listViewBtn" title="Listenansicht">
+        <svg class="icon"><use href="#icon-list"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-item active" data-filter="all">
+        <div class="sidebar-icon-wrapper">
+          <svg class="icon-sm"><use href="#icon-lightbulb"/></svg>
+        </div>
+        <span class="sidebar-label">Notizen</span>
+        <span class="sidebar-count" id="count-all">0</span>
+      </div>
+      <div class="sidebar-item" data-filter="today">
+        <div class="sidebar-icon-wrapper">
+          <svg class="icon-sm"><use href="#icon-calendar"/></svg>
+        </div>
+        <span class="sidebar-label">Heute</span>
+        <span class="sidebar-count" id="count-today">0</span>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">Labels</div>
+      <div class="sidebar-item" data-filter="links">
+        <div class="sidebar-icon-wrapper label-links">
+          <svg class="icon-sm"><use href="#icon-link"/></svg>
+        </div>
+        <span class="sidebar-label">Links</span>
+        <span class="sidebar-count" id="count-links">0</span>
+      </div>
+      <div class="sidebar-item" data-filter="code">
+        <div class="sidebar-icon-wrapper label-code">
+          <svg class="icon-sm"><use href="#icon-code"/></svg>
+        </div>
+        <span class="sidebar-label">Code</span>
+        <span class="sidebar-count" id="count-code">0</span>
+      </div>
+      <div class="sidebar-item" data-filter="ideas">
+        <div class="sidebar-icon-wrapper label-ideas">
+          <svg class="icon-sm"><use href="#icon-lightbulb"/></svg>
+        </div>
+        <span class="sidebar-label">Ideen</span>
+        <span class="sidebar-count" id="count-ideas">0</span>
+      </div>
+      <div class="sidebar-item" data-filter="general">
+        <div class="sidebar-icon-wrapper">
+          <svg class="icon-sm"><use href="#icon-file-text"/></svg>
+        </div>
+        <span class="sidebar-label">Allgemein</span>
+        <span class="sidebar-count" id="count-general">0</span>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-item" data-filter="archive">
+        <div class="sidebar-icon-wrapper">
+          <svg class="icon-sm"><use href="#icon-archive"/></svg>
+        </div>
+        <span class="sidebar-label">Archiv</span>
+        <span class="sidebar-count" id="count-archive">0</span>
+      </div>
+      <div class="sidebar-item" data-filter="trash">
+        <div class="sidebar-icon-wrapper">
+          <svg class="icon-sm"><use href="#icon-trash"/></svg>
+        </div>
+        <span class="sidebar-label">Papierkorb</span>
+        <span class="sidebar-count" id="count-trash">0</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Note Input -->
+    <div class="note-input-container" id="noteInputContainer">
+      <div class="note-input" id="noteInput">
+        <!-- Collapsed State -->
+        <div class="note-input-collapsed" id="noteInputCollapsed">
+          <span class="note-input-placeholder">Notiz schreiben...</span>
+          <div class="note-input-icons">
+            <button class="note-input-icon" title="Checkliste">
+              <svg class="icon-sm"><use href="#icon-check-square"/></svg>
+            </button>
+            <button class="note-input-icon" title="Bild hinzufügen">
+              <svg class="icon-sm"><use href="#icon-image"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Expanded State -->
+        <div class="note-input-expanded hidden">
+          <input type="text" class="note-title-input" id="noteTitleInput" placeholder="Titel">
+          <textarea class="note-content-input" id="noteContentInput" placeholder="Notiz schreiben..." rows="3"></textarea>
+
+          <div class="note-input-toolbar">
+            <div class="toolbar-icons">
+              <button class="toolbar-btn" title="Erinnerung">
+                <svg class="icon-sm"><use href="#icon-bell"/></svg>
+              </button>
+              <button class="toolbar-btn" title="Mitbearbeiter">
+                <svg class="icon-sm"><use href="#icon-user"/></svg>
+              </button>
+              <div class="color-picker-wrapper">
+                <button class="toolbar-btn" id="colorPickerBtn" title="Farbe">
+                  <svg class="icon-sm"><use href="#icon-palette"/></svg>
+                </button>
+                <div class="color-picker hidden" id="colorPicker">
+                  <div class="color-option default selected" data-color="default" title="Standard"></div>
+                  <div class="color-option red" data-color="red" title="Rot"></div>
+                  <div class="color-option orange" data-color="orange" title="Orange"></div>
+                  <div class="color-option yellow" data-color="yellow" title="Gelb"></div>
+                  <div class="color-option green" data-color="green" title="Grün"></div>
+                  <div class="color-option teal" data-color="teal" title="Teal"></div>
+                  <div class="color-option blue" data-color="blue" title="Blau"></div>
+                  <div class="color-option purple" data-color="purple" title="Violett"></div>
+                  <div class="color-option pink" data-color="pink" title="Pink"></div>
+                </div>
+              </div>
+              <button class="toolbar-btn" title="Bild">
+                <svg class="icon-sm"><use href="#icon-image"/></svg>
+              </button>
+              <button class="toolbar-btn" title="Archivieren">
+                <svg class="icon-sm"><use href="#icon-archive"/></svg>
+              </button>
+              <button class="toolbar-btn" title="Mehr">
+                <svg class="icon-sm"><use href="#icon-more"/></svg>
+              </button>
+            </div>
+            <button class="close-btn" id="noteCloseBtn">Schließen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pinned Section -->
+    <div class="notes-section hidden" id="pinnedSection">
+      <div class="section-title">Angepinnt</div>
+      <div class="notes-grid" id="pinnedGrid"></div>
+    </div>
+
+    <!-- Other Notes Section -->
+    <div class="notes-section" id="otherSection">
+      <div class="section-title" id="sectionTitle">Notizen</div>
+      <div class="notes-grid" id="notesGrid"></div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state hidden" id="emptyState">
+      <div class="empty-icon">
+        <svg class="icon-xl"><use href="#icon-lightbulb"/></svg>
+      </div>
+      <div class="empty-title">Keine Notizen</div>
+      <div class="empty-text">Erstelle deine erste Notiz oder sage "JTBT" in Claude Code.</div>
+    </div>
+  </main>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="edit-modal" id="editModal">
+      <div class="edit-modal-header">
+        <button class="pin-btn" id="modalPinBtn" title="Anpinnen">
+          <svg class="icon-sm"><use href="#icon-pin"/></svg>
+        </button>
+      </div>
+
+      <div class="edit-modal-content">
+        <input type="text" class="edit-title" id="editTitle" placeholder="Titel">
+        <textarea class="edit-text" id="editText" placeholder="Notiz schreiben..."></textarea>
+
+        <div class="edit-labels" id="editLabels"></div>
+      </div>
+
+      <div class="edit-modal-footer">
+        <div class="edit-toolbar">
+          <button class="toolbar-btn" title="Erinnerung">
+            <svg class="icon-sm"><use href="#icon-bell"/></svg>
+          </button>
+          <button class="toolbar-btn" title="Mitbearbeiter">
+            <svg class="icon-sm"><use href="#icon-user"/></svg>
+          </button>
+          <div class="color-picker-wrapper">
+            <button class="toolbar-btn" id="editColorBtn" title="Farbe">
+              <svg class="icon-sm"><use href="#icon-palette"/></svg>
+            </button>
+            <div class="color-picker hidden" id="editColorPicker">
+              <div class="color-option default" data-color="default" title="Standard"></div>
+              <div class="color-option red" data-color="red" title="Rot"></div>
+              <div class="color-option orange" data-color="orange" title="Orange"></div>
+              <div class="color-option yellow" data-color="yellow" title="Gelb"></div>
+              <div class="color-option green" data-color="green" title="Grün"></div>
+              <div class="color-option teal" data-color="teal" title="Teal"></div>
+              <div class="color-option blue" data-color="blue" title="Blau"></div>
+              <div class="color-option purple" data-color="purple" title="Violett"></div>
+              <div class="color-option pink" data-color="pink" title="Pink"></div>
+            </div>
+          </div>
+          <button class="toolbar-btn" title="Bild">
+            <svg class="icon-sm"><use href="#icon-image"/></svg>
+          </button>
+          <button class="toolbar-btn" id="modalArchiveBtn" title="Archivieren">
+            <svg class="icon-sm"><use href="#icon-archive"/></svg>
+          </button>
+          <div class="more-menu-wrapper">
+            <button class="toolbar-btn" id="moreMenuBtn" title="Mehr">
+              <svg class="icon-sm"><use href="#icon-more"/></svg>
+            </button>
+            <div class="more-menu hidden" id="moreMenu">
+              <div class="more-menu-item" id="menuCopy">
+                <svg class="icon-sm"><use href="#icon-copy"/></svg>
+                Kopieren
+              </div>
+              <div class="more-menu-item" id="menuShare">
+                <svg class="icon-sm"><use href="#icon-share"/></svg>
+                Senden
+              </div>
+              <div class="more-menu-item" id="menuLabels">
+                <svg class="icon-sm"><use href="#icon-tag"/></svg>
+                Labels
+              </div>
+              <div class="more-menu-item danger" id="menuDelete">
+                <svg class="icon-sm"><use href="#icon-trash"/></svg>
+                Löschen
+              </div>
+            </div>
+          </div>
+        </div>
+        <span class="edit-time" id="editTime">Bearbeitet vor 2 Std.</span>
+        <button class="close-btn" id="modalCloseBtn">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast hidden" id="toast">
+    <span class="toast-message" id="toastMessage"></span>
+    <button class="toast-action hidden" id="toastAction">Rückgängig</button>
+    <button class="toast-close" id="toastClose">
+      <svg class="icon-sm"><use href="#icon-x"/></svg>
+    </button>
+  </div>
+
+  <!-- Voice Button -->
+  <button class="voice-fab" id="voiceFab" title="Sprachnotiz">
+    <svg class="icon"><use href="#icon-mic"/></svg>
+  </button>
+
+  <script>
+    const { ipcRenderer, shell } = require('electron');
+
+    // ==================== STATE ====================
+    let allNotes = [];
+    let currentFilter = 'all';
+    let currentSearch = '';
+    let currentNoteId = null;
+    let selectedColor = 'default';
+    let isDarkTheme = false;
+    let isListView = false;
+    let sidebarCollapsed = false;
+
+    // ==================== INIT ====================
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTheme();
+      loadNotes();
+      setupEventListeners();
+    });
+
+    // ==================== EVENT LISTENERS ====================
+    function setupEventListeners() {
+      // Search
+      document.getElementById('searchBar').addEventListener('input', debounce((e) => {
+        currentSearch = e.target.value.trim().toLowerCase();
+        renderNotes();
+      }, 300));
+
+      // Sidebar items
+      document.querySelectorAll('.sidebar-item').forEach(item => {
+        item.addEventListener('click', () => {
+          document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+          item.classList.add('active');
+          currentFilter = item.dataset.filter;
+          currentSearch = '';
+          document.getElementById('searchBar').value = '';
+
+          // Hide note input for archive/trash
+          const inputContainer = document.getElementById('noteInputContainer');
+          inputContainer.style.display = ['archive', 'trash'].includes(currentFilter) ? 'none' : 'flex';
+
+          renderNotes();
+        });
+      });
+
+      // View toggle
+      document.getElementById('gridViewBtn').addEventListener('click', () => setView(false));
+      document.getElementById('listViewBtn').addEventListener('click', () => setView(true));
+
+      // Theme toggle
+      document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+      // Refresh
+      document.getElementById('refreshBtn').addEventListener('click', loadNotes);
+
+      // Menu toggle
+      document.getElementById('menuBtn').addEventListener('click', toggleSidebar);
+
+      // Note Input
+      document.getElementById('noteInputCollapsed').addEventListener('click', expandNoteInput);
+      document.getElementById('noteCloseBtn').addEventListener('click', saveAndCloseNote);
+
+      // Color picker
+      document.getElementById('colorPickerBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('colorPicker').classList.toggle('hidden');
+      });
+
+      document.querySelectorAll('#colorPicker .color-option').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+          e.stopPropagation();
+          document.querySelectorAll('#colorPicker .color-option').forEach(o => o.classList.remove('selected'));
+          opt.classList.add('selected');
+          selectedColor = opt.dataset.color;
+          updateNoteInputColor();
+        });
+      });
+
+      // Modal
+      document.getElementById('modalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'modalOverlay') closeModal();
+      });
+      document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+      document.getElementById('modalPinBtn').addEventListener('click', togglePinCurrentNote);
+      document.getElementById('modalArchiveBtn').addEventListener('click', archiveCurrentNote);
+
+      // Edit color picker
+      document.getElementById('editColorBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('editColorPicker').classList.toggle('hidden');
+      });
+
+      document.querySelectorAll('#editColorPicker .color-option').forEach(opt => {
+        opt.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await updateNoteColor(currentNoteId, opt.dataset.color);
+          document.getElementById('editColorPicker').classList.add('hidden');
+        });
+      });
+
+      // More menu
+      document.getElementById('moreMenuBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('moreMenu').classList.toggle('hidden');
+      });
+
+      document.getElementById('menuCopy').addEventListener('click', copyCurrentNote);
+      document.getElementById('menuDelete').addEventListener('click', deleteCurrentNote);
+
+      // Close menus on outside click
+      document.addEventListener('click', () => {
+        document.getElementById('colorPicker').classList.add('hidden');
+        document.getElementById('editColorPicker').classList.add('hidden');
+        document.getElementById('moreMenu').classList.add('hidden');
+      });
+
+      // Auto-save on edit
+      document.getElementById('editTitle').addEventListener('input', debounce(autoSaveNote, 1000));
+      document.getElementById('editText').addEventListener('input', debounce(autoSaveNote, 1000));
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (!document.getElementById('modalOverlay').classList.contains('hidden')) {
+            closeModal();
+          } else if (!document.querySelector('.note-input-expanded').classList.contains('hidden')) {
+            saveAndCloseNote();
+          }
+        }
+      });
+
+      // Click outside note input
+      document.addEventListener('click', (e) => {
+        const noteInput = document.getElementById('noteInput');
+        const expanded = document.querySelector('.note-input-expanded');
+        if (!expanded.classList.contains('hidden') && !noteInput.contains(e.target)) {
+          saveAndCloseNote();
+        }
+      });
+
+      // Toast close
+      document.getElementById('toastClose').addEventListener('click', hideToast);
+    }
+
+    // ==================== THEME ====================
+    function loadTheme() {
+      const saved = localStorage.getItem('smartklick-notes-theme');
+      isDarkTheme = saved === 'dark';
+      applyTheme();
+    }
+
+    function toggleTheme() {
+      isDarkTheme = !isDarkTheme;
+      localStorage.setItem('smartklick-notes-theme', isDarkTheme ? 'dark' : 'light');
+      applyTheme();
+    }
+
+    function applyTheme() {
+      document.body.classList.toggle('dark-theme', isDarkTheme);
+      document.getElementById('themeIconMoon').classList.toggle('hidden', isDarkTheme);
+      document.getElementById('themeIconSun').classList.toggle('hidden', !isDarkTheme);
+      document.getElementById('themeLabel').textContent = isDarkTheme ? 'Hell' : 'Dunkel';
+    }
+
+    // ==================== VIEW ====================
+    function setView(list) {
+      isListView = list;
+      document.getElementById('gridViewBtn').classList.toggle('active', !list);
+      document.getElementById('listViewBtn').classList.toggle('active', list);
+      document.querySelectorAll('.notes-grid').forEach(g => g.classList.toggle('list-view', list));
+    }
+
+    function toggleSidebar() {
+      sidebarCollapsed = !sidebarCollapsed;
+      document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
+      document.querySelector('.main-content').classList.toggle('sidebar-collapsed', sidebarCollapsed);
+    }
+
+    // ==================== NOTE INPUT ====================
+    function expandNoteInput() {
+      document.getElementById('noteInputCollapsed').classList.add('hidden');
+      document.querySelector('.note-input-expanded').classList.remove('hidden');
+      document.getElementById('noteTitleInput').focus();
+    }
+
+    function collapseNoteInput() {
+      document.getElementById('noteInputCollapsed').classList.remove('hidden');
+      document.querySelector('.note-input-expanded').classList.add('hidden');
+      document.getElementById('noteTitleInput').value = '';
+      document.getElementById('noteContentInput').value = '';
+      selectedColor = 'default';
+      document.querySelectorAll('#colorPicker .color-option').forEach(o => o.classList.remove('selected'));
+      document.querySelector('#colorPicker .color-option.default').classList.add('selected');
+      document.getElementById('noteInput').style.background = '';
+    }
+
+    function updateNoteInputColor() {
+      const colors = {
+        'default': '',
+        'red': 'var(--note-red)',
+        'orange': 'var(--note-orange)',
+        'yellow': 'var(--note-yellow)',
+        'green': 'var(--note-green)',
+        'teal': 'var(--note-teal)',
+        'blue': 'var(--note-blue)',
+        'purple': 'var(--note-purple)',
+        'pink': 'var(--note-pink)'
+      };
+      document.getElementById('noteInput').style.background = colors[selectedColor] || '';
+    }
+
+    async function saveAndCloseNote() {
+      const title = document.getElementById('noteTitleInput').value.trim();
+      const content = document.getElementById('noteContentInput').value.trim();
+
+      if (title || content) {
+        try {
+          const noteText = title ? `${title}\n${content}` : content;
+          await ipcRenderer.invoke('notes-save', noteText, selectedColor);
+          showToast('Notiz gespeichert');
+          loadNotes();
+        } catch (error) {
+          console.error('Error saving note:', error);
+          showToast('Fehler beim Speichern');
+        }
+      }
+
+      collapseNoteInput();
+    }
+
+    // ==================== LOAD & RENDER ====================
+    async function loadNotes() {
+      try {
+        const result = await ipcRenderer.invoke('notes-get-all', 'all', null);
+        if (result.success) {
+          allNotes = result.notes || [];
+          updateStats();
+          renderNotes();
+        }
+      } catch (error) {
+        console.error('Error loading notes:', error);
+      }
+    }
+
+    function updateStats() {
+      const today = new Date().toISOString().split('T')[0];
+      const active = allNotes.filter(n => !n.isArchived && !n.isDeleted);
+      const archived = allNotes.filter(n => n.isArchived && !n.isDeleted);
+      const trashed = allNotes.filter(n => n.isDeleted);
+
+      const stats = {
+        all: active.length,
+        today: active.filter(n => n.date && n.date.startsWith(today)).length,
+        links: active.filter(n => n.category === 'links').length,
+        code: active.filter(n => n.category === 'code').length,
+        ideas: active.filter(n => n.category === 'ideas').length,
+        general: active.filter(n => n.category === 'general').length,
+        archive: archived.length,
+        trash: trashed.length
+      };
+
+      Object.entries(stats).forEach(([key, val]) => {
+        const el = document.getElementById(`count-${key}`);
+        if (el) el.textContent = val;
+      });
+    }
+
+    function renderNotes() {
+      let notes = [...allNotes];
+
+      // Filter by status
+      if (currentFilter === 'archive') {
+        notes = notes.filter(n => n.isArchived && !n.isDeleted);
+      } else if (currentFilter === 'trash') {
+        notes = notes.filter(n => n.isDeleted);
+      } else {
+        notes = notes.filter(n => !n.isArchived && !n.isDeleted);
+
+        if (currentFilter === 'today') {
+          const today = new Date().toISOString().split('T')[0];
+          notes = notes.filter(n => n.date && n.date.startsWith(today));
+        } else if (!['all'].includes(currentFilter)) {
+          notes = notes.filter(n => n.category === currentFilter);
+        }
+      }
+
+      // Search
+      if (currentSearch) {
+        notes = notes.filter(n =>
+          (n.title && n.title.toLowerCase().includes(currentSearch)) ||
+          (n.preview && n.preview.toLowerCase().includes(currentSearch)) ||
+          (n.tags && n.tags.some(t => t.toLowerCase().includes(currentSearch)))
+        );
+      }
+
+      // Update section title
+      const titles = {
+        'all': 'Notizen',
+        'today': 'Heute',
+        'links': 'Links',
+        'code': 'Code',
+        'ideas': 'Ideen',
+        'general': 'Allgemein',
+        'archive': 'Archiv',
+        'trash': 'Papierkorb'
+      };
+      document.getElementById('sectionTitle').textContent = currentSearch
+        ? `Suche: "${currentSearch}"`
+        : titles[currentFilter] || 'Notizen';
+
+      // Separate pinned and others
+      const pinned = notes.filter(n => n.isPinned);
+      const others = notes.filter(n => !n.isPinned);
+
+      const pinnedSection = document.getElementById('pinnedSection');
+      const pinnedGrid = document.getElementById('pinnedGrid');
+      const otherGrid = document.getElementById('notesGrid');
+      const emptyState = document.getElementById('emptyState');
+
+      // Empty state
+      if (notes.length === 0) {
+        pinnedSection.classList.add('hidden');
+        document.getElementById('otherSection').classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      document.getElementById('otherSection').classList.remove('hidden');
+
+      // Render pinned
+      if (pinned.length > 0 && !['archive', 'trash'].includes(currentFilter)) {
+        pinnedSection.classList.remove('hidden');
+        pinnedGrid.innerHTML = pinned.map(renderNoteCard).join('');
+      } else {
+        pinnedSection.classList.add('hidden');
+      }
+
+      // Render others
+      otherGrid.innerHTML = others.map(renderNoteCard).join('');
+
+      // Add click handlers
+      document.querySelectorAll('.note-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          if (!e.target.closest('.card-action-btn') && !e.target.closest('.pin-btn')) {
+            openModal(card.dataset.id);
+          }
+        });
+      });
+
+      document.querySelectorAll('.note-card .pin-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const noteId = btn.closest('.note-card').dataset.id;
+          await togglePin(noteId);
+        });
+      });
+
+      document.querySelectorAll('.card-action-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const noteId = btn.closest('.note-card').dataset.id;
+          const action = btn.dataset.action;
+          await handleCardAction(noteId, action);
+        });
+      });
+    }
+
+    function renderNoteCard(note) {
+      const icon = getCategoryIcon(note.category);
+      const time = formatRelativeTime(note.date);
+      const colorClass = note.color && note.color !== 'default' ? `color-${note.color}` : '';
+
+      return `
+        <div class="note-card ${note.category} ${colorClass}" data-id="${note.id}">
+          <button class="pin-btn ${note.isPinned ? 'pinned' : ''}" title="${note.isPinned ? 'Lösen' : 'Anpinnen'}">
+            <svg class="icon-sm"><use href="#icon-pin${note.isPinned ? '-filled' : ''}"/></svg>
+          </button>
+
+          <div class="note-card-content">
+            ${note.title ? `<div class="note-card-title">${escapeHtml(note.title)}</div>` : ''}
+            ${note.preview ? `<div class="note-card-text">${escapeHtml(note.preview)}</div>` : ''}
+            ${note.url ? `<div class="note-card-url">${escapeHtml(note.url)}</div>` : ''}
+          </div>
+
+          ${note.category && note.category !== 'general' ? `
+            <div class="note-card-labels">
+              <span class="note-label label-${note.category}">
+                <svg class="icon-sm"><use href="#${icon}"/></svg>
+                ${capitalizeFirst(note.category)}
+              </span>
+            </div>
+          ` : ''}
+
+          <div class="note-card-toolbar">
+            <button class="card-action-btn" data-action="pin" title="Anpinnen">
+              <svg class="icon-sm"><use href="#icon-pin"/></svg>
+            </button>
+            <button class="card-action-btn" data-action="palette" title="Farbe">
+              <svg class="icon-sm"><use href="#icon-palette"/></svg>
+            </button>
+            <button class="card-action-btn" data-action="archive" title="Archivieren">
+              <svg class="icon-sm"><use href="#icon-archive"/></svg>
+            </button>
+            <button class="card-action-btn" data-action="delete" title="Löschen">
+              <svg class="icon-sm"><use href="#icon-trash"/></svg>
+            </button>
+          </div>
+
+          <div class="note-card-footer">
+            <span class="note-card-time">${time}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==================== MODAL ====================
+    async function openModal(noteId) {
+      const note = allNotes.find(n => n.id === noteId);
+      if (!note) return;
+
+      currentNoteId = noteId;
+
+      const modal = document.getElementById('editModal');
+      modal.className = 'edit-modal';
+      if (note.color && note.color !== 'default') {
+        modal.classList.add(`color-${note.color}`);
+      }
+
+      document.getElementById('editTitle').value = note.title || '';
+      document.getElementById('editTime').textContent = `Bearbeitet ${formatRelativeTime(note.date)}`;
+
+      // Fetch full content from server
+      try {
+        const response = await fetch(`https://voice.smartklick.de/notes/${noteId}/content`);
+        const data = await response.json();
+
+        if (data.success && data.note) {
+          const fullNote = data.note;
+
+          // Check if it's a screenshot note
+          if (fullNote.imageUrl || fullNote.screenshot) {
+            const imageUrl = fullNote.imageUrl || `https://voice.smartklick.de/notes/screenshot/${fullNote.screenshot.replace('screenshots/', '')}`;
+            document.getElementById('editText').value = '';
+            document.getElementById('editText').style.display = 'none';
+
+            // Create or update image container
+            let imgContainer = document.getElementById('editImageContainer');
+            if (!imgContainer) {
+              imgContainer = document.createElement('div');
+              imgContainer.id = 'editImageContainer';
+              imgContainer.style.cssText = 'max-height: 400px; overflow: auto; margin-bottom: 12px;';
+              document.getElementById('editText').parentNode.insertBefore(imgContainer, document.getElementById('editText'));
+            }
+            imgContainer.innerHTML = `<img src="${imageUrl}" style="max-width: 100%; border-radius: 8px; cursor: pointer;" onclick="window.open('${imageUrl}', '_blank')" title="Klicken für Vollbild">`;
+            imgContainer.style.display = 'block';
+          } else {
+            // Regular text note
+            document.getElementById('editText').value = fullNote.fullContent || fullNote.preview || note.preview || '';
+            document.getElementById('editText').style.display = 'block';
+
+            const imgContainer = document.getElementById('editImageContainer');
+            if (imgContainer) imgContainer.style.display = 'none';
+          }
+        } else {
+          document.getElementById('editText').value = note.preview || '';
+          document.getElementById('editText').style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Error fetching note content:', error);
+        document.getElementById('editText').value = note.preview || '';
+        document.getElementById('editText').style.display = 'block';
+      }
+
+      // Update pin button
+      const pinBtn = document.getElementById('modalPinBtn');
+      pinBtn.classList.toggle('pinned', note.isPinned);
+      pinBtn.innerHTML = `<svg class="icon-sm"><use href="#icon-pin${note.isPinned ? '-filled' : ''}"/></svg>`;
+
+      // Labels
+      const labelsContainer = document.getElementById('editLabels');
+      if (note.category && note.category !== 'general') {
+        labelsContainer.innerHTML = `
+          <div class="edit-label label-${note.category}">
+            <svg class="icon-sm"><use href="#${getCategoryIcon(note.category)}"/></svg>
+            ${capitalizeFirst(note.category)}
+            <button class="edit-label-remove">×</button>
+          </div>
+        `;
+      } else {
+        labelsContainer.innerHTML = '';
+      }
+
+      // Update color picker selection
+      document.querySelectorAll('#editColorPicker .color-option').forEach(opt => {
+        opt.classList.toggle('selected', opt.dataset.color === (note.color || 'default'));
+      });
+
+      document.getElementById('modalOverlay').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.add('hidden');
+      document.getElementById('moreMenu').classList.add('hidden');
+      document.getElementById('editColorPicker').classList.add('hidden');
+      currentNoteId = null;
+    }
+
+    async function autoSaveNote() {
+      if (!currentNoteId) return;
+
+      const title = document.getElementById('editTitle').value.trim();
+      const content = document.getElementById('editText').value.trim();
+
+      // For now, we don't have a direct update endpoint, so we skip auto-save
+      // This would require extending the server API
+      console.log('Auto-save triggered (not implemented with server API)');
+    }
+
+    // ==================== ACTIONS ====================
+    async function togglePin(noteId) {
+      try {
+        await ipcRenderer.invoke('notes-toggle-pin', noteId);
+        loadNotes();
+      } catch (error) {
+        console.error('Error toggling pin:', error);
+      }
+    }
+
+    async function togglePinCurrentNote() {
+      if (!currentNoteId) return;
+      await togglePin(currentNoteId);
+
+      const note = allNotes.find(n => n.id === currentNoteId);
+      const pinBtn = document.getElementById('modalPinBtn');
+      const isPinned = note ? !note.isPinned : false;
+      pinBtn.classList.toggle('pinned', isPinned);
+      pinBtn.innerHTML = `<svg class="icon-sm"><use href="#icon-pin${isPinned ? '-filled' : ''}"/></svg>`;
+    }
+
+    async function archiveCurrentNote() {
+      if (!currentNoteId) return;
+      const note = allNotes.find(n => n.id === currentNoteId);
+
+      try {
+        if (note.isArchived) {
+          await ipcRenderer.invoke('notes-restore', currentNoteId);
+          showToast('Notiz wiederhergestellt');
+        } else {
+          await ipcRenderer.invoke('notes-archive', currentNoteId);
+          showToast('Notiz archiviert', () => {
+            ipcRenderer.invoke('notes-restore', currentNoteId).then(loadNotes);
+          });
+        }
+        closeModal();
+        loadNotes();
+      } catch (error) {
+        console.error('Error archiving:', error);
+      }
+    }
+
+    async function deleteCurrentNote() {
+      if (!currentNoteId) return;
+      const note = allNotes.find(n => n.id === currentNoteId);
+
+      try {
+        if (note.isDeleted) {
+          if (confirm('Notiz endgültig löschen?')) {
+            await ipcRenderer.invoke('notes-delete-permanent', currentNoteId);
+            showToast('Notiz gelöscht');
+          }
+        } else {
+          await ipcRenderer.invoke('notes-delete', currentNoteId);
+          showToast('In Papierkorb verschoben', () => {
+            ipcRenderer.invoke('notes-restore', currentNoteId).then(loadNotes);
+          });
+        }
+        closeModal();
+        loadNotes();
+      } catch (error) {
+        console.error('Error deleting:', error);
+      }
+    }
+
+    async function copyCurrentNote() {
+      if (!currentNoteId) return;
+      const note = allNotes.find(n => n.id === currentNoteId);
+      if (note) {
+        const text = [note.title, note.preview, note.url].filter(Boolean).join('\n');
+        await navigator.clipboard.writeText(text);
+        showToast('In Zwischenablage kopiert');
+        document.getElementById('moreMenu').classList.add('hidden');
+      }
+    }
+
+    async function updateNoteColor(noteId, color) {
+      // This would require a server API update endpoint
+      // For now, we just update the modal appearance
+      const modal = document.getElementById('editModal');
+      modal.className = 'edit-modal';
+      if (color !== 'default') {
+        modal.classList.add(`color-${color}`);
+      }
+
+      document.querySelectorAll('#editColorPicker .color-option').forEach(opt => {
+        opt.classList.toggle('selected', opt.dataset.color === color);
+      });
+    }
+
+    async function handleCardAction(noteId, action) {
+      switch (action) {
+        case 'pin':
+          await togglePin(noteId);
+          break;
+        case 'archive':
+          await ipcRenderer.invoke('notes-archive', noteId);
+          showToast('Notiz archiviert', () => {
+            ipcRenderer.invoke('notes-restore', noteId).then(loadNotes);
+          });
+          loadNotes();
+          break;
+        case 'delete':
+          await ipcRenderer.invoke('notes-delete', noteId);
+          showToast('In Papierkorb verschoben', () => {
+            ipcRenderer.invoke('notes-restore', noteId).then(loadNotes);
+          });
+          loadNotes();
+          break;
+      }
+    }
+
+    // ==================== TOAST ====================
+    let toastTimeout;
+    let undoCallback;
+
+    function showToast(message, onUndo = null) {
+      clearTimeout(toastTimeout);
+
+      const toast = document.getElementById('toast');
+      const toastAction = document.getElementById('toastAction');
+
+      document.getElementById('toastMessage').textContent = message;
+
+      if (onUndo) {
+        undoCallback = onUndo;
+        toastAction.classList.remove('hidden');
+        toastAction.onclick = () => {
+          undoCallback();
+          hideToast();
+        };
+      } else {
+        toastAction.classList.add('hidden');
+      }
+
+      toast.classList.remove('hidden');
+
+      toastTimeout = setTimeout(hideToast, 5000);
+    }
+
+    function hideToast() {
+      document.getElementById('toast').classList.add('hidden');
+      clearTimeout(toastTimeout);
+    }
+
+    // ==================== HELPERS ====================
+    function getCategoryIcon(category) {
+      const icons = {
+        'links': 'icon-link',
+        'code': 'icon-code',
+        'ideas': 'icon-lightbulb',
+        'general': 'icon-file-text'
+      };
+      return icons[category] || 'icon-file-text';
+    }
+
+    function formatRelativeTime(dateStr) {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'gerade eben';
+      if (diffMins < 60) return `vor ${diffMins} Min.`;
+      if (diffHours < 24) return `vor ${diffHours} Std.`;
+      if (diffDays === 1) return 'gestern';
+      if (diffDays < 7) return `vor ${diffDays} Tagen`;
+      return date.toLocaleDateString('de-DE');
+    }
+
+    function capitalizeFirst(str) {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function debounce(fn, delay) {
+      let timeout;
+      return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn(...args), delay);
+      };
+    }
+  </script>
+</body>
+</html>

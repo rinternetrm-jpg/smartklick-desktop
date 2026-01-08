@@ -1,0 +1,360 @@
+// Gmail Service for Smartklick Desktop
+const { google } = require('googleapis');
+const googleAuth = require('./googleAuth');
+
+class GmailService {
+  constructor() {
+    this.gmail = null;
+  }
+
+  getGmail() {
+    if (!googleAuth.isConnected()) {
+      throw new Error('Google nicht verbunden');
+    }
+
+    if (!this.gmail) {
+      this.gmail = google.gmail({
+        version: 'v1',
+        auth: googleAuth.getClient()
+      });
+    }
+
+    return this.gmail;
+  }
+
+  // Get unread emails count
+  async getUnreadCount() {
+    const gmail = this.getGmail();
+
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      q: 'is:unread',
+      maxResults: 1
+    });
+
+    return response.data.resultSizeEstimate || 0;
+  }
+
+  // Get recent unread emails
+  async getUnreadEmails(maxResults = 10) {
+    const gmail = this.getGmail();
+
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      q: 'is:unread',
+      maxResults: maxResults
+    });
+
+    const messages = response.data.messages || [];
+    const emails = [];
+
+    for (const msg of messages) {
+      const email = await this.getEmail(msg.id);
+      if (email) {
+        emails.push(email);
+      }
+    }
+
+    return emails;
+  }
+
+  // Get recent emails (inbox)
+  async getRecentEmails(maxResults = 10) {
+    const gmail = this.getGmail();
+
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      labelIds: ['INBOX'],
+      maxResults: maxResults
+    });
+
+    const messages = response.data.messages || [];
+    const emails = [];
+
+    for (const msg of messages) {
+      const email = await this.getEmail(msg.id);
+      if (email) {
+        emails.push(email);
+      }
+    }
+
+    return emails;
+  }
+
+  // Get single email details
+  async getEmail(messageId) {
+    const gmail = this.getGmail();
+
+    try {
+      const response = await gmail.users.messages.get({
+        userId: 'me',
+        id: messageId,
+        format: 'full'
+      });
+
+      return this.formatEmail(response.data);
+    } catch (error) {
+      console.error('Failed to get email:', error);
+      return null;
+    }
+  }
+
+  // Search emails
+  async searchEmails(query, maxResults = 10) {
+    const gmail = this.getGmail();
+
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      q: query,
+      maxResults: maxResults
+    });
+
+    const messages = response.data.messages || [];
+    const emails = [];
+
+    for (const msg of messages) {
+      const email = await this.getEmail(msg.id);
+      if (email) {
+        emails.push(email);
+      }
+    }
+
+    return emails;
+  }
+
+  // Mark email as read
+  async markAsRead(messageId) {
+    const gmail = this.getGmail();
+
+    await gmail.users.messages.modify({
+      userId: 'me',
+      id: messageId,
+      resource: {
+        removeLabelIds: ['UNREAD']
+      }
+    });
+
+    return { success: true };
+  }
+
+  // Send email
+  async sendEmail(to, subject, body, isHtml = false) {
+    const gmail = this.getGmail();
+
+    const userInfo = googleAuth.getUserInfo();
+    const from = userInfo?.email || 'me';
+
+    const message = [
+      `From: ${from}`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      `Content-Type: ${isHtml ? 'text/html' : 'text/plain'}; charset=utf-8`,
+      '',
+      body
+    ].join('\n');
+
+    const encodedMessage = Buffer.from(message)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      resource: {
+        raw: encodedMessage
+      }
+    });
+
+    return {
+      success: true,
+      messageId: response.data.id
+    };
+  }
+
+  // Reply to email
+  async replyToEmail(messageId, body, isHtml = false) {
+    const gmail = this.getGmail();
+
+    // Get original email
+    const original = await this.getEmail(messageId);
+    if (!original) {
+      throw new Error('Original-E-Mail nicht gefunden');
+    }
+
+    const userInfo = googleAuth.getUserInfo();
+    const from = userInfo?.email || 'me';
+
+    const message = [
+      `From: ${from}`,
+      `To: ${original.from}`,
+      `Subject: Re: ${original.subject}`,
+      `In-Reply-To: ${messageId}`,
+      `References: ${messageId}`,
+      `Content-Type: ${isHtml ? 'text/html' : 'text/plain'}; charset=utf-8`,
+      '',
+      body
+    ].join('\n');
+
+    const encodedMessage = Buffer.from(message)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      resource: {
+        raw: encodedMessage,
+        threadId: original.threadId
+      }
+    });
+
+    return {
+      success: true,
+      messageId: response.data.id
+    };
+  }
+
+  // Delete email (move to trash)
+  async deleteEmail(messageId) {
+    const gmail = this.getGmail();
+
+    await gmail.users.messages.trash({
+      userId: 'me',
+      id: messageId
+    });
+
+    return { success: true };
+  }
+
+  // Format email for display
+  formatEmail(message) {
+    const headers = message.payload?.headers || [];
+    const getHeader = (name) => {
+      const header = headers.find(h => h.name.toLowerCase() === name.toLowerCase());
+      return header?.value || '';
+    };
+
+    // Get email body
+    let body = '';
+    let snippet = message.snippet || '';
+
+    if (message.payload?.body?.data) {
+      body = Buffer.from(message.payload.body.data, 'base64').toString('utf-8');
+    } else if (message.payload?.parts) {
+      // Multipart email - find text/plain or text/html
+      const textPart = message.payload.parts.find(p => p.mimeType === 'text/plain');
+      const htmlPart = message.payload.parts.find(p => p.mimeType === 'text/html');
+
+      if (textPart?.body?.data) {
+        body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
+      } else if (htmlPart?.body?.data) {
+        body = Buffer.from(htmlPart.body.data, 'base64').toString('utf-8');
+        // Strip HTML tags for speech
+        body = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+    }
+
+    const date = new Date(parseInt(message.internalDate));
+    const labels = message.labelIds || [];
+
+    return {
+      id: message.id,
+      threadId: message.threadId,
+      from: getHeader('From'),
+      fromName: this.extractName(getHeader('From')),
+      fromEmail: this.extractEmail(getHeader('From')),
+      to: getHeader('To'),
+      subject: getHeader('Subject') || 'Kein Betreff',
+      snippet: snippet,
+      body: body.substring(0, 2000), // Limit body length
+      date: message.internalDate,
+      dateFormatted: this.formatDate(date),
+      isUnread: labels.includes('UNREAD'),
+      isImportant: labels.includes('IMPORTANT'),
+      isStarred: labels.includes('STARRED'),
+      labels: labels
+    };
+  }
+
+  extractName(fromHeader) {
+    // "Max Mustermann <max@example.com>" -> "Max Mustermann"
+    const match = fromHeader.match(/^([^<]+)</);
+    if (match) {
+      return match[1].trim().replace(/"/g, '');
+    }
+    return fromHeader.replace(/<.*>/, '').trim();
+  }
+
+  extractEmail(fromHeader) {
+    // "Max Mustermann <max@example.com>" -> "max@example.com"
+    const match = fromHeader.match(/<([^>]+)>/);
+    if (match) {
+      return match[1];
+    }
+    return fromHeader;
+  }
+
+  formatDate(date) {
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    if (isToday) {
+      return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+      return 'Gestern';
+    }
+
+    return date.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+  }
+
+  // Generate speech response for email query
+  generateSpeechResponse(emails, queryType = 'unread') {
+    if (emails.length === 0) {
+      if (queryType === 'unread') {
+        return 'Du hast keine ungelesenen E-Mails.';
+      }
+      return 'Keine E-Mails gefunden.';
+    }
+
+    if (queryType === 'unread') {
+      if (emails.length === 1) {
+        const e = emails[0];
+        return `Du hast eine ungelesene E-Mail von ${e.fromName}. Betreff: ${e.subject}.`;
+      }
+
+      const summary = emails.slice(0, 3).map(e => {
+        return `${e.fromName}: ${e.subject}`;
+      }).join('. ');
+
+      return `Du hast ${emails.length} ungelesene E-Mails. Die neuesten sind: ${summary}.`;
+    }
+
+    if (queryType === 'search') {
+      return `${emails.length} E-Mails gefunden. Die neueste ist von ${emails[0].fromName} mit dem Betreff: ${emails[0].subject}.`;
+    }
+
+    return `${emails.length} E-Mails.`;
+  }
+
+  // Read email content for speech
+  generateReadEmailSpeech(email) {
+    const parts = [
+      `E-Mail von ${email.fromName}.`,
+      `Betreff: ${email.subject}.`,
+      email.snippet
+    ];
+
+    return parts.join(' ');
+  }
+}
+
+// Singleton instance
+const gmailService = new GmailService();
+
+module.exports = gmailService;

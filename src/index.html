@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smartklick</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ========== MINI MODE ========== -->
+    <div id="mini-mode" class="mode-container hidden">
+      <div class="mini-pill">
+        <div class="wake-indicator"></div>
+        <button id="mini-mic-btn" class="mic-button mini-mic idle">
+          <svg class="mic-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+          </svg>
+          <svg class="stop-icon" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+          <div class="spinner"></div>
+          <svg class="checkmark" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </button>
+
+        <div class="mini-buttons">
+          <button id="mini-tone-btn" class="mini-btn tone-btn" data-tone="native">
+            <span class="smiley">😊</span>
+          </button>
+          <button id="mini-lang-btn" class="mini-btn lang-btn" data-lang="">
+            <span class="lang-text">—</span>
+          </button>
+        </div>
+        <button id="mini-mode-btn" class="mini-mode-btn" title="Modus wechseln">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ========== COMPACT MODE ========== -->
+    <div id="compact-mode" class="mode-container hidden">
+      <div class="compact-window">
+        <div class="wake-indicator"></div>
+        <div class="compact-content">
+          <span class="tap-label">Tippen zum Sprechen</span>
+
+          <button id="compact-mic-btn" class="mic-button compact-mic idle">
+            <svg class="mic-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+            <svg class="stop-icon" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12" rx="2"/>
+            </svg>
+            <div class="spinner"></div>
+            <svg class="checkmark" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+          </button>
+
+        </div>
+
+        <div class="compact-toolbar">
+          <button id="compact-tone-btn" class="toolbar-btn tone-btn" data-tone="native">
+            <span class="smiley">😊</span>
+          </button>
+          <button id="compact-lang-btn" class="toolbar-btn lang-btn" data-lang="">
+            <span class="lang-label">—</span>
+          </button>
+          <button id="compact-settings-btn" class="toolbar-btn settings-btn">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+              <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========== NORMAL MODE ========== -->
+    <div id="normal-mode" class="mode-container hidden">
+      <div class="normal-window">
+        <div class="normal-main">
+          <div class="normal-header">
+            <span class="app-title">Smartklick</span>
+            <div class="header-icons">
+              <button id="screen-read-btn" class="icon-btn" title="Seite analysieren">
+                <span style="font-weight: bold; font-size: 16px;">A</span>
+              </button>
+              <button id="normal-settings-btn" class="icon-btn" title="Einstellungen">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                  <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="normal-content">
+            <div class="mic-container">
+              <button id="normal-mic-btn" class="mic-button normal-mic idle">
+                <svg class="mic-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+                <svg class="stop-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="2"/>
+                </svg>
+                <div class="spinner"></div>
+                <svg class="checkmark" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+              </button>
+            </div>
+            <span id="mic-label" class="mic-label">Klicken zum Aufnehmen</span>
+          </div>
+
+          <div class="normal-section">
+            <span class="section-label">Modus:</span>
+            <div class="tone-dots">
+              <button class="tone-dot active" data-tone="native" style="background: #f97316;" title="Native"></button>
+              <button class="tone-dot" data-tone="private" style="background: #ef4444;" title="Privat"></button>
+              <button class="tone-dot" data-tone="prompt" style="background: #3b82f6;" title="Prompt"></button>
+              <button class="tone-dot" data-tone="friendly" style="background: #22c55e;" title="Freundlich"></button>
+              <button class="tone-dot" data-tone="learning" style="background: #8b5cf6;" title="Learning"></button>
+              <button class="tone-dot smartklick-dot" data-tone="smartklick" style="background: linear-gradient(135deg, #06b6d4, #0891b2);" title="Smartklick"><span class="tone-s">S</span></button>
+            </div>
+            <span id="tone-label" class="tone-name">Muttersprachlich</span>
+          </div>
+
+          <div class="normal-section">
+            <span class="section-label">Übersetzen:</span>
+            <div class="lang-chips">
+              <button class="lang-chip" data-lang="">—</button>
+              <button class="lang-chip" data-lang="de">DE</button>
+              <button class="lang-chip" data-lang="en">EN</button>
+              <button class="lang-chip" data-lang="fr">FR</button>
+              <button class="lang-chip" data-lang="es">ES</button>
+              <button class="lang-chip" data-lang="it">IT</button>
+              <button class="lang-chip" data-lang="da">DA</button>
+              <button class="lang-chip" data-lang="tr">TR</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Screen Reading Result Panel (Summary Mode) -->
+        <div id="screen-reading-panel" class="side-panel hidden">
+          <div class="panel-header">
+            <span>Bildschirm-Analyse</span>
+            <button id="screen-reading-close" class="close-btn">&times;</button>
+          </div>
+          <div class="panel-content scrollable">
+            <div id="screen-reading-result" class="screen-reading-result">
+              <!-- Ergebnis wird hier eingefügt -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Screen Correction Panel (Learning Mode - Violet) -->
+        <div id="screen-correction-panel" class="side-panel hidden">
+          <div class="panel-header violet-header">
+            <span>Rechtschreibprüfung</span>
+            <button id="screen-correction-close" class="close-btn">&times;</button>
+          </div>
+
+          <div class="panel-content scrollable">
+            <!-- Status-Anzeige -->
+            <div id="corr-status" class="corr-status">
+              <span id="corr-status-icon">✅</span>
+              <span id="corr-status-text">0 Fehler gefunden</span>
+            </div>
+
+            <!-- Original Text mit Fehlern markiert -->
+            <div class="corr-result-section">
+              <label>Original (Fehler markiert):</label>
+              <div id="original-with-errors" class="corr-original-text scrollable"></div>
+            </div>
+
+            <!-- Korrigierter Text -->
+            <div class="corr-result-section">
+              <label>Korrigiert:</label>
+              <div id="corrected-full-text" class="corr-result-text scrollable"></div>
+            </div>
+
+            <!-- Aktions-Buttons -->
+            <div class="corr-actions">
+              <button id="copy-corrected-btn" class="corr-action-btn primary">Kopieren</button>
+              <button id="insert-corrected-btn" class="corr-action-btn secondary">Einfügen</button>
+            </div>
+
+            <!-- Fehler-Details (ausklappbar) -->
+            <details id="error-details" class="corr-details">
+              <summary><span id="total-errors-count">0</span> Fehler - Details anzeigen</summary>
+              <div id="error-list-container" class="corr-error-list">
+                <!-- Fehler werden hier dynamisch eingefügt -->
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <!-- Correction Panel (for Learning mode) -->
+        <div id="correction-panel" class="side-panel hidden">
+          <div class="panel-header">
+            <span>Fehleranalyse</span>
+            <button id="correction-close" class="close-btn">&times;</button>
+          </div>
+
+          <div class="panel-content scrollable">
+            <div class="text-section">
+              <label>Original:</label>
+              <div id="original-text" class="text-box original scrollable"></div>
+            </div>
+
+            <div class="text-section">
+              <label>Korrigiert:</label>
+              <div id="corrected-text" class="text-box corrected scrollable"></div>
+            </div>
+
+            <div id="error-list" class="error-list">
+              <!-- Fehler werden hier dynamisch eingefügt -->
+            </div>
+          </div>
+
+          <!-- Fehlertypen-Aufzählung unten -->
+          <div class="error-summary">
+            <div class="error-count-row">
+              <span class="error-count-item"><span class="count-dot grammar"></span>Grammatik: <strong id="count-grammar">0</strong></span>
+              <span class="error-count-item"><span class="count-dot spelling"></span>Rechtschr.: <strong id="count-spelling">0</strong></span>
+            </div>
+            <div class="error-count-row">
+              <span class="error-count-item"><span class="count-dot semantic"></span>Semantik: <strong id="count-semantic">0</strong></span>
+              <span class="error-count-item"><span class="count-dot punctuation"></span>Interpunkt.: <strong id="count-punctuation">0</strong></span>
+            </div>
+            <div class="error-count-row">
+              <span class="error-count-item"><span class="count-dot wordOrder"></span>Wortstellung: <strong id="count-wordOrder">0</strong></span>
+              <span class="error-count-item"><span class="count-dot article"></span>Artikel: <strong id="count-article">0</strong></span>
+            </div>
+            <div class="error-total-row">
+              <span>Gesamt:</span>
+              <strong id="error-total">0 Fehler</strong>
+            </div>
+          </div>
+
+          <button id="insert-btn" class="insert-button">Einfügen</button>
+        </div>
+
+        <!-- Prompt Panel (for Prompt mode - Blue) -->
+        <div id="prompt-panel" class="side-panel hidden">
+          <div class="panel-header prompt-header">
+            <span>🔵 Prompt Generator</span>
+            <button id="prompt-panel-close" class="close-btn">&times;</button>
+          </div>
+          <div class="panel-content scrollable">
+            <div id="prompt-result" class="prompt-result">
+              <!-- Intent Badge -->
+              <div id="prompt-intent-badge" class="intent-badge hidden">
+                <span id="prompt-intent-icon">🖼️</span>
+                <span id="prompt-intent-text">Bild-Generierung</span>
+                <span id="prompt-confidence" class="confidence">95%</span>
+              </div>
+
+              <!-- Loading State -->
+              <div id="prompt-loading" class="prompt-loading hidden">
+                <div class="prompt-spinner"></div>
+                <span>Analysiere Intent...</span>
+              </div>
+
+              <!-- Prompt Output -->
+              <div id="prompt-output" class="prompt-output hidden">
+                <div class="prompt-label">OPTIMIERTER PROMPT</div>
+                <div id="prompt-text" class="prompt-text"></div>
+              </div>
+
+              <!-- Target Tools -->
+              <div id="prompt-tools" class="prompt-tools hidden">
+                <span class="tools-label">Für:</span>
+                <div id="prompt-tools-list" class="tools-list"></div>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div id="prompt-actions" class="prompt-actions hidden">
+              <button id="prompt-copy-btn" class="btn-copy">📋 Kopieren</button>
+              <button id="prompt-insert-btn" class="btn-insert">⌨️ Einfügen</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Google Panel (Calendar/Gmail) -->
+        <div id="google-panel" class="side-panel hidden">
+          <div class="panel-header google-panel-header">
+            <span id="google-panel-title">📅 Termine heute</span>
+            <button id="google-panel-close" class="close-btn">&times;</button>
+          </div>
+          <div id="google-panel-content" class="panel-content scrollable">
+            <!-- Dynamischer Inhalt -->
+          </div>
+          <div id="google-panel-footer" class="panel-footer">
+            <span id="google-panel-stats" class="panel-stats"></span>
+            <button id="google-panel-action" class="panel-action-btn">📅 Öffnen</button>
+          </div>
+        </div>
+
+        <!-- Notes Panel (JTBT System) -->
+        <div id="notes-panel" class="side-panel hidden">
+          <div class="panel-header notes-panel-header">
+            <span id="notes-panel-title">📝 Meine Notizen</span>
+            <button id="notes-refresh-btn" class="refresh-btn" title="Aktualisieren">🔄</button>
+            <button id="notes-panel-close" class="close-btn">&times;</button>
+          </div>
+          <div class="notes-search-box">
+            <input type="text" id="notes-search-input" class="notes-search-input" placeholder="Suchen...">
+          </div>
+          <div class="notes-filter-tabs">
+            <button class="notes-filter-tab active" data-filter="all">Alle</button>
+            <button class="notes-filter-tab" data-filter="links">🔗</button>
+            <button class="notes-filter-tab" data-filter="code">💻</button>
+            <button class="notes-filter-tab" data-filter="ideas">💡</button>
+          </div>
+          <div id="notes-panel-content" class="panel-content scrollable">
+            <!-- Dynamischer Inhalt -->
+          </div>
+          <div id="notes-panel-footer" class="panel-footer">
+            <span id="notes-panel-stats" class="panel-stats">0 Notizen</span>
+            <button id="notes-panel-action" class="panel-action-btn">📝 Alle Notizen</button>
+          </div>
+        </div>
+
+        <!-- Note Detail Modal -->
+        <div id="note-detail-modal" class="note-detail-modal hidden">
+          <div class="note-detail-backdrop"></div>
+          <div class="note-detail-content">
+            <div class="note-detail-header">
+              <span id="note-detail-title" class="note-detail-title">Notiz</span>
+              <button id="note-detail-close" class="close-btn">&times;</button>
+            </div>
+            <div id="note-detail-body" class="note-detail-body">
+              <!-- Content loaded dynamically -->
+            </div>
+            <div class="note-detail-footer">
+              <span id="note-detail-time" class="note-detail-time"></span>
+              <div class="note-detail-actions">
+                <button id="note-detail-delete" class="note-detail-btn danger">🗑️ Löschen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Screenshot Fullscreen Modal -->
+        <div id="screenshot-fullscreen" class="screenshot-fullscreen hidden">
+          <div class="screenshot-fullscreen-backdrop"></div>
+          <img id="screenshot-fullscreen-img" src="" alt="Screenshot">
+          <button id="screenshot-fullscreen-close" class="screenshot-fullscreen-close">&times;</button>
+        </div>
+
+        <!-- Settings Panel -->
+        <div id="normal-settings-panel" class="side-panel hidden">
+          <div class="panel-header">
+            <span>Einstellungen</span>
+            <button id="normal-settings-close" class="close-btn">&times;</button>
+          </div>
+
+          <div class="panel-content">
+            <div class="setting-group">
+              <label>Ansicht</label>
+              <div class="view-selector">
+                <button class="view-btn" data-mode="mini">Mini</button>
+                <button class="view-btn" data-mode="compact">Kompakt</button>
+                <button class="view-btn active" data-mode="normal">Normal</button>
+              </div>
+            </div>
+            <div class="setting-group">
+              <label>Auto-Einfügen</label>
+              <input type="checkbox" id="normal-setting-auto-insert" class="toggle" checked>
+            </div>
+            <div class="setting-group">
+              <label>Sounds</label>
+              <input type="checkbox" id="normal-setting-sounds" class="toggle">
+            </div>
+            <div class="setting-group">
+              <label>Immer im Vordergrund</label>
+              <input type="checkbox" id="normal-setting-always-on-top" class="toggle" checked>
+            </div>
+            <div class="setting-group">
+              <label>Hotkey</label>
+              <select id="normal-setting-hotkey">
+                <option value="CommandOrControl+Shift+S">Strg+Shift+S</option>
+                <option value="Alt+S">Alt+S</option>
+                <option value="F9">F9</option>
+              </select>
+            </div>
+
+            <!-- Google Integration (Minimal) -->
+            <div class="google-row" id="google-row">
+              <div id="google-disconnected" class="google-disconnected">
+                <button id="google-connect-btn" class="google-mini-btn">
+                  <svg viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  Anmelden
+                </button>
+              </div>
+              <div id="google-connected" class="google-connected hidden">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span id="google-user-email" class="google-email-text"></span>
+                <span id="google-user-name" style="display:none"></span>
+                <img id="google-user-avatar" src="" style="display:none">
+                <button id="google-disconnect-btn" class="google-x-btn" title="Trennen">&times;</button>
+              </div>
+            </div>
+
+            <div class="version-info" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #333; text-align: center; color: #666; font-size: 11px;">
+              Version 1.7.0
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screenshot Flash Animation -->
+  <div id="screenshot-flash" class="screenshot-flash"></div>
+  <div id="screenshot-indicator" class="screenshot-indicator">📸</div>
+
+  <script src="scripts/app.js"></script>
+</body>
+</html>
