@@ -2370,3 +2370,318 @@ body {
   transform: scale(1.2);
   color: var(--accent);
 }
+
+/* ============================================
+   E-MAIL ANALYSE ANIMATION SYSTEM
+   Emails fliegen von MITTE nach LINKS zur Kategorie
+   ============================================ */
+
+/* === Phase 1: E-Mail schrumpft in der Liste === */
+@keyframes shrinkAway {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    max-height: 120px;
+    margin-bottom: 10px;
+    padding: 16px;
+  }
+  60% {
+    transform: scale(0.8);
+    opacity: 0.5;
+    max-height: 60px;
+    margin-bottom: 5px;
+    padding: 8px;
+  }
+  100% {
+    transform: scale(0);
+    opacity: 0;
+    max-height: 0;
+    margin-bottom: 0;
+    padding: 0;
+    border-width: 0;
+  }
+}
+
+.email-item.shrinking {
+  animation: shrinkAway 0.4s ease-out forwards;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* === Phase 2: Fliegender E-Mail Klon === */
+.email-flying-clone {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(20, 184, 166, 0.4);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.email-flying-clone.flying {
+  box-shadow: 0 5px 20px rgba(20, 184, 166, 0.6);
+}
+
+/* === Phase 3: Trail-Punkte auf dem Weg === */
+.email-trail {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  animation: trailFade 0.6s ease-out forwards;
+}
+
+@keyframes trailFade {
+  0% {
+    opacity: 0.8;
+    transform: scale(1.2);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+/* Trail-Farben je nach Kategorie */
+.email-trail.essenz { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+.email-trail.wichtig { background: #f97316; box-shadow: 0 0 10px #f97316; }
+.email-trail.normal { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+.email-trail.info { background: #6b7280; box-shadow: 0 0 10px #6b7280; }
+.email-trail.newsletter { background: #8b5cf6; box-shadow: 0 0 10px #8b5cf6; }
+.email-trail.spam { background: #71717a; box-shadow: 0 0 10px #71717a; }
+
+/* === Phase 4: Kategorie in Sidebar leuchtet auf === */
+@keyframes categoryPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px 5px rgba(20, 184, 166, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0);
+  }
+}
+
+.category-item.receiving {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.3), rgba(13, 148, 136, 0.2)) !important;
+  border-color: var(--accent) !important;
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+.category-item.pulse {
+  animation: categoryPulse 0.6s ease-out;
+}
+
+/* Kategorie-spezifische Glow-Farben */
+.category-item.receiving[data-category="important"] {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.1)) !important;
+}
+.category-item.receiving[data-category="spam"] {
+  background: linear-gradient(135deg, rgba(113, 113, 122, 0.3), rgba(113, 113, 122, 0.1)) !important;
+}
+.category-item.receiving[data-category="newsletter"] {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(168, 85, 247, 0.1)) !important;
+}
+
+/* === Phase 5: Zähler springt hoch === */
+@keyframes countBounce {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.4); }
+  50% { transform: scale(1.2); }
+  70% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.category-count.bounce {
+  animation: countBounce 0.4s ease-out;
+  color: var(--accent) !important;
+}
+
+.category-badge.bounce {
+  animation: countBounce 0.4s ease-out;
+}
+
+/* === Phase 6: Zusammenfassung Modal === */
+.analysis-summary-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 30px;
+  z-index: 10001;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  min-width: 400px;
+  max-width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.analysis-summary-modal.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
+
+.summary-header {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.summary-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summary-stat-item {
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.summary-stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.summary-stat-number.essenz { color: #ef4444; }
+.summary-stat-number.wichtig { color: #f97316; }
+.summary-stat-number.normal { color: #3b82f6; }
+.summary-stat-number.info { color: #6b7280; }
+.summary-stat-number.newsletter { color: #8b5cf6; }
+.summary-stat-number.spam { color: #71717a; }
+
+.summary-stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.summary-message {
+  text-align: center;
+  font-size: 16px;
+  color: var(--text-secondary);
+  padding: 16px;
+  background: rgba(20, 184, 166, 0.1);
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.summary-close-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.summary-close-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(20, 184, 166, 0.3);
+}
+
+/* === Analyse Button Loading State === */
+.analyze-btn.loading {
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.analyze-btn .spinner {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+
+.analyze-btn.loading .spinner {
+  display: inline-block;
+}
+
+.analyze-btn.loading .btn-text {
+  display: none;
+}
+
+/* === Overlay für Animation === */
+.analysis-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 9998;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.analysis-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* === Progress Indicator während Animation === */
+.analysis-progress-indicator {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 30px;
+  padding: 12px 24px;
+  z-index: 10002;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.analysis-progress-indicator.visible {
+  opacity: 1;
+}
+
+.progress-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.progress-text {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.progress-count {
+  font-weight: 600;
+  color: var(--accent);
+}
