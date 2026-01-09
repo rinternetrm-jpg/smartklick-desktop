@@ -1443,16 +1443,23 @@ async function connectOutlook() {
 }
 
 function getImapSettings() {
-  const provider = document.getElementById('imapProvider').value;
+  const providerEl = document.getElementById('imapProvider');
+  const emailEl = document.getElementById('imapEmail');
+  const passwordEl = document.getElementById('imapPassword');
+  const serverEl = document.getElementById('imapServer');
+  const portEl = document.getElementById('imapPort');
+  const tlsEl = document.getElementById('imapTls');
+
+  const provider = providerEl?.value || 'custom';
   const preset = IMAP_PRESETS[provider] || {};
 
   return {
     provider,
-    host: provider === 'custom' ? document.getElementById('imapServer').value : preset.host,
-    port: provider === 'custom' ? parseInt(document.getElementById('imapPort').value) : preset.port,
-    tls: provider === 'custom' ? document.getElementById('imapTls').checked : preset.tls,
-    user: document.getElementById('imapEmail').value.trim(),
-    password: document.getElementById('imapPassword').value
+    host: provider === 'custom' ? (serverEl?.value || '') : (preset.host || ''),
+    port: provider === 'custom' ? parseInt(portEl?.value || '993') : (preset.port || 993),
+    tls: provider === 'custom' ? (tlsEl?.checked ?? true) : (preset.tls ?? true),
+    user: emailEl?.value?.trim() || '',
+    password: passwordEl?.value || ''
   };
 }
 

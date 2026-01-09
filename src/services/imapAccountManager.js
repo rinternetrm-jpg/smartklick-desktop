@@ -65,11 +65,19 @@ class ImapAccountManager {
 
   // Add a new account
   async addAccount(settings) {
+    // Validate required fields
+    if (!settings.user) {
+      throw new Error('E-Mail-Adresse ist erforderlich');
+    }
+    if (!settings.password) {
+      throw new Error('Passwort ist erforderlich');
+    }
+
     const preset = IMAP_PRESETS[settings.provider] || IMAP_PRESETS.custom;
 
     const account = {
       id: this.generateId(),
-      name: settings.name || settings.user.split('@')[0],
+      name: settings.name || (settings.user ? settings.user.split('@')[0] : 'Unbekannt'),
       email: settings.user,
       provider: settings.provider,
       host: settings.host || preset.host,
