@@ -3958,6 +3958,8 @@ ipcMain.handle('email:resetLearning', () => {
 ipcMain.handle('email:clearAllData', () => {
   try {
     const Store = require('electron-store');
+    const fs = require('fs');
+    const path = require('path');
 
     // Clear classifier data
     const classifierStore = new Store({ name: 'email-classifier-config' });
@@ -3975,12 +3977,48 @@ ipcMain.handle('email:clearAllData', () => {
     const imapStore = new Store({ name: 'imap-accounts' });
     imapStore.clear();
 
-    console.log('[EMAIL] All email data cleared');
-    return { success: true };
+    // Clear Gmail tokens
+    const gmailStore = new Store({ name: 'gmail-tokens' });
+    gmailStore.clear();
+
+    // Clear general settings store
+    const settingsStore = new Store();
+    settingsStore.delete('emailAccounts');
+    settingsStore.delete('imapAccounts');
+    settingsStore.delete('gmailTokens');
+
+    // Reset in-memory managers
+    if (imapAccountManager) {
+      imapAccountManager.accounts = [];
+    }
+    if (emailProviderManager) {
+      emailProviderManager.accounts = [];
+    }
+
+    // Try to delete Gmail token file if exists
+    try {
+      const tokenPath = path.join(app.getPath('userData'), 'gmail-token.json');
+      if (fs.existsSync(tokenPath)) {
+        fs.unlinkSync(tokenPath);
+        console.log('[EMAIL] Gmail token file deleted');
+      }
+    } catch (e) {
+      console.warn('[EMAIL] Could not delete token file:', e.message);
+    }
+
+    console.log('[EMAIL] All email data cleared successfully');
+    return { success: true, message: 'Alle E-Mail-Daten gelöscht. Bitte App neu starten.' };
   } catch (error) {
     console.error('[EMAIL] Clear data error:', error);
     return { success: false, error: error.message };
   }
+});
+
+// App neu starten
+ipcMain.handle('app:restart', () => {
+  console.log('[APP] Restarting application...');
+  app.relaunch();
+  app.exit(0);
 });
 
 // Email Briefing (via Server)

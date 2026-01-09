@@ -1539,31 +1539,40 @@ async function removeAccount(accountId) {
 }
 
 async function clearAllData() {
-  if (!confirm('ACHTUNG: Alle Daten werden unwiderruflich gelöscht!\n\nDas beinhaltet:\n- Alle E-Mail-Konten\n- Alle Klassifizierungen\n- Alle Lerndaten\n\nFortfahren?')) {
+  if (!confirm('ACHTUNG: Alle Daten werden unwiderruflich gelöscht!\n\nDas beinhaltet:\n- Alle E-Mail-Konten\n- Alle Klassifizierungen\n- Alle Lerndaten\n- Gmail-Verbindungen\n\nDie App wird danach neu gestartet.\n\nFortfahren?')) {
     return;
   }
 
   try {
     showToast('Lösche alle Daten...');
-    await ipcRenderer.invoke('email:clearAllData');
+    const result = await ipcRenderer.invoke('email:clearAllData');
 
-    // Reset local state
-    emails = [];
-    emailClassifications = {};
-    accounts = [];
-    selectedAccountId = 'all';
-    currentEmail = null;
+    if (result.success) {
+      // Reset local state
+      emails = [];
+      emailClassifications = {};
+      accounts = [];
+      selectedAccountId = 'all';
+      currentEmail = null;
 
-    // Update UI
-    updateAccountDropdown();
-    renderAccountCards();
-    renderEmailList();
-    showEmailDetail(null);
+      // Update UI
+      updateAccountDropdown();
+      renderAccountCards();
+      renderEmailList();
+      showEmailDetail(null);
 
-    showToast('Alle Daten gelöscht. Bitte App neu starten.', 'success');
+      showToast('Alle Daten gelöscht! App wird neu gestartet...', 'success');
 
-    // Close settings
-    closeSettings();
+      // Close settings
+      closeSettings();
+
+      // Restart app after short delay
+      setTimeout(() => {
+        ipcRenderer.invoke('app:restart');
+      }, 1500);
+    } else {
+      showToast('Fehler: ' + (result.error || 'Unbekannter Fehler'), 'error');
+    }
   } catch (error) {
     console.error('Error clearing data:', error);
     showToast('Fehler beim Löschen', 'error');
