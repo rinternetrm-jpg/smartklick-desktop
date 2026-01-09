@@ -245,6 +245,10 @@ function setupEventListeners() {
   // Clear All Data
   document.getElementById('clearAllDataBtn')?.addEventListener('click', clearAllData);
 
+  // OpenAI API Key
+  document.getElementById('saveApiKeyBtn')?.addEventListener('click', saveOpenAIApiKey);
+  loadOpenAIApiKey(); // Lade gespeicherten Key beim Start
+
   // Add Account
   elements.addAccountBtn.addEventListener('click', openAddAccountModal);
   elements.closeAddAccountBtn.addEventListener('click', closeAddAccountModal);
@@ -682,11 +686,53 @@ class EmailAnalysisAnimation {
     this.showSummary();
 
     // Finale UI-Aktualisierung
-    renderEmailList();
     updateCategoryCounts();
+
+    // WICHTIG: Nach Animation automatisch zur "Wichtig"-Kategorie wechseln
+    const wichtigCount = (this.counts.essenz || 0) + (this.counts.wichtig || 0);
+    if (wichtigCount > 0) {
+      // Wechsle zur Wichtig-Kategorie
+      this.switchToCategory('important');
+    } else {
+      // Keine wichtigen E-Mails - bleibe im Posteingang
+      renderEmailList();
+    }
 
     this.isAnalyzing = false;
     console.log('[ANIMATION] Analyse-Animation abgeschlossen');
+  }
+
+  // Wechselt zur angegebenen Kategorie und aktualisiert die UI
+  switchToCategory(categoryName) {
+    // Update active category in sidebar
+    document.querySelectorAll('.category-item').forEach(item => {
+      item.classList.remove('active');
+      if (item.dataset.category === categoryName) {
+        item.classList.add('active');
+      }
+    });
+
+    // Update global state
+    currentCategory = categoryName;
+
+    // Update header
+    const titles = {
+      inbox: 'Posteingang',
+      important: 'Wichtig',
+      action: 'Aktion erforderlich',
+      newsletter: 'Newsletter',
+      sent: 'Gesendet',
+      spam: 'Spam'
+    };
+
+    if (elements.headerTitle) {
+      elements.headerTitle.textContent = titles[categoryName] || 'Posteingang';
+    }
+
+    // Render the filtered email list
+    renderEmailList();
+
+    console.log(`[ANIMATION] Gewechselt zu Kategorie: ${categoryName}`);
   }
 
   async animateEmailToCategory(email, kategorie, index) {
@@ -707,19 +753,8 @@ class EmailAnalysisAnimation {
       return;
     }
 
-    // WICHTIG: Wenn E-Mail im Posteingang bleibt (normal/info), keine Flug-Animation
-    // Nur Emails die WOANDERS hinfliegen (spam, newsletter, wichtig) bekommen Animation
-    const isMovingAway = targetCategory !== 'inbox';
-
-    if (!isMovingAway) {
-      // E-Mail bleibt im Posteingang - nur kurzes Highlight, kein Flug
-      this.counts[kategorie]++;
-      emailElement.style.transition = 'background 0.3s ease';
-      emailElement.style.background = 'rgba(20, 184, 166, 0.1)';
-      await this.sleep(150);
-      emailElement.style.background = '';
-      return;
-    }
+    // ALLE E-Mails fliegen zu ihrer Kategorie (auch normale zum Posteingang-Icon)
+    // Aber: normale/info werden schneller verarbeitet (kürzere Animation)
 
     // Positionen berechnen
     const emailRect = emailElement.getBoundingClientRect();
@@ -1928,6 +1963,73 @@ async function removeAccount(accountId) {
   } catch (error) {
     console.error('Error removing account:', error);
     showToast('Fehler beim Entfernen', 'error');
+  }
+}
+
+// ============================================
+// OpenAI API Key Management
+// ============================================
+
+async function saveOpenAIApiKey() {
+  const input = document.getElementById('openaiApiKeyInput');
+  const status = document.getElementById('apiKeyStatus');
+  const apiKey = input?.value?.trim();
+
+  if (!apiKey) {
+    status.textContent = 'Bitte gib einen API Key ein';
+    status.className = 'api-key-status error';
+    return;
+  }
+
+  if (!apiKey.startsWith('sk-')) {
+    status.textContent = 'Ungültiger Key (muss mit sk- beginnen)';
+    status.className = 'api-key-status error';
+    return;
+  }
+
+  try {
+    status.textContent = 'Speichere...';
+    status.className = 'api-key-status';
+
+    await ipcRenderer.invoke('email:setClassifierApiKey', apiKey);
+
+    status.textContent = '✓ API Key gespeichert!';
+    status.className = 'api-key-status success';
+
+    // Maske Input nach Speichern
+    input.value = apiKey.substring(0, 7) + '...' + apiKey.substring(apiKey.length - 4);
+    input.type = 'text';
+
+    showToast('OpenAI API Key gespeichert', 'success');
+    console.log('[API KEY] OpenAI API Key erfolgreich gesetzt');
+  } catch (error) {
+    console.error('[API KEY] Fehler:', error);
+    status.textContent = 'Fehler: ' + error.message;
+    status.className = 'api-key-status error';
+  }
+}
+
+async function loadOpenAIApiKey() {
+  const input = document.getElementById('openaiApiKeyInput');
+  const status = document.getElementById('apiKeyStatus');
+
+  if (!input) return;
+
+  try {
+    // Prüfe ob ein Key im Classifier gesetzt ist
+    const stats = await ipcRenderer.invoke('email:classifierStats');
+
+    // Wenn GPT-Kosten > 0, dann ist ein Key gesetzt
+    if (stats?.stats?.gptKosten > 0) {
+      input.placeholder = 'Key bereits gesetzt (sk-...)';
+      status.textContent = '✓ API Key ist konfiguriert';
+      status.className = 'api-key-status success';
+    } else {
+      status.textContent = 'Kein API Key konfiguriert - GPT-Klassifizierung deaktiviert';
+      status.className = 'api-key-status error';
+    }
+  } catch (error) {
+    console.error('[API KEY] Fehler beim Laden:', error);
   }
 }
 
