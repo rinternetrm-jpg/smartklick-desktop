@@ -4810,6 +4810,8 @@ ipcMain.handle('imap:disconnect', async () => {
 // Legacy single-account support (backwards compatibility)
 ipcMain.handle('imap:configure', async (_, settings) => {
   try {
+    console.log('[IMAP] Configure called with:', { ...settings, password: '***' });
+
     // Add as new account if not exists
     const existing = imapAccountManager.getAccounts().find(a => a.email === settings.user);
     if (!existing) {
@@ -4818,9 +4820,12 @@ ipcMain.handle('imap:configure', async (_, settings) => {
         host: settings.host,
         port: settings.port,
         tls: settings.tls,
-        email: settings.user,
+        user: settings.user,  // WICHTIG: 'user' nicht 'email'!
         password: settings.password
       });
+      console.log('[IMAP] New account added:', settings.user);
+    } else {
+      console.log('[IMAP] Account already exists:', settings.user);
     }
     return { success: true };
   } catch (error) {
