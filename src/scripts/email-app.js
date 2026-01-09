@@ -505,6 +505,11 @@ async function classifyAllEmails() {
       if (essenzCount > 0 || wichtigCount > 0) {
         showToast(`${essenzCount} Essenz, ${wichtigCount} Wichtig klassifiziert`);
       }
+
+      // WICHTIG: UI aktualisieren nach Klassifizierung!
+      renderEmailList();
+      updateCategoryCounts();
+      console.log('[CLASSIFY] UI aktualisiert');
     } else {
       console.error('[CLASSIFY] Failed:', result.error);
     }
@@ -1496,7 +1501,9 @@ async function connectImap() {
       selectedAccountId = 'imap';
       showToast('IMAP-Konto verbunden!');
       closeAddAccountModal();
-      loadImapEmails();
+      // Wichtig: Konten neu laden damit das neue Konto erscheint
+      await loadAccounts();
+      await loadEmails();
     } else {
       showToast('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'), 'error');
       elements.accountLoadingState.classList.add('hidden');
