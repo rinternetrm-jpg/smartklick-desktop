@@ -49,35 +49,32 @@ class Stufe2Classifier {
     const absenderEmail = from.address || '';
     const subject = email.subject || '';
 
-    const prompt = `Du bist ein E-Mail-Assistent. Analysiere NUR Absender und Betreff.
+    const prompt = `Klassifiziere diese E-Mail NUR anhand von Absender und Betreff.
 
 ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
 
-Beantworte diese 4 Fragen mit Ja/Nein/Unsicher:
+WICHTIG - Das sind KEINE echten Menschen:
+- WordPress, IONOS, Hostinger, Strato = Hosting-Benachrichtigungen → INFO
+- noreply@, no-reply@, notification@, info@, support@ = Automatisch → INFO
+- Facebook, LinkedIn, Twitter, Instagram = Social Media → INFO oder NEWSLETTER
+- Amazon, PayPal, DHL, Hermes = Bestellungen/Versand → INFO
+- Newsletter, "Dein Update", "Weekly" = NEWSLETTER
 
-1. MENSCH? Ist das von einem echten Menschen (nicht automatisch/System/Newsletter)?
-2. AKTION? Erwartet jemand eine Antwort oder Aktion von mir?
-3. GELD? Geht es um Geld (Rechnung, Zahlung, Angebot, Vertrag)?
-4. DRINGEND? Ist es zeitkritisch (Deadline, Termin, dringend)?
+ECHTE Menschen (ESSENZ/WICHTIG):
+- Persönliche E-Mail-Adresse (vorname.nachname@firma.de)
+- Direkter Betreff wie "Frage zu...", "Können wir...", "Bitte um..."
+- Jemand der PERSÖNLICH schreibt und eine Antwort erwartet
 
-Dann klassifiziere:
-- ESSENZ = Mindestens 2x Ja bei wichtigen Fragen (Mensch+Aktion, oder Geld, oder Dringend)
-- WICHTIG = Mindestens 1x Ja
-- INFO = Automatische Benachrichtigung die nützlich sein könnte
-- NEWSLETTER = Regelmäßiger Newsletter/Marketing
-- SPAM = Werbung, unerwünscht
+Kategorien:
+- ESSENZ = Echter Mensch schreibt persönlich UND erwartet Antwort/Aktion
+- WICHTIG = Könnte wichtig sein, aber nicht sicher ob Antwort nötig
+- INFO = Automatische System-Mails, Bestätigungen, Benachrichtigungen
+- NEWSLETTER = Regelmäßige Updates, Marketing, Werbung die ich evtl. abonniert habe
+- SPAM = Unerwünschte Werbung, Phishing
 
 Antworte NUR mit JSON:
-{
-  "mensch": "ja|nein|unsicher",
-  "aktion": "ja|nein|unsicher",
-  "geld": "ja|nein|unsicher",
-  "dringend": "ja|nein|unsicher",
-  "kategorie": "essenz|wichtig|info|newsletter|spam",
-  "confidence": 0-100,
-  "grund": "Kurze Begründung"
-}`;
+{"kategorie":"essenz|wichtig|info|newsletter|spam","confidence":0-100,"grund":"max 10 Worte"}`;
 
     try {
       const response = await this.openai.chat.completions.create({
@@ -97,27 +94,13 @@ Antworte NUR mit JSON:
 
       const result = JSON.parse(jsonStr);
 
-      // Zähle "Ja" Antworten
-      const jaCount = ['mensch', 'aktion', 'geld', 'dringend']
-        .filter(key => result[key]?.toLowerCase() === 'ja').length;
-
-      // Zähle "Unsicher" Antworten
-      const unsicherCount = ['mensch', 'aktion', 'geld', 'dringend']
-        .filter(key => result[key]?.toLowerCase() === 'unsicher').length;
-
-      // Brauchen wir mehr Text?
-      const needsMoreText = unsicherCount >= 2 || (result.confidence < 70 && jaCount > 0);
+      // Brauchen wir mehr Text? Nur bei niedriger Confidence
+      const needsMoreText = result.confidence < 60;
 
       return {
-        kategorie: result.kategorie.toLowerCase(),
-        confidence: result.confidence,
-        mensch: result.mensch,
-        aktion: result.aktion,
-        geld: result.geld,
-        dringend: result.dringend,
+        kategorie: result.kategorie?.toLowerCase() || 'info',
+        confidence: result.confidence || 70,
         grund: result.grund,
-        jaCount,
-        unsicherCount,
         needsMoreText,
         stufe: 2
       };
@@ -153,39 +136,31 @@ Antworte NUR mit JSON:
     for (let i = 0; i < emails.length; i += batchSize) {
       const batch = emails.slice(i, i + batchSize);
 
-      const prompt = `Du bist ein E-Mail-Assistent. Analysiere diese ${batch.length} E-Mails NUR anhand von Absender und Betreff.
+      const prompt = `Klassifiziere diese ${batch.length} E-Mails.
 
 ${batch.map((e, idx) => {
   const from = e.from || {};
-  return `[${idx + 1}]
-ABSENDER: ${from.name || ''} <${from.address || ''}>
-BETREFF: ${e.subject || ''}`;
-}).join('\n\n')}
+  return `[${idx + 1}] ${from.name || ''} <${from.address || ''}> | ${e.subject || ''}`;
+}).join('\n')}
 
-Für JEDE E-Mail, beantworte:
-1. MENSCH? Echter Mensch oder automatisch?
-2. AKTION? Erwartet Antwort/Aktion?
-3. GELD? Geht es um Geld?
-4. DRINGEND? Zeitkritisch?
+KEINE echten Menschen: WordPress, IONOS, Hostinger, Strato, noreply@, notification@, Facebook, LinkedIn, Amazon, PayPal, DHL → INFO
+ECHTE Menschen: Persönliche Adresse (vorname@), direkter Betreff ("Frage zu...", "Können wir...") → ESSENZ/WICHTIG
 
-Klassifiziere:
-- ESSENZ = Mindestens 2x Ja (wichtig!)
-- WICHTIG = Mindestens 1x Ja
-- INFO = Nützliche automatische Nachricht
-- NEWSLETTER = Newsletter/Marketing
-- SPAM = Werbung/unerwünscht
+Kategorien:
+- ESSENZ = Echter Mensch erwartet Antwort
+- WICHTIG = Könnte wichtig sein
+- INFO = System-Mail, Bestätigung
+- NEWSLETTER = Marketing, Updates
+- SPAM = Unerwünscht
 
-Antworte NUR mit JSON Array:
-[
-  {"nr": 1, "mensch": "ja|nein", "aktion": "ja|nein", "geld": "ja|nein", "dringend": "ja|nein", "kategorie": "...", "confidence": 0-100, "grund": "..."},
-  ...
-]`;
+JSON Array:
+[{"nr":1,"kat":"info","conf":85},{"nr":2,"kat":"essenz","conf":90},...]`;
 
       try {
         const response = await this.openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 150 * batch.length,
+          max_tokens: 50 * batch.length, // Kompakteres JSON = weniger Tokens
           temperature: 0.1
         });
 
@@ -201,23 +176,14 @@ Antworte NUR mit JSON Array:
           const gptResult = batchResponse.find(r => r.nr === j + 1) || batchResponse[j];
 
           if (gptResult) {
-            const jaCount = ['mensch', 'aktion', 'geld', 'dringend']
-              .filter(key => gptResult[key]?.toLowerCase() === 'ja').length;
-
-            const unsicherCount = ['mensch', 'aktion', 'geld', 'dringend']
-              .filter(key => gptResult[key]?.toLowerCase() === 'unsicher').length;
+            // Kategorie aus "kat" oder "kategorie" lesen
+            const kategorie = (gptResult.kat || gptResult.kategorie || 'info').toLowerCase();
+            const confidence = gptResult.conf || gptResult.confidence || 70;
 
             results.push({
-              kategorie: gptResult.kategorie?.toLowerCase() || 'normal',
-              confidence: gptResult.confidence || 70,
-              mensch: gptResult.mensch,
-              aktion: gptResult.aktion,
-              geld: gptResult.geld,
-              dringend: gptResult.dringend,
-              grund: gptResult.grund,
-              jaCount,
-              unsicherCount,
-              needsMoreText: unsicherCount >= 2 || gptResult.confidence < 70,
+              kategorie,
+              confidence,
+              needsMoreText: confidence < 60,
               stufe: 2
             });
           } else {

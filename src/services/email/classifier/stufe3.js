@@ -55,47 +55,42 @@ class Stufe3Classifier {
     const subject = email.subject || '';
     const body = this.truncateText(email.text || email.body || '');
 
-    const prompt = `Du bist ein E-Mail-Assistent. Die vorherige Analyse war unsicher. Analysiere jetzt den VOLLTEXT.
+    const prompt = `Analysiere diese E-Mail mit Volltext.
 
 ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
+INHALT: ${body}
 
-INHALT:
-${body}
+SPAM/WERBUNG erkennen:
+- "Deals", "Sale", "Knaller", "Rabatt", "% Rabatt" = SPAM
+- "Konzert kommt", "Tribute to", Events = NEWSLETTER
+- Marketing wie "Kennen Sie...", "Entdecken Sie..." = SPAM
+- Eventim, MediaMarkt, 1&1 Marketing, Shops = SPAM/NEWSLETTER
 
----
+INFO (automatisch, keine Antwort nötig):
+- WordPress, IONOS, Hostinger = INFO
+- Google/GitHub Sicherheitswarnungen = INFO
+- Bestellbestätigungen, Versandstatus = INFO
+- noreply@, notification@ = INFO
 
-Beantworte diese 4 Fragen definitiv mit Ja oder Nein:
+ESSENZ nur wenn BEIDES zutrifft:
+1. Echter Mensch schreibt PERSÖNLICH (nicht automatisch generiert)
+2. Erwartet konkrete Antwort/Aktion von mir
 
-1. MENSCH? Schreibt hier ein echter Mensch persönlich an mich? (Keine automatische Nachricht, kein System, kein Newsletter)
-2. AKTION? Wird von mir eine Antwort, Entscheidung oder Handlung erwartet?
-3. GELD? Geht es um Geld, Rechnung, Zahlung, Angebot, Vertrag oder finanzielle Dinge?
-4. DRINGEND? Ist es zeitkritisch? Gibt es eine Deadline, einen Termin, oder ist es dringend?
+Kategorien:
+- ESSENZ = Mensch erwartet persönliche Antwort
+- WICHTIG = Könnte Antwort brauchen, nicht sicher
+- INFO = Automatische Benachrichtigung
+- NEWSLETTER = Marketing, Updates, Events
+- SPAM = Werbung, unerwünscht
 
-Dann klassifiziere:
-- ESSENZ = Echter Mensch der etwas von mir will (Mensch=Ja UND Aktion=Ja), ODER es geht um Geld, ODER es ist dringend
-- WICHTIG = Mindestens 1x Ja, aber nicht ganz so kritisch
-- INFO = Nützliche automatische Info (Bestellbestätigung, Lieferstatus, Systembenachrichtigung)
-- NEWSLETTER = Newsletter, regelmäßige Updates, Marketing das ich evtl. abonniert habe
-- SPAM = Unerwünschte Werbung, Phishing, Müll
-
-Antworte NUR mit JSON:
-{
-  "mensch": "ja|nein",
-  "aktion": "ja|nein",
-  "geld": "ja|nein",
-  "dringend": "ja|nein",
-  "kategorie": "essenz|wichtig|info|newsletter|spam",
-  "confidence": 0-100,
-  "zusammenfassung": "1-2 Sätze was die E-Mail will",
-  "grund": "Warum diese Kategorie"
-}`;
+JSON: {"kat":"info|essenz|wichtig|newsletter|spam","conf":0-100,"sum":"Was will die Mail?"}`;
 
     try {
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 300,
+        max_tokens: 100, // Kompakteres JSON
         temperature: 0.1
       });
 
@@ -109,20 +104,14 @@ Antworte NUR mit JSON:
 
       const result = JSON.parse(jsonStr);
 
-      // Zähle "Ja" Antworten
-      const jaCount = ['mensch', 'aktion', 'geld', 'dringend']
-        .filter(key => result[key]?.toLowerCase() === 'ja').length;
+      // Kategorie aus "kat" oder "kategorie" lesen
+      const kategorie = (result.kat || result.kategorie || 'info').toLowerCase();
+      const confidence = result.conf || result.confidence || 80;
 
       return {
-        kategorie: result.kategorie.toLowerCase(),
-        confidence: Math.max(result.confidence, 80), // Stufe 3 sollte sicher sein
-        mensch: result.mensch,
-        aktion: result.aktion,
-        geld: result.geld,
-        dringend: result.dringend,
-        zusammenfassung: result.zusammenfassung,
-        grund: result.grund,
-        jaCount,
+        kategorie,
+        confidence: Math.max(confidence, 75), // Stufe 3 sollte sicher sein
+        zusammenfassung: result.sum || result.zusammenfassung,
         stufe: 3
       };
 
