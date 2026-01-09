@@ -1,6 +1,13 @@
 /**
- * STUFE 2: Betreff + Absender GPT-Analyse (Günstig)
- * Nur wenn Stufe 1 unsicher ist. Schickt NUR Betreff + Absender an GPT.
+ * STUFE 2: Intelligente GPT-Klassifizierung (Betreff + Absender)
+ *
+ * GPT entscheidet basierend auf 4 Fragen:
+ * 1. Ist das ein echter Mensch oder automatisch?
+ * 2. Erwartet jemand eine Antwort/Aktion?
+ * 3. Geht es um Geld?
+ * 4. Ist es zeitkritisch?
+ *
+ * KEINE Regeln, KEINE Whitelist/Blacklist - nur GPT-Intelligenz
  */
 
 const OpenAI = require('openai');
@@ -25,13 +32,14 @@ class Stufe2Classifier {
     this.openai = new OpenAI({ apiKey });
   }
 
-  async klassifiziere(email, stufe1Result) {
+  async klassifiziere(email) {
     if (!this.openai) {
-      console.warn('OpenAI API Key nicht konfiguriert, überspringe Stufe 2');
+      console.warn('OpenAI API Key nicht konfiguriert');
       return {
-        ...stufe1Result,
+        kategorie: 'normal',
+        confidence: 50,
+        needsMoreText: false,
         stufe: 2,
-        needsGPT: true,
         error: 'API Key fehlt'
       };
     }
@@ -41,43 +49,47 @@ class Stufe2Classifier {
     const absenderEmail = from.address || '';
     const subject = email.subject || '';
 
-    const prompt = `Klassifiziere diese E-Mail NUR anhand von Absender und Betreff:
+    const prompt = `Du bist ein E-Mail-Assistent. Analysiere NUR Absender und Betreff.
 
 ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
 
-Bisherige Einschätzung: ${stufe1Result.kategorie.toUpperCase()} (${stufe1Result.confidence}% sicher)
-Gründe: ${stufe1Result.reasons.slice(0, 5).join(', ')}
+Beantworte diese 4 Fragen mit Ja/Nein/Unsicher:
 
-Kategorien:
-- ESSENZ: Muss gelesen werden, erwartet Antwort/Aktion
-- WICHTIG: Sollte gelesen werden, relevant
-- NORMAL: Kann gelesen werden, nicht dringend
-- INFO: Automatische Benachrichtigung (Bestellungen, System-Mails)
-- NEWSLETTER: Abonnierter Newsletter, regelmäßige Updates
-- SPAM: Werbung, unerwünscht, Marketing
+1. MENSCH? Ist das von einem echten Menschen (nicht automatisch/System/Newsletter)?
+2. AKTION? Erwartet jemand eine Antwort oder Aktion von mir?
+3. GELD? Geht es um Geld (Rechnung, Zahlung, Angebot, Vertrag)?
+4. DRINGEND? Ist es zeitkritisch (Deadline, Termin, dringend)?
 
-Antworte NUR mit JSON (keine Erklärung davor oder danach):
+Dann klassifiziere:
+- ESSENZ = Mindestens 2x Ja bei wichtigen Fragen (Mensch+Aktion, oder Geld, oder Dringend)
+- WICHTIG = Mindestens 1x Ja
+- INFO = Automatische Benachrichtigung die nützlich sein könnte
+- NEWSLETTER = Regelmäßiger Newsletter/Marketing
+- SPAM = Werbung, unerwünscht
+
+Antworte NUR mit JSON:
 {
-  "kategorie": "essenz|wichtig|normal|info|newsletter|spam",
+  "mensch": "ja|nein|unsicher",
+  "aktion": "ja|nein|unsicher",
+  "geld": "ja|nein|unsicher",
+  "dringend": "ja|nein|unsicher",
+  "kategorie": "essenz|wichtig|info|newsletter|spam",
   "confidence": 0-100,
-  "istFrage": true/false,
-  "erwartetAntwort": true/false,
-  "hatDeadline": true/false,
-  "grund": "Kurze Begründung (max 10 Wörter)"
+  "grund": "Kurze Begründung"
 }`;
 
     try {
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 150,
+        max_tokens: 200,
         temperature: 0.1
       });
 
       const content = response.choices[0].message.content.trim();
 
-      // Parse JSON - handle potential markdown code blocks
+      // Parse JSON
       let jsonStr = content;
       if (content.includes('```')) {
         jsonStr = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
@@ -85,51 +97,51 @@ Antworte NUR mit JSON (keine Erklärung davor oder danach):
 
       const result = JSON.parse(jsonStr);
 
-      // Kombiniere mit Stufe 1
-      if (result.confidence >= 75) {
-        return {
-          kategorie: result.kategorie.toLowerCase(),
-          confidence: result.confidence,
-          tags: this.extractTags(result),
-          grund: result.grund,
-          stufe: 2,
-          needsGPT: false,
-          gptResult: result
-        };
-      }
+      // Zähle "Ja" Antworten
+      const jaCount = ['mensch', 'aktion', 'geld', 'dringend']
+        .filter(key => result[key]?.toLowerCase() === 'ja').length;
 
-      // Immer noch unsicher → Stufe 3
+      // Zähle "Unsicher" Antworten
+      const unsicherCount = ['mensch', 'aktion', 'geld', 'dringend']
+        .filter(key => result[key]?.toLowerCase() === 'unsicher').length;
+
+      // Brauchen wir mehr Text?
+      const needsMoreText = unsicherCount >= 2 || (result.confidence < 70 && jaCount > 0);
+
       return {
         kategorie: result.kategorie.toLowerCase(),
         confidence: result.confidence,
-        tags: this.extractTags(result),
+        mensch: result.mensch,
+        aktion: result.aktion,
+        geld: result.geld,
+        dringend: result.dringend,
         grund: result.grund,
-        stufe: 2,
-        needsGPT: true,
-        gptResult: result
+        jaCount,
+        unsicherCount,
+        needsMoreText,
+        stufe: 2
       };
 
     } catch (error) {
       console.error('Stufe 2 GPT Fehler:', error.message);
-
-      // Fallback: Stufe 1 Ergebnis verwenden
       return {
-        ...stufe1Result,
+        kategorie: 'normal',
+        confidence: 50,
+        needsMoreText: true,
         stufe: 2,
-        needsGPT: true,
         error: error.message
       };
     }
   }
 
-  // Batch-Verarbeitung für mehrere E-Mails
-  async batchKlassifiziere(emails, stufe1Results) {
+  // Batch-Klassifizierung für mehrere E-Mails
+  async batchKlassifiziere(emails) {
     if (!this.openai) {
-      console.warn('OpenAI API Key nicht konfiguriert');
-      return emails.map((_, i) => ({
-        ...stufe1Results[i],
+      return emails.map(() => ({
+        kategorie: 'normal',
+        confidence: 50,
+        needsMoreText: false,
         stufe: 2,
-        needsGPT: true,
         error: 'API Key fehlt'
       }));
     }
@@ -140,23 +152,32 @@ Antworte NUR mit JSON (keine Erklärung davor oder danach):
 
     for (let i = 0; i < emails.length; i += batchSize) {
       const batch = emails.slice(i, i + batchSize);
-      const batchResults = stufe1Results.slice(i, i + batchSize);
 
-      const prompt = `Klassifiziere diese ${batch.length} E-Mails NUR anhand von Absender und Betreff:
+      const prompt = `Du bist ein E-Mail-Assistent. Analysiere diese ${batch.length} E-Mails NUR anhand von Absender und Betreff.
 
 ${batch.map((e, idx) => {
   const from = e.from || {};
   return `[${idx + 1}]
 ABSENDER: ${from.name || ''} <${from.address || ''}>
-BETREFF: ${e.subject || ''}
-VORHER: ${batchResults[idx].kategorie} (${batchResults[idx].confidence}%)`;
+BETREFF: ${e.subject || ''}`;
 }).join('\n\n')}
 
-Kategorien: ESSENZ, WICHTIG, NORMAL, INFO, NEWSLETTER, SPAM
+Für JEDE E-Mail, beantworte:
+1. MENSCH? Echter Mensch oder automatisch?
+2. AKTION? Erwartet Antwort/Aktion?
+3. GELD? Geht es um Geld?
+4. DRINGEND? Zeitkritisch?
 
-Antworte NUR mit JSON Array (keine Erklärung):
+Klassifiziere:
+- ESSENZ = Mindestens 2x Ja (wichtig!)
+- WICHTIG = Mindestens 1x Ja
+- INFO = Nützliche automatische Nachricht
+- NEWSLETTER = Newsletter/Marketing
+- SPAM = Werbung/unerwünscht
+
+Antworte NUR mit JSON Array:
 [
-  { "nr": 1, "kategorie": "...", "confidence": 0-100, "erwartetAntwort": true/false, "grund": "..." },
+  {"nr": 1, "mensch": "ja|nein", "aktion": "ja|nein", "geld": "ja|nein", "dringend": "ja|nein", "kategorie": "...", "confidence": 0-100, "grund": "..."},
   ...
 ]`;
 
@@ -164,7 +185,7 @@ Antworte NUR mit JSON Array (keine Erklärung):
         const response = await this.openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 100 * batch.length,
+          max_tokens: 150 * batch.length,
           temperature: 0.1
         });
 
@@ -179,25 +200,32 @@ Antworte NUR mit JSON Array (keine Erklärung):
         for (let j = 0; j < batch.length; j++) {
           const gptResult = batchResponse.find(r => r.nr === j + 1) || batchResponse[j];
 
-          if (gptResult && gptResult.confidence >= 75) {
+          if (gptResult) {
+            const jaCount = ['mensch', 'aktion', 'geld', 'dringend']
+              .filter(key => gptResult[key]?.toLowerCase() === 'ja').length;
+
+            const unsicherCount = ['mensch', 'aktion', 'geld', 'dringend']
+              .filter(key => gptResult[key]?.toLowerCase() === 'unsicher').length;
+
             results.push({
-              kategorie: gptResult.kategorie.toLowerCase(),
-              confidence: gptResult.confidence,
-              tags: this.extractTags(gptResult),
+              kategorie: gptResult.kategorie?.toLowerCase() || 'normal',
+              confidence: gptResult.confidence || 70,
+              mensch: gptResult.mensch,
+              aktion: gptResult.aktion,
+              geld: gptResult.geld,
+              dringend: gptResult.dringend,
               grund: gptResult.grund,
-              stufe: 2,
-              needsGPT: false,
-              gptResult
+              jaCount,
+              unsicherCount,
+              needsMoreText: unsicherCount >= 2 || gptResult.confidence < 70,
+              stufe: 2
             });
           } else {
             results.push({
-              kategorie: gptResult?.kategorie?.toLowerCase() || batchResults[j].kategorie,
-              confidence: gptResult?.confidence || batchResults[j].confidence,
-              tags: gptResult ? this.extractTags(gptResult) : [],
-              grund: gptResult?.grund,
-              stufe: 2,
-              needsGPT: true,
-              gptResult
+              kategorie: 'normal',
+              confidence: 50,
+              needsMoreText: true,
+              stufe: 2
             });
           }
         }
@@ -206,11 +234,12 @@ Antworte NUR mit JSON Array (keine Erklärung):
         console.error('Batch Stufe 2 Fehler:', error.message);
 
         // Fallback für die ganze Batch
-        for (const result of batchResults) {
+        for (let j = 0; j < batch.length; j++) {
           results.push({
-            ...result,
+            kategorie: 'normal',
+            confidence: 50,
+            needsMoreText: true,
             stufe: 2,
-            needsGPT: true,
             error: error.message
           });
         }
@@ -218,24 +247,6 @@ Antworte NUR mit JSON Array (keine Erklärung):
     }
 
     return results;
-  }
-
-  extractTags(gptResult) {
-    const tags = [];
-
-    if (gptResult.erwartetAntwort) {
-      tags.push('ANTWORT_NÖTIG');
-    }
-
-    if (gptResult.istFrage) {
-      tags.push('FRAGE');
-    }
-
-    if (gptResult.hatDeadline) {
-      tags.push('DEADLINE');
-    }
-
-    return tags;
   }
 }
 
