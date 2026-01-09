@@ -103,6 +103,23 @@ class CalendarService {
     return this.formatEvents(response.data.items || []);
   }
 
+  // Get events in date range (for calendar window)
+  async getEvents(startDate, endDate) {
+    const calendar = this.getCalendar();
+
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin: startDate,
+      timeMax: endDate,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 250
+    });
+
+    // Return raw events for calendar window (needs more details)
+    return response.data.items || [];
+  }
+
   // Create a new event
   async createEvent(eventData) {
     const calendar = this.getCalendar();

@@ -18,17 +18,14 @@
   --sk-mode-blue: #3b82f6;
   --sk-mode-purple: #8b5cf6;
 
-  /* Groessen Horizontal */
+  /* Groessen - GROESSER */
   --sk-dock-h-height: 44px;
-  --sk-mic-h-size: 28px;
-  --sk-dot-size: 16px;
-  --sk-lang-h-width: 22px;
-  --sk-lang-h-height: 16px;
+  --sk-mic-size: 34px;
+  --sk-dot-size: 20px;
+  --sk-lang-size: 26px;
 
-  /* Groessen Vertikal */
-  --sk-dock-v-width: 48px;
-  --sk-mic-v-size: 32px;
-  --sk-lang-v-size: 18px;
+  /* Vertikal */
+  --sk-dock-v-width: 52px;
 }
 
 /* ========================================
@@ -50,7 +47,6 @@
 
 /* ========================================
    HORIZONTAL DOCK (Oben/Unten)
-   44px Hoehe, 100% Breite
    ======================================== */
 
 .dock-bar.horizontal {
@@ -58,8 +54,7 @@
   right: 0;
   height: var(--sk-dock-h-height);
   flex-direction: row;
-  justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 16px;
 }
 
 .dock-bar.horizontal.top {
@@ -70,23 +65,8 @@
   bottom: 0;
 }
 
-/* Settings offen: Leiste wird hoeher */
-.dock-bar.horizontal.settings-open {
-  height: calc(var(--sk-dock-h-height) + 180px);
-}
-
-.dock-bar.horizontal.top.settings-open {
-  /* Panel unter der Leiste */
-}
-
-.dock-bar.horizontal.bottom.settings-open {
-  /* Panel ueber der Leiste - Leiste bleibt unten */
-  flex-direction: column-reverse;
-}
-
 /* ========================================
    VERTICAL DOCK (Links/Rechts)
-   48px Breite, 100% Hoehe
    ======================================== */
 
 .dock-bar.vertical {
@@ -94,8 +74,7 @@
   bottom: 0;
   width: var(--sk-dock-v-width);
   flex-direction: column;
-  justify-content: space-between;
-  padding: 16px 6px;
+  padding: 12px 4px;
 }
 
 .dock-bar.vertical.left {
@@ -106,59 +85,67 @@
   right: 0;
 }
 
-/* Settings offen: Leiste wird breiter */
-.dock-bar.vertical.settings-open {
-  width: calc(var(--sk-dock-v-width) + 220px);
-}
-
-.dock-bar.vertical.left.settings-open {
-  /* Panel rechts neben der Leiste */
-  flex-direction: row;
-}
-
-.dock-bar.vertical.right.settings-open {
-  /* Panel links neben der Leiste */
-  flex-direction: row-reverse;
-}
-
 /* ========================================
-   DOCK CONTENT WRAPPER
+   DOCK CONTENT - Logo links, Rest zentriert
    ======================================== */
 
 .dock-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.dock-bar.horizontal .dock-content {
+  flex-direction: row;
+}
+
+.dock-bar.vertical .dock-content {
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Linke Gruppe (Logo) - bleibt links */
+.dock-group.left {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
 
-.dock-bar.horizontal .dock-content {
-  flex-direction: row;
-  height: var(--sk-dock-h-height);
-  width: 100%;
-  justify-content: space-between;
+/* Mitte Gruppe - zentriert, nimmt verfuegbaren Platz */
+.dock-group.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex: 1;
 }
 
-.dock-bar.vertical .dock-content {
-  flex-direction: column;
-  width: var(--sk-dock-v-width);
-  height: 100%;
-  justify-content: space-between;
-}
-
-/* Gruppen innerhalb des Contents */
-.dock-group {
+/* Rechte Gruppe (Undock) - bleibt rechts */
+.dock-group.right {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
-.dock-bar.vertical .dock-group {
+/* Vertikal: Gruppen untereinander */
+.dock-bar.vertical .dock-group.left,
+.dock-bar.vertical .dock-group.center,
+.dock-bar.vertical .dock-group.right {
   flex-direction: column;
+  width: 100%;
+}
+
+.dock-bar.vertical .dock-group.center {
+  flex: 1;
+  justify-content: center;
+  gap: 10px;
 }
 
 /* ========================================
-   LOGO & HEADER
+   LOGO
    ======================================== */
 
 .dock-logo {
@@ -168,11 +155,11 @@
 }
 
 .dock-bar.horizontal .dock-logo {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .dock-bar.vertical .dock-logo {
-  font-size: 9px;
+  font-size: 10px;
   writing-mode: vertical-rl;
 }
 
@@ -180,35 +167,16 @@
   transform: rotate(180deg);
 }
 
-/* A-Button (Schriftart) */
-.dock-font-btn {
-  width: 20px;
-  height: 20px;
+/* Header Buttons (A, Settings) */
+.dock-header-btn {
+  width: 24px;
+  height: 24px;
   background: transparent;
   border: 1px solid var(--sk-border);
   border-radius: 4px;
   color: var(--sk-text-light);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-}
-
-.dock-font-btn:hover {
-  border-color: var(--sk-primary);
-  color: var(--sk-primary);
-}
-
-/* Settings-Button */
-.dock-settings-btn {
-  width: 20px;
-  height: 20px;
-  background: transparent;
-  border: none;
-  color: var(--sk-text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -217,21 +185,31 @@
   padding: 0;
 }
 
-.dock-settings-btn:hover {
+.dock-header-btn:hover {
+  border-color: var(--sk-primary);
   color: var(--sk-primary);
+  background: rgba(20, 184, 166, 0.1);
 }
 
-.dock-settings-btn svg {
+.dock-header-btn.active {
+  border-color: var(--sk-primary);
+  color: var(--sk-primary);
+  background: rgba(20, 184, 166, 0.2);
+}
+
+.dock-header-btn svg {
   width: 14px;
   height: 14px;
   fill: currentColor;
 }
 
 /* ========================================
-   MIKROFON BUTTON
+   MIKROFON BUTTON - GROESSER
    ======================================== */
 
 .dock-mic {
+  width: var(--sk-mic-size);
+  height: var(--sk-mic-size);
   border-radius: 50%;
   border: 2px solid var(--sk-primary);
   background: linear-gradient(135deg, #1a3a2f 0%, #0f2922 100%);
@@ -243,33 +221,15 @@
   flex-shrink: 0;
 }
 
-.dock-bar.horizontal .dock-mic {
-  width: var(--sk-mic-h-size);
-  height: var(--sk-mic-h-size);
-}
-
-.dock-bar.horizontal .dock-mic svg {
-  width: 14px;
-  height: 14px;
-}
-
-.dock-bar.vertical .dock-mic {
-  width: var(--sk-mic-v-size);
-  height: var(--sk-mic-v-size);
-}
-
-.dock-bar.vertical .dock-mic svg {
-  width: 16px;
-  height: 16px;
-}
-
 .dock-mic svg {
+  width: 18px;
+  height: 18px;
   fill: var(--sk-primary);
 }
 
 .dock-mic:hover {
   transform: scale(1.1);
-  box-shadow: 0 0 12px rgba(20, 184, 166, 0.4);
+  box-shadow: 0 0 15px rgba(20, 184, 166, 0.5);
 }
 
 .dock-mic.recording {
@@ -282,20 +242,158 @@
   fill: #ef4444;
 }
 
+.dock-mic.processing {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #3a2a1a 0%, #221f0f 100%);
+  animation: pulse-processing 1.5s infinite;
+}
+
+.dock-mic.processing svg {
+  fill: #f59e0b;
+}
+
+@keyframes pulse-processing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+}
+
+/* Hide/show icons */
+.dock-mic svg.hidden {
+  display: none;
+}
+
+/* Recording Status Text */
+.dock-recording-status {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ef4444;
+  margin-right: 8px;
+  animation: blink-text 1s infinite;
+  white-space: nowrap;
+}
+
+.dock-recording-status.hidden {
+  display: none;
+}
+
+@keyframes blink-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Notiz gespeichert Popup (Dock) - Fly Animation */
+.dock-note-saved {
+  --fly-x: 0px;
+  --fly-y: 0px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 12px rgba(34, 197, 94, 0.5);
+  margin-right: 10px;
+  opacity: 0;
+  transform: scale(0);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1000;
+}
+
+.dock-note-saved.show.fly {
+  animation: dockNoteFly 1.2s ease-in-out forwards;
+}
+
+.dock-note-icon {
+  font-size: 14px;
+}
+
+.dock-note-saved.show .dock-note-icon {
+  animation: dockIconBounce 0.3s ease-out 0.1s;
+}
+
+/* Fly animation - appears, then flies to notes icon */
+@keyframes dockNoteFly {
+  0% {
+    opacity: 0;
+    transform: scale(0) translate(0, 0);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.1) translate(0, 0);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1) translate(0, 0);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.6) translate(var(--fly-x), var(--fly-y));
+  }
+  85% {
+    opacity: 0.8;
+    transform: scale(0.3) translate(var(--fly-x), var(--fly-y));
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0) translate(var(--fly-x), var(--fly-y));
+  }
+}
+
+@keyframes dockIconBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+}
+
+/* Notes icon flash when popup arrives */
+.dock-header-btn.note-flash {
+  animation: noteIconFlash 0.6s ease-out;
+}
+
+@keyframes noteIconFlash {
+  0% {
+    transform: scale(1);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+  }
+  30% {
+    transform: scale(1.4);
+    background: rgba(34, 197, 94, 0.4);
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.8);
+  }
+  60% {
+    transform: scale(1.2);
+    background: rgba(34, 197, 94, 0.3);
+    box-shadow: 0 0 15px rgba(34, 197, 94, 0.5);
+  }
+  100% {
+    transform: scale(1);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+  }
+}
+
 @keyframes pulse-recording {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
 }
 
 /* ========================================
-   MODUS DOTS (2x3 Grid)
+   MODUS DOTS - Einzeilig horizontal
    ======================================== */
 
 .dock-modes {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 3px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.dock-bar.vertical .dock-modes {
+  flex-direction: column;
 }
 
 .dock-mode-dot {
@@ -308,13 +406,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: bold;
   color: white;
 }
 
 .dock-mode-dot:hover {
-  transform: scale(1.1);
+  transform: scale(1.15);
 }
 
 .dock-mode-dot.active {
@@ -329,27 +427,29 @@
 .dock-mode-dot[data-mode="prompt"] { background: var(--sk-mode-blue); }
 .dock-mode-dot[data-mode="smartklick"] { background: var(--sk-mode-purple); }
 
-/* S-Label im lila Dot */
-.dock-mode-dot .dot-label {
-  font-size: 7px;
-}
-
 /* ========================================
-   SPRACH-BUTTONS (2x4 Grid)
+   SPRACH-BUTTONS - Einzeilig horizontal
    ======================================== */
 
 .dock-languages {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 3px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.dock-bar.vertical .dock-languages {
+  flex-direction: column;
 }
 
 .dock-lang-btn {
+  width: var(--sk-lang-size);
+  height: 20px;
   background: rgba(255, 255, 255, 0.12);
   border: none;
+  border-radius: 10px;
   color: var(--sk-text-light);
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -358,17 +458,9 @@
   transition: all 0.15s ease;
 }
 
-/* Horizontal: Oval */
-.dock-bar.horizontal .dock-lang-btn {
-  width: var(--sk-lang-h-width);
-  height: var(--sk-lang-h-height);
-  border-radius: 8px;
-}
-
-/* Vertikal: Rund */
 .dock-bar.vertical .dock-lang-btn {
-  width: var(--sk-lang-v-size);
-  height: var(--sk-lang-v-size);
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
 }
 
@@ -377,13 +469,11 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* Aktive Sprache (DE) */
 .dock-lang-btn.active {
   background: var(--sk-primary);
   color: #fff;
 }
 
-/* Minus-Button (keine Uebersetzung) */
 .dock-lang-btn[data-lang=""].active {
   background: var(--sk-mode-blue);
 }
@@ -393,20 +483,27 @@
    ======================================== */
 
 .dock-undock-btn {
-  background: transparent;
-  border: none;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--sk-border);
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
   transition: all 0.15s ease;
 }
 
 .dock-undock-btn svg {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   fill: var(--sk-text-muted);
+}
+
+.dock-undock-btn:hover {
+  background: rgba(20, 184, 166, 0.15);
+  border-color: var(--sk-primary);
 }
 
 .dock-undock-btn:hover svg {
@@ -414,7 +511,7 @@
 }
 
 /* ========================================
-   DIVIDER (Trennlinien)
+   DIVIDER
    ======================================== */
 
 .dock-divider {
@@ -425,87 +522,13 @@
 .dock-bar.horizontal .dock-divider {
   width: 1px;
   height: 28px;
+  margin: 0 8px;
 }
 
 .dock-bar.vertical .dock-divider {
-  width: 100%;
+  width: 80%;
   height: 1px;
-}
-
-/* ========================================
-   SETTINGS PANEL (Schiebt sich auf)
-   ======================================== */
-
-.dock-settings-panel {
-  background: linear-gradient(180deg, var(--sk-bg-light) 0%, var(--sk-bg-dark) 100%);
-  padding: 12px;
-  display: none;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.dock-bar.settings-open .dock-settings-panel {
-  display: flex;
-}
-
-/* Horizontal: Panel hat feste Hoehe */
-.dock-bar.horizontal .dock-settings-panel {
-  width: 100%;
-  height: 180px;
-  border-top: 1px solid var(--sk-border);
-}
-
-.dock-bar.horizontal.top .dock-settings-panel {
-  border-top: none;
-  border-bottom: 1px solid var(--sk-border);
-}
-
-/* Vertikal: Panel hat feste Breite */
-.dock-bar.vertical .dock-settings-panel {
-  width: 220px;
-  height: 100%;
-  border-left: 1px solid var(--sk-border);
-}
-
-.dock-bar.vertical.right .dock-settings-panel {
-  border-left: none;
-  border-right: 1px solid var(--sk-border);
-}
-
-/* Settings Inhalt */
-.dock-settings-panel h3 {
-  color: #fff;
-  font-size: 12px;
-  margin: 0 0 8px 0;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--sk-border);
-}
-
-.setting-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: var(--sk-text-light);
-  font-size: 11px;
-}
-
-.setting-row label {
-  flex: 1;
-}
-
-.setting-row input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--sk-primary);
-}
-
-.setting-row select {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid var(--sk-border);
-  border-radius: 4px;
-  color: #fff;
-  padding: 4px 8px;
-  font-size: 10px;
+  margin: 6px auto;
 }
 
 /* ========================================
@@ -514,43 +537,35 @@
 
 .dock-indicator {
   position: fixed;
-  background: rgba(20, 184, 166, 0.15);
-  border: 2px dashed var(--sk-primary);
+  background: rgba(20, 184, 166, 0.25);
+  border: 3px dashed var(--sk-primary);
   pointer-events: none;
-  z-index: 9998;
+  z-index: 99999;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--sk-primary);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 0 10px rgba(20, 184, 166, 0.8);
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.15s ease;
+  box-shadow: inset 0 0 30px rgba(20, 184, 166, 0.3);
 }
 
 .dock-indicator.visible {
-  opacity: 0.6;
+  opacity: 1;
 }
 
 .dock-indicator.snapping {
-  opacity: 1;
   animation: snap-pulse 0.3s ease-out;
   background: rgba(20, 184, 166, 0.3);
 }
 
 @keyframes snap-pulse {
-  0% {
-    transform: scale(1);
-    background: rgba(20, 184, 166, 0.15);
-  }
-  50% {
-    transform: scale(1.02);
-    background: rgba(20, 184, 166, 0.4);
-  }
-  100% {
-    transform: scale(1);
-    background: rgba(20, 184, 166, 0.3);
-  }
+  0% { background: rgba(20, 184, 166, 0.15); }
+  50% { background: rgba(20, 184, 166, 0.4); }
+  100% { background: rgba(20, 184, 166, 0.3); }
 }
 
 .dock-indicator.top {
@@ -571,35 +586,21 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: 50px;
+  width: 55px;
 }
 
 .dock-indicator.right {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 50px;
+  width: 55px;
 }
 
 /* ========================================
-   SNAPPING GLOW EFFEKT
+   SNAPPING GLOW
    ======================================== */
 
 body.snapping-glow {
   box-shadow: 0 0 30px rgba(20, 184, 166, 0.5);
   transition: box-shadow 0.2s ease;
-}
-
-/* ========================================
-   VERTIKALE ANPASSUNGEN
-   ======================================== */
-
-.dock-bar.vertical .dock-modes {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-}
-
-.dock-bar.vertical .dock-languages {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(4, 1fr);
 }

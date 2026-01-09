@@ -1128,6 +1128,66 @@ body {
   background: #4b5563;
 }
 
+/* IMAP Setup */
+.setup-form select {
+  width: 100%;
+  padding: 10px 12px;
+  background: #374151;
+  border: 1px solid #4b5563;
+  border-radius: 6px;
+  color: #e5e7eb;
+  font-size: 14px;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.setup-form select:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.setup-form select option {
+  background: #374151;
+}
+
+.setup-form input[type="email"],
+.setup-form input[type="password"],
+.setup-form input[type="text"],
+.setup-form input[type="number"] {
+  margin-bottom: 12px;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #3b82f6;
+}
+
+.setup-hint {
+  display: block;
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 6px;
+  color: #9ca3af;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#imapCustomFields {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
 /* Provider Badge */
 .provider-badge {
   display: inline-block;

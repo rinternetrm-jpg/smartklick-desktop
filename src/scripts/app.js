@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupSettingsButtons();
   setupPanelButtons();
   setupGoogleIntegration();
+  setupDockingListeners();
 
   // Listen for Electron events
   if (window.electronAPI) {
@@ -163,6 +164,60 @@ function setupMicButtons() {
   });
 }
 
+// ========== DOCKING LISTENERS ==========
+function setupDockingListeners() {
+  // Mic click from dock bar
+  document.addEventListener('dock-mic-clicked', () => {
+    toggleRecording();
+    // Note: setMicState in toggleRecording already updates dock state
+  });
+
+  // Mode change from dock bar
+  document.addEventListener('dock-mode-changed', (e) => {
+    const mode = e.detail.mode;
+    if (mode) {
+      setTone(mode);
+    }
+  });
+
+  // Language change from dock bar
+  document.addEventListener('dock-lang-changed', (e) => {
+    const lang = e.detail.lang;
+    setLanguage(lang);
+  });
+
+  // Screen Reading from dock bar (A button)
+  document.addEventListener('dock-screen-read-clicked', () => {
+    if (typeof startScreenReading === 'function') {
+      startScreenReading();
+    }
+  });
+
+  // Notes from dock bar - oeffnet Notizen im Fullscreen
+  document.addEventListener('dock-notes-clicked', () => {
+    if (window.electronAPI?.notes?.openWebview) {
+      window.electronAPI.notes.openWebview();
+      console.log('[App] Notes Fullscreen geoeffnet');
+    }
+  });
+
+  // Email from dock bar - oeffnet E-Mail Fenster
+  document.addEventListener('dock-email-clicked', () => {
+    if (window.electronAPI?.email?.openWindow) {
+      window.electronAPI.email.openWindow();
+      console.log('[App] Email Fenster geoeffnet');
+    }
+  });
+
+  // Calendar from dock bar - oeffnet Kalender Fenster
+  document.addEventListener('dock-calendar-clicked', () => {
+    if (window.electronAPI?.calendar?.openWindow) {
+      window.electronAPI.calendar.openWindow();
+      console.log('[App] Kalender Fenster geoeffnet');
+    }
+  });
+}
+
 async function toggleRecording() {
   if (state.isProcessing) return;
 
@@ -198,6 +253,16 @@ async function startRecording() {
 
     // Update UI
     setMicState('recording');
+
+    // Cursor Feedback: DEAKTIVIERT - verursacht Probleme
+    // TODO: Später richtig implementieren
+    // try {
+    //   if (window.electronAPI?.cursorFeedback) {
+    //     await window.electronAPI.cursorFeedback.showRecording();
+    //   }
+    // } catch (err) {
+    //   console.error('CursorFeedback showRecording error:', err);
+    // }
 
     console.log('Recording started');
   } catch (error) {
@@ -263,6 +328,10 @@ async function processRecording() {
 
     if (!response.ok) {
       console.error('Server error:', response.status, response.statusText);
+      // Cursor Feedback abbrechen bei Fehler
+      if (window.electronAPI?.cursorFeedback) {
+        await window.electronAPI.cursorFeedback.cancel();
+      }
       setMicState('idle');
       state.isProcessing = false;
       return;
@@ -330,6 +399,10 @@ async function processRecording() {
 
   } catch (error) {
     console.error('Error processing recording:', error);
+    // Cursor Feedback abbrechen bei Fehler
+    if (window.electronAPI?.cursorFeedback) {
+      await window.electronAPI.cursorFeedback.cancel();
+    }
     setMicState('idle');
   }
 
@@ -347,6 +420,10 @@ function handleTranscriptionResult(result) {
 
   if (!text) {
     console.log('ERROR: No text received!');
+    // Cursor Feedback abbrechen wenn kein Text
+    if (window.electronAPI?.cursorFeedback) {
+      window.electronAPI.cursorFeedback.cancel();
+    }
     setMicState('idle');
     return;
   }
@@ -357,6 +434,10 @@ function handleTranscriptionResult(result) {
     if (match) {
       const action = match[1];
       console.log('Google Action detected:', action);
+      // Cursor Feedback abbrechen bei Aktionen (kein Text wird eingefügt)
+      if (window.electronAPI?.cursorFeedback) {
+        window.electronAPI.cursorFeedback.cancel();
+      }
       handleGoogleAction(action);
       setMicState('success');
       setTimeout(() => setMicState('idle'), 1500);
@@ -371,6 +452,9 @@ function handleTranscriptionResult(result) {
       const action = match[1];
       const query = match[2] || null;
       console.log('Notes Action detected:', action, query);
+      if (window.electronAPI?.cursorFeedback) {
+        window.electronAPI.cursorFeedback.cancel();
+      }
       handleNotesAction(action, query);
       setMicState('success');
       setTimeout(() => setMicState('idle'), 1500);
@@ -384,6 +468,9 @@ function handleTranscriptionResult(result) {
     if (match) {
       const content = match[1].trim();
       console.log('Notes Save detected:', content);
+      if (window.electronAPI?.cursorFeedback) {
+        window.electronAPI.cursorFeedback.cancel();
+      }
       handleNotesSave(content);
       setMicState('success');
       setTimeout(() => setMicState('idle'), 1500);
@@ -394,6 +481,9 @@ function handleTranscriptionResult(result) {
   // SCREENSHOT NOTE: Capture screen and save as note
   if (text.includes('__SCREENSHOT_NOTE__')) {
     console.log('Screenshot to Note triggered');
+    if (window.electronAPI?.cursorFeedback) {
+      window.electronAPI.cursorFeedback.cancel();
+    }
     handleScreenshotNote();
     setMicState('success');
     setTimeout(() => setMicState('idle'), 1500);
@@ -403,6 +493,9 @@ function handleTranscriptionResult(result) {
   // ANALYZE PAGE NOTE: Show animation AND save to notes
   if (text.includes('__ANALYZE_PAGE_NOTE__')) {
     console.log('Page Analysis to Note triggered');
+    if (window.electronAPI?.cursorFeedback) {
+      window.electronAPI.cursorFeedback.cancel();
+    }
     handleAnalyzePageNoteWithAnimation();  // Animation + save to notes
     setMicState('success');
     setTimeout(() => setMicState('idle'), 1500);
@@ -415,6 +508,9 @@ function handleTranscriptionResult(result) {
     if (match) {
       const eventText = match[1].trim();
       console.log('Calendar Create detected:', eventText);
+      if (window.electronAPI?.cursorFeedback) {
+        window.electronAPI.cursorFeedback.cancel();
+      }
       handleCalendarCreate(eventText);
       setMicState('success');
       setTimeout(() => setMicState('idle'), 1500);
@@ -425,6 +521,10 @@ function handleTranscriptionResult(result) {
   // PROMPT MODE: Generate optimized prompt instead of inserting text
   if (state.currentTone === 'prompt') {
     console.log('Prompt mode - generating AI prompt');
+    // Cursor Feedback abbrechen (Prompt Mode fügt keinen Text ein)
+    if (window.electronAPI?.cursorFeedback) {
+      window.electronAPI.cursorFeedback.cancel();
+    }
     // Switch to normal mode if not already there (panel only works in normal)
     if (state.viewMode !== 'normal') {
       if (window.electronAPI) {
@@ -475,6 +575,14 @@ function setMicState(stateType) {
     btn.classList.remove('idle', 'recording', 'processing', 'success');
     btn.classList.add(stateType);
   });
+
+  // Update dock mic button with state string
+  if (window.dockingManager) {
+    // Map stateType to dock states: 'idle', 'recording', 'processing'
+    const dockState = (stateType === 'recording') ? 'recording' :
+                      (stateType === 'processing') ? 'processing' : 'idle';
+    window.dockingManager.setRecordingState(dockState);
+  }
 
   // Update labels based on state
   const micLabel = document.getElementById('mic-label') || document.querySelector('.mic-label');
@@ -1007,12 +1115,28 @@ async function insertText(text) {
 
   if (window.electronAPI) {
     try {
-      console.log('Calling electronAPI.pasteText...');
-      const success = await window.electronAPI.pasteText(text);
-      console.log('Paste result:', success);
-      if (!success) {
-        console.log('Paste failed, copying to clipboard as fallback');
-        await navigator.clipboard.writeText(text);
+      // Prüfe ob Cursor Feedback aktiv ist (Text wurde an Cursor-Position eingefügt)
+      const feedbackStatus = await window.electronAPI.cursorFeedback?.getStatus();
+
+      if (feedbackStatus) {
+        // Cursor Feedback aktiv: "Verarbeitung" durch finalen Text ersetzen
+        console.log('Using cursorFeedback.insertFinal...');
+        const success = await window.electronAPI.cursorFeedback.insertFinal(text);
+        console.log('CursorFeedback insertFinal result:', success);
+        if (!success) {
+          // Fallback zu normalem Paste
+          console.log('CursorFeedback failed, using pasteText as fallback');
+          await window.electronAPI.pasteText(text);
+        }
+      } else {
+        // Normales Paste (kein Cursor Feedback aktiv)
+        console.log('Calling electronAPI.pasteText...');
+        const success = await window.electronAPI.pasteText(text);
+        console.log('Paste result:', success);
+        if (!success) {
+          console.log('Paste failed, copying to clipboard as fallback');
+          await navigator.clipboard.writeText(text);
+        }
       }
     } catch (error) {
       console.error('Paste error:', error);
@@ -1366,27 +1490,37 @@ function updateScreenReadStatus(text, type) {
 }
 
 function showScreenReadingResult(data) {
-  const resultEl = document.getElementById('screen-reading-result');
-
   if (!data.summary) {
-    resultEl.innerHTML = '<div class="loading">Keine Analyse verfügbar</div>';
+    console.log('Keine Analyse-Daten verfuegbar');
     return;
   }
 
-  resultEl.innerHTML = `
-    <div class="summary">
-      <div class="summary-header">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-          <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-        </svg>
-        Bildschirm-Zusammenfassung
+  // Open analysis viewer window with the data
+  if (window.electronAPI?.analysis?.open) {
+    window.electronAPI.analysis.open({
+      title: 'Seitenanalyse',
+      summary: data.summary,
+      url: data.url || null,
+      keyPoints: data.keyPoints || [],
+      recommendations: data.recommendations || []
+    });
+    console.log('[ScreenReading] Analyse-Fenster geoeffnet');
+  } else {
+    // Fallback: Show in panel (old behavior)
+    const resultEl = document.getElementById('screen-reading-result');
+    resultEl.innerHTML = `
+      <div class="summary">
+        <div class="summary-header">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+          </svg>
+          Bildschirm-Zusammenfassung
+        </div>
+        <div class="summary-text">${escapeHtml(data.summary)}</div>
       </div>
-      <div class="summary-text">${escapeHtml(data.summary)}</div>
-    </div>
-  `;
-
-  // Show the panel
-  showPanel('screen-reading-panel');
+    `;
+    showPanel('screen-reading-panel');
+  }
 }
 
 function escapeHtml(text) {
@@ -1940,6 +2074,14 @@ async function handleGoogleAction(action) {
         } else {
           hidePanel('google-panel');
           console.error('Fehler beim Laden der E-Mails:', emailResult.error);
+        }
+        break;
+
+      // ========== CALENDAR ACTIONS ==========
+      case 'calendar_show':
+        console.log('Opening calendar window...');
+        if (window.electronAPI?.calendar?.openWindow) {
+          await window.electronAPI.calendar.openWindow();
         }
         break;
 
@@ -2776,28 +2918,80 @@ async function handleNotesSave(content) {
   }
 }
 
-// Show save result feedback
+// Show save result feedback with fly-to-icon animation
 function showNoteSaveResult(success, noteOrError) {
   const label = document.getElementById('mic-label');
-  if (!label) return;
-
-  const originalText = label.textContent;
+  const popup = document.getElementById('note-saved-popup');
+  const dockPopup = document.getElementById('dock-note-saved');
+  const notesIcon = document.getElementById('dockNotesBtn');
 
   if (success) {
+    // Determine icon based on category
     const icon = noteOrError.category === 'links' ? '🔗' :
                  noteOrError.category === 'code' ? '💻' :
                  noteOrError.category === 'ideas' ? '💡' : '📝';
-    label.textContent = `${icon} Notiz gespeichert!`;
-    label.style.color = '#22c55e';  // Green
-  } else {
-    label.textContent = `❌ Fehler: ${noteOrError}`;
-    label.style.color = '#ef4444';  // Red
-  }
 
-  setTimeout(() => {
-    label.textContent = originalText;
-    label.style.color = '';
-  }, 3000);
+    // Normal mode popup (simple animation)
+    if (popup) {
+      const iconEl = popup.querySelector('.note-saved-icon');
+      const textEl = popup.querySelector('.note-saved-text');
+      if (iconEl) iconEl.textContent = icon;
+      if (textEl) textEl.textContent = 'Notiz gespeichert';
+
+      popup.classList.remove('show');
+      void popup.offsetWidth;
+      popup.classList.add('show');
+      setTimeout(() => popup.classList.remove('show'), 2500);
+    }
+
+    // Dock mode: Fly-to-icon animation
+    if (dockPopup && notesIcon) {
+      const dockIconEl = dockPopup.querySelector('.dock-note-icon');
+      const dockTextEl = dockPopup.querySelector('.dock-note-text');
+      if (dockIconEl) dockIconEl.textContent = icon;
+      if (dockTextEl) dockTextEl.textContent = 'Notiz gespeichert';
+
+      // Get positions
+      const popupRect = dockPopup.getBoundingClientRect();
+      const iconRect = notesIcon.getBoundingClientRect();
+
+      // Calculate distance to fly
+      const deltaX = iconRect.left - popupRect.left - (popupRect.width / 2) + (iconRect.width / 2);
+      const deltaY = iconRect.top - popupRect.top;
+
+      // Set CSS variables for animation
+      dockPopup.style.setProperty('--fly-x', `${deltaX}px`);
+      dockPopup.style.setProperty('--fly-y', `${deltaY}px`);
+
+      // Start animation
+      dockPopup.classList.remove('show', 'fly');
+      void dockPopup.offsetWidth;
+      dockPopup.classList.add('show', 'fly');
+
+      // Flash the notes icon when popup arrives
+      setTimeout(() => {
+        notesIcon.classList.add('note-flash');
+        setTimeout(() => notesIcon.classList.remove('note-flash'), 600);
+      }, 800); // When popup reaches the icon
+
+      // Cleanup
+      setTimeout(() => {
+        dockPopup.classList.remove('show', 'fly');
+      }, 1500);
+    }
+
+    console.log('[NOTES] ✅ Notiz gespeichert - Fly Animation gestartet');
+  } else if (!success && label) {
+    // Show error in label
+    const originalText = label.textContent;
+    label.textContent = `❌ Fehler: ${noteOrError}`;
+    label.style.color = '#ef4444';
+
+    setTimeout(() => {
+      label.textContent = originalText;
+      label.style.color = '';
+    }, 3000);
+  }
 }
 
 // Show screenshot flash animation (camera flash effect)

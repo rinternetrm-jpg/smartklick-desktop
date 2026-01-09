@@ -19,10 +19,24 @@ const googleAuth = require('./src/services/googleAuth');
 const calendarService = require('./src/services/calendarService');
 const gmailService = require('./src/services/gmailService');
 const notesService = require('./src/services/notesService');
+const imapService = require('./src/services/imapService');
+const imapAccountManager = require('./src/services/imapAccountManager');
 
 // Multi-Provider Email
 const EmailProviderManager = require('./src/services/emailProviderManager');
 let emailProviderManager = null;
+
+// Windows AppBar API (reserviert Bildschirmbereich wie Taskleiste)
+// Koffi-basiert - keine native Compilation nötig, funktioniert cross-platform build!
+const { initNativeAPIs: initAppBarAPIs, appBarManager, isWindows: isWindowsAppBar, getInitError, wasInitCalled } = require('./src/services/appBarKoffi');
+
+// Cursor Feedback - Fügt "Aufnahme" / "Verarbeitung" an Cursor-Position in Ziel-App ein
+const cursorFeedback = require('./src/services/cursorFeedback');
+
+// Multi-Monitor Docking System
+const multiMonitorDocking = require('./src/services/multiMonitorDocking');
+const monitors = require('./src/services/monitors');
+const stateSync = require('./src/services/stateSync');
 
 // Outlook OAuth Configuration
 const OUTLOOK_CONFIG = {
@@ -47,7 +61,8 @@ const store = new Store({
     last_language: null,
     window_position: null,
     wake_word_enabled: false,  // Wake word off by default
-    wake_word_threshold: 0.5
+    wake_word_threshold: 0.5,
+    multi_monitor_enabled: false  // Multi-Monitor Docking off by default
   }
 });
 
@@ -64,11 +79,24 @@ let dictationActive = false;
 let overlayWindow = null;
 let screenReadingActive = false;
 
+// Snap Overlay Window (fuer Dock-Indikatoren)
+let snapOverlayWindow = null;
+
 // Notes Webview Window
 let notesWindow = null;
 
+// Analysis Viewer Window
+let analysisWindow = null;
+let pendingAnalysisData = null;
+
 // Email Window
 let emailWindow = null;
+
+// Calendar Window
+let calendarWindow = null;
+
+// Dock Settings Window
+let dockSettingsWindow = null;
 
 // Window sizes for each mode
 const WINDOW_SIZES = {
@@ -114,15 +142,62 @@ function createWindow() {
     }
   });
 
-  // Force highest always-on-top level (above all other windows)
+  // IMMER im Vordergrund - screen-saver ist hoechste Ebene
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  // Bei Focus und Show erneut setzen (Windows Bug Workaround)
+  mainWindow.on('focus', () => {
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  });
+
+  mainWindow.on('show', () => {
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  });
 
   mainWindow.loadFile('src/index.html');
 
-  // Save position on move + Docking detection
+  // Save position on move + Docking detection + Bounds constraint
   mainWindow.on('moved', () => {
-    const [x, y] = mainWindow.getPosition();
-    store.set('window_position', { x, y });
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    const bounds = mainWindow.getBounds();
+    const currentScreen = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
+    const { workArea } = currentScreen;
+
+    // Mindestens 50px des Fensters muss sichtbar sein
+    const minVisible = 50;
+    let needsCorrection = false;
+    let newX = bounds.x;
+    let newY = bounds.y;
+
+    // Linker Rand: Fenster darf nicht komplett links verschwinden
+    if (bounds.x + bounds.width < workArea.x + minVisible) {
+      newX = workArea.x + minVisible - bounds.width;
+      needsCorrection = true;
+    }
+    // Rechter Rand: Fenster darf nicht komplett rechts verschwinden
+    if (bounds.x > workArea.x + workArea.width - minVisible) {
+      newX = workArea.x + workArea.width - minVisible;
+      needsCorrection = true;
+    }
+    // Oberer Rand: Fenster darf nicht komplett oben verschwinden
+    if (bounds.y < workArea.y) {
+      newY = workArea.y;
+      needsCorrection = true;
+    }
+    // Unterer Rand: Fenster darf nicht komplett unten verschwinden
+    if (bounds.y > workArea.y + workArea.height - minVisible) {
+      newY = workArea.y + workArea.height - minVisible;
+      needsCorrection = true;
+    }
+
+    // Position korrigieren wenn noetig
+    if (needsCorrection) {
+      mainWindow.setPosition(Math.round(newX), Math.round(newY));
+      return; // Nicht weiter pruefen, da wir gerade korrigiert haben
+    }
+
+    store.set('window_position', { x: bounds.x, y: bounds.y });
 
     // Skip if already docked
     if (isDocked) return;
@@ -130,7 +205,7 @@ function createWindow() {
     // Check for edge proximity (snap detection)
     const autoSnap = store.get('dockAutoSnap') !== false;
     if (autoSnap) {
-      checkEdgeProximity(x, y);
+      checkEdgeProximity(bounds.x, bounds.y);
     }
   });
 
@@ -156,54 +231,162 @@ const SNAP_THRESHOLD = 80;       // Magnet-Zone
 const SNAP_DURATION = 200;       // ms fuer Animation
 let isSnapping = false;
 
+// ========================================
+// SNAP OVERLAY WINDOW - Visueller Indikator
+// ========================================
+
+/**
+ * Erstellt das transparente Overlay-Fenster fuer Snap-Indikatoren
+ */
+function createSnapOverlayWindow() {
+  if (snapOverlayWindow && !snapOverlayWindow.isDestroyed()) {
+    return snapOverlayWindow;
+  }
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  const { x, y } = primaryDisplay.workArea;
+
+  snapOverlayWindow = new BrowserWindow({
+    width: width,
+    height: height,
+    x: x,
+    y: y,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: false,
+    resizable: false,
+    movable: false,
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  // Klicks durch das Fenster durchlassen
+  snapOverlayWindow.setIgnoreMouseEvents(true);
+
+  // IMMER im Vordergrund - screen-saver ist hoechste Ebene
+  snapOverlayWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  // Overlay HTML laden
+  snapOverlayWindow.loadFile('src/overlay.html');
+
+  snapOverlayWindow.on('closed', () => {
+    snapOverlayWindow = null;
+  });
+
+  return snapOverlayWindow;
+}
+
+/**
+ * Zeigt den Snap-Indikator am entsprechenden Rand
+ */
+function showSnapIndicator(edge, intensity = 1) {
+  if (!snapOverlayWindow || snapOverlayWindow.isDestroyed()) {
+    createSnapOverlayWindow();
+  }
+
+  if (snapOverlayWindow && !snapOverlayWindow.isDestroyed()) {
+    snapOverlayWindow.webContents.send('show-indicator', { edge, intensity });
+    if (!snapOverlayWindow.isVisible()) {
+      snapOverlayWindow.show();
+    }
+  }
+}
+
+/**
+ * Versteckt den Snap-Indikator
+ */
+function hideSnapIndicator() {
+  if (!snapOverlayWindow || snapOverlayWindow.isDestroyed()) return;
+
+  snapOverlayWindow.webContents.send('hide-indicator');
+  // Kurz warten fuer Fade-Out Animation
+  setTimeout(() => {
+    if (snapOverlayWindow && !snapOverlayWindow.isDestroyed()) {
+      snapOverlayWindow.hide();
+    }
+  }, 200);
+}
+
+/**
+ * Pulse-Animation beim Snappen
+ */
+function pulseSnapIndicator(edge) {
+  if (!snapOverlayWindow || snapOverlayWindow.isDestroyed()) return;
+
+  snapOverlayWindow.webContents.send('pulse-indicator', { edge });
+}
+
 /**
  * Prueft ob Fenster nahe an einer Bildschirmkante ist
  */
 function checkEdgeProximity(x, y) {
-  if (!mainWindow || isSnapping) return;
+  try {
+    if (!mainWindow || mainWindow.isDestroyed() || isSnapping || isDocked) return;
 
-  const currentScreen = screen.getDisplayNearestPoint({ x, y });
-  const { workArea } = currentScreen;
-  const [width, height] = mainWindow.getSize();
+    const bounds = mainWindow.getBounds();
+    const currentScreen = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
+    const { workArea } = currentScreen;
 
-  // Abstaende zu allen Raendern
-  const distances = {
-    top: y - workArea.y,
-    bottom: (workArea.y + workArea.height) - (y + height),
-    left: x - workArea.x,
-    right: (workArea.x + workArea.width) - (x + width)
-  };
+    // Abstaende zu allen Raendern (absolute Werte)
+    const distTop = Math.abs(bounds.y - workArea.y);
+    const distBottom = Math.abs((workArea.y + workArea.height) - (bounds.y + bounds.height));
+    const distLeft = Math.abs(bounds.x - workArea.x);
+    const distRight = Math.abs((workArea.x + workArea.width) - (bounds.x + bounds.width));
 
-  // Finde naechsten Rand
-  let nearestEdge = null;
-  let nearestDistance = Infinity;
+    // Finde naechsten Rand
+    const distances = [
+      { edge: 'top', dist: distTop },
+      { edge: 'bottom', dist: distBottom },
+      { edge: 'left', dist: distLeft },
+      { edge: 'right', dist: distRight }
+    ];
 
-  for (const [edge, distance] of Object.entries(distances)) {
-    if (distance < nearestDistance && distance >= 0) {
-      nearestDistance = distance;
-      nearestEdge = edge;
+    distances.sort((a, b) => a.dist - b.dist);
+    const nearest = distances[0];
+
+    // Phase 1: Annaeherung (150px - 80px) - OVERLAY Indikator zeigen
+    if (nearest.dist < APPROACH_THRESHOLD && nearest.dist >= SNAP_THRESHOLD) {
+      const intensity = 1 - (nearest.dist / APPROACH_THRESHOLD);
+
+      // Zeige Overlay-Indikator
+      showSnapIndicator(nearest.edge, intensity);
+
+      // Auch an Renderer senden (fuer lokale Effekte)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('docking-approaching-edge', {
+          edge: nearest.edge,
+          intensity: intensity * 0.6
+        });
+      }
+      currentApproachingEdge = nearest.edge;
+      isApproachingEdge = true;
     }
-  }
+    // Phase 2: Snap-Zone (< 80px) - Magnetisch andocken
+    else if (nearest.dist < SNAP_THRESHOLD) {
+      // Pulse-Animation vor dem Snap
+      pulseSnapIndicator(nearest.edge);
+      triggerMagneticSnap(nearest.edge, workArea);
+    }
+    // Ausserhalb - Indikator verstecken
+    else if (currentApproachingEdge) {
+      // Overlay verstecken
+      hideSnapIndicator();
 
-  // Phase 1: Annaeherung (150px - 80px) - Indikator zeigen
-  if (nearestDistance < APPROACH_THRESHOLD && nearestDistance >= SNAP_THRESHOLD) {
-    const intensity = 1 - (nearestDistance / APPROACH_THRESHOLD);
-    mainWindow.webContents.send('docking-approaching-edge', {
-      edge: nearestEdge,
-      intensity: intensity * 0.6
-    });
-    currentApproachingEdge = nearestEdge;
-    isApproachingEdge = true;
-  }
-  // Phase 2: Snap-Zone (< 80px) - Magnetisch andocken
-  else if (nearestDistance < SNAP_THRESHOLD && nearestDistance >= 0) {
-    triggerMagneticSnap(nearestEdge, workArea);
-  }
-  // Ausserhalb - Indikator verstecken
-  else if (currentApproachingEdge) {
-    mainWindow.webContents.send('docking-left-edge');
-    currentApproachingEdge = null;
-    isApproachingEdge = false;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('docking-left-edge');
+      }
+      currentApproachingEdge = null;
+      isApproachingEdge = false;
+    }
+  } catch (error) {
+    console.error('[Docking] Fehler bei checkEdgeProximity:', error);
   }
 }
 
@@ -211,54 +394,272 @@ function checkEdgeProximity(x, y) {
  * Triggert das magnetische Andocken mit Animation
  */
 async function triggerMagneticSnap(edge, workArea) {
-  if (!mainWindow || isDocked || isSnapping) return;
+  if (!mainWindow || mainWindow.isDestroyed() || isDocked || isSnapping) return;
 
-  isSnapping = true;
-  console.log(`[Docking] Magnetisches Snap zu: ${edge}`);
+  try {
+    isSnapping = true;
+    console.log(`[Docking] Magnetisches Snap zu: ${edge}`);
 
-  // Aktuelle Bounds speichern
-  preDockBounds = mainWindow.getBounds();
+    // Aktuelle Bounds speichern
+    preDockBounds = mainWindow.getBounds();
 
-  // Ziel-Bounds berechnen
-  let targetBounds = {};
+    // Ziel-Bounds berechnen
+    let targetBounds = {};
 
-  if (edge === 'top' || edge === 'bottom') {
-    targetBounds = {
-      x: workArea.x,
-      y: edge === 'top' ? workArea.y : workArea.y + workArea.height - DOCK_SIZES.horizontal.height,
-      width: workArea.width,
-      height: DOCK_SIZES.horizontal.height
+    if (edge === 'top' || edge === 'bottom') {
+      targetBounds = {
+        x: workArea.x,
+        y: edge === 'top' ? workArea.y : workArea.y + workArea.height - DOCK_SIZES.horizontal.height,
+        width: workArea.width,
+        height: DOCK_SIZES.horizontal.height
+      };
+    } else {
+      targetBounds = {
+        x: edge === 'left' ? workArea.x : workArea.x + workArea.width - DOCK_SIZES.vertical.width,
+        y: workArea.y,
+        width: DOCK_SIZES.vertical.width,
+        height: workArea.height
+      };
+    }
+
+    // Renderer: Snapping-Effekt
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('docking-snapping', { edge });
+    }
+
+    // Animierte Bewegung zum Rand
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setResizable(true);
+      await animateWindowTo(mainWindow, targetBounds, SNAP_DURATION);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setResizable(false);
+      }
+    }
+
+    // Status aktualisieren
+    isDocked = true;
+    dockPosition = edge;
+    store.set('dock_position', edge);
+    store.set('pre_dock_bounds', preDockBounds);
+
+    // Fenster IMMER im Vordergrund - screen-saver ist hoechste Ebene
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setAlwaysOnTop(true, 'screen-saver');
+      mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    }
+
+    // Windows AppBar registrieren - reserviert Bildschirmbereich PERMANENT
+    // Andere Fenster (Chrome etc.) maximieren sich NUR in den freien Bereich!
+    // Logs an Renderer senden damit sie in DevTools erscheinen
+    const sendLog = (msg) => {
+      console.log(msg);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        // JSON.stringify escaped alles sicher
+        const jsonStr = JSON.stringify('[MAIN] ' + String(msg));
+        mainWindow.webContents.executeJavaScript(`console.log(${jsonStr});`);
+      }
     };
-  } else {
-    targetBounds = {
-      x: edge === 'left' ? workArea.x : workArea.x + workArea.width - DOCK_SIZES.vertical.width,
-      y: workArea.y,
-      width: DOCK_SIZES.vertical.width,
-      height: workArea.height
-    };
+
+    sendLog('AppBar Check - isWindowsAppBar: ' + isWindowsAppBar);
+    sendLog('AppBar Check - wasInitCalled: ' + wasInitCalled());
+    sendLog('AppBar Check - initError: ' + (getInitError() || 'none'));
+
+    if (isWindowsAppBar && mainWindow && !mainWindow.isDestroyed()) {
+      sendLog('Rufe AppBar register auf...');
+      const hwnd = mainWindow.getNativeWindowHandle();
+      sendLog('HWND erhalten - Laenge: ' + (hwnd ? hwnd.length : 0));
+
+      const size = (edge === 'top' || edge === 'bottom')
+        ? DOCK_SIZES.horizontal.height
+        : DOCK_SIZES.vertical.width;
+      sendLog('AppBar Size: ' + size + ', Edge: ' + edge);
+
+      try {
+        // Display-Bounds für Multi-Monitor-Support
+        // Den Display finden basierend auf der Fenstermitte
+        const winBounds = mainWindow.getBounds();
+        const centerPoint = {
+          x: winBounds.x + winBounds.width / 2,
+          y: winBounds.y + winBounds.height / 2
+        };
+        const currentDisplay = screen.getDisplayNearestPoint(centerPoint);
+
+        // Beide Werte loggen für Debug
+        sendLog('Display bounds: ' + JSON.stringify(currentDisplay.bounds));
+        sendLog('Display workArea: ' + JSON.stringify(currentDisplay.workArea));
+
+        // Für AppBar: bounds verwenden (der gesamte Monitorbereich)
+        const displayBounds = {
+          x: currentDisplay.bounds.x,
+          y: currentDisplay.bounds.y,
+          width: currentDisplay.bounds.width,
+          height: currentDisplay.bounds.height
+        };
+
+        // workArea für bottom-Docking (um Taskleiste nicht zu überschreiben)
+        const displayWorkArea = {
+          x: currentDisplay.workArea.x,
+          y: currentDisplay.workArea.y,
+          width: currentDisplay.workArea.width,
+          height: currentDisplay.workArea.height
+        };
+
+        sendLog('Using displayBounds: ' + JSON.stringify(displayBounds));
+        sendLog('Using workArea: ' + JSON.stringify(displayWorkArea));
+
+        const success = appBarManager.register(hwnd, edge, size, displayBounds, displayWorkArea);
+        sendLog('AppBar register() Ergebnis: ' + success);
+
+        // Debug-Logs aus AppBarManager abrufen und anzeigen
+        const debugLogs = appBarManager.getDebugLogs();
+        debugLogs.forEach(log => sendLog('  > ' + log));
+
+        if (success) {
+          sendLog('AppBar erfolgreich registriert fuer: ' + edge);
+
+          // WICHTIG: Electron Fenster auch explizit positionieren!
+          // SetWindowPos allein reicht nicht - Electron muss es auch wissen
+          const appBarBounds = {
+            x: displayBounds.x,
+            y: displayBounds.y,
+            width: displayBounds.width,
+            height: size
+          };
+
+          // Für verschiedene Kanten
+          if (edge === 'bottom') {
+            // workArea verwenden um Taskleiste nicht zu überschreiben
+            appBarBounds.y = displayWorkArea.y + displayWorkArea.height - size;
+          } else if (edge === 'left') {
+            appBarBounds.width = size;
+            appBarBounds.height = displayBounds.height;
+          } else if (edge === 'right') {
+            appBarBounds.x = displayBounds.x + displayBounds.width - size;
+            appBarBounds.width = size;
+            appBarBounds.height = displayBounds.height;
+          }
+
+          sendLog('Setze Electron bounds: ' + JSON.stringify(appBarBounds));
+          mainWindow.setBounds(appBarBounds);
+
+          // Nochmal prüfen
+          const actualBounds = mainWindow.getBounds();
+          sendLog('Tatsaechliche Fensterposition: ' + JSON.stringify(actualBounds));
+
+          // Finale Position nach kurzer Verzögerung erzwingen (falls etwas überschreibt)
+          setTimeout(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.setBounds(appBarBounds);
+              sendLog('Finale Position erzwungen: ' + JSON.stringify(mainWindow.getBounds()));
+            }
+          }, 150);
+        } else {
+          const lastError = appBarManager.getLastError();
+          sendLog('AppBar FEHLER: ' + (lastError || 'unbekannt'));
+        }
+      } catch (err) {
+        sendLog('AppBar EXCEPTION: ' + err.message);
+      }
+    } else {
+      sendLog('AppBar NICHT aufgerufen - isWindowsAppBar=' + isWindowsAppBar);
+    }
+
+    // Renderer informieren
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('docking-docked', { position: edge });
+    }
+
+    // Overlay verstecken nach erfolgreichem Snap
+    hideSnapIndicator();
+
+    // Multi-Monitor: Docks auf anderen Monitoren erstellen wenn aktiviert
+    if (store.get('multi_monitor_enabled')) {
+      const allDisplays = screen.getAllDisplays();
+      const primaryDisplay = screen.getPrimaryDisplay();
+
+      // Auf allen anderen Monitoren Docks erstellen
+      allDisplays.forEach(display => {
+        if (display.id !== primaryDisplay.id) {
+          multiMonitorDocking.createDockWindowForDisplay(display, edge);
+        }
+      });
+
+      // State synchronisieren
+      stateSync.updateSharedState({
+        isDocked: true,
+        dockPosition: edge,
+        isRecording: false,
+        isProcessing: false
+      });
+
+      console.log(`[MultiMonitor] Docks auf ${allDisplays.length - 1} weiteren Monitor(en) erstellt`);
+    }
+
+    console.log(`[Docking] Angedockt an: ${edge}`);
+  } catch (error) {
+    console.error('[Docking] Fehler beim Snap:', error);
+    hideSnapIndicator();
+  } finally {
+    isSnapping = false;
+    currentApproachingEdge = null;
   }
+}
 
-  // Renderer: Snapping-Effekt
-  mainWindow.webContents.send('docking-snapping', { edge });
+/**
+ * Validiert Bounds und stellt sicher, dass sie sichtbar sind
+ */
+function validateBounds(bounds) {
+  // Mindestgroesse sicherstellen
+  const minWidth = 44;
+  const minHeight = 44;
 
-  // Animierte Bewegung zum Rand
-  mainWindow.setResizable(true);
-  await animateWindowTo(mainWindow, targetBounds, SNAP_DURATION);
-  mainWindow.setResizable(false);
+  return {
+    x: isNaN(bounds.x) ? 0 : Math.round(bounds.x),
+    y: isNaN(bounds.y) ? 0 : Math.round(bounds.y),
+    width: Math.max(minWidth, isNaN(bounds.width) ? 200 : Math.round(bounds.width)),
+    height: Math.max(minHeight, isNaN(bounds.height) ? 200 : Math.round(bounds.height))
+  };
+}
 
-  // Status aktualisieren
-  isDocked = true;
-  dockPosition = edge;
-  store.set('dock_position', edge);
-  store.set('pre_dock_bounds', preDockBounds);
+/**
+ * Stellt sicher, dass das Fenster auf dem Bildschirm sichtbar ist
+ */
+function ensureWindowVisible() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
 
-  // Renderer informieren
-  mainWindow.webContents.send('docking-docked', { position: edge });
+  try {
+    const bounds = mainWindow.getBounds();
+    const displays = screen.getAllDisplays();
 
-  isSnapping = false;
-  currentApproachingEdge = null;
+    // Pruefen ob Fenster auf irgendeinem Display sichtbar ist
+    let isVisible = false;
+    for (const display of displays) {
+      const { x, y, width, height } = display.bounds;
+      if (bounds.x < x + width && bounds.x + bounds.width > x &&
+          bounds.y < y + height && bounds.y + bounds.height > y) {
+        isVisible = true;
+        break;
+      }
+    }
 
-  console.log(`[Docking] Angedockt an: ${edge}`);
+    // Wenn nicht sichtbar, auf Primary Display zentrieren
+    if (!isVisible) {
+      console.log('[Window] Fenster nicht sichtbar, zentriere auf Primary Display');
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { workArea } = primaryDisplay;
+      const viewMode = store.get('view_mode') || 'compact';
+      const size = WINDOW_SIZES[viewMode] || WINDOW_SIZES.compact;
+
+      mainWindow.setBounds({
+        x: Math.round(workArea.x + (workArea.width - size.width) / 2),
+        y: Math.round(workArea.y + (workArea.height - size.height) / 2),
+        width: size.width,
+        height: size.height
+      });
+    }
+  } catch (error) {
+    console.error('[Window] Fehler bei ensureWindowVisible:', error);
+  }
 }
 
 /**
@@ -266,24 +667,43 @@ async function triggerMagneticSnap(edge, workArea) {
  */
 function animateWindowTo(window, targetBounds, duration) {
   return new Promise(resolve => {
+    if (!window || window.isDestroyed()) {
+      resolve();
+      return;
+    }
+
     const startBounds = window.getBounds();
     const startTime = Date.now();
 
+    // Validiere Zielbounds
+    const validTarget = validateBounds(targetBounds);
+
     function step() {
+      if (!window || window.isDestroyed()) {
+        resolve();
+        return;
+      }
+
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
 
       // easeOutCubic fuer "magnetisches" Gefuehl
       const eased = 1 - Math.pow(1 - progress, 3);
 
-      const currentBounds = {
-        x: Math.round(startBounds.x + (targetBounds.x - startBounds.x) * eased),
-        y: Math.round(startBounds.y + (targetBounds.y - startBounds.y) * eased),
-        width: Math.round(startBounds.width + (targetBounds.width - startBounds.width) * eased),
-        height: Math.round(startBounds.height + (targetBounds.height - startBounds.height) * eased)
-      };
+      const currentBounds = validateBounds({
+        x: startBounds.x + (validTarget.x - startBounds.x) * eased,
+        y: startBounds.y + (validTarget.y - startBounds.y) * eased,
+        width: startBounds.width + (validTarget.width - startBounds.width) * eased,
+        height: startBounds.height + (validTarget.height - startBounds.height) * eased
+      });
 
-      window.setBounds(currentBounds);
+      try {
+        window.setBounds(currentBounds);
+      } catch (e) {
+        console.error('[Animation] Fehler bei setBounds:', e);
+        resolve();
+        return;
+      }
 
       if (progress < 1) {
         setImmediate(step);
@@ -340,12 +760,34 @@ function undockWindow() {
     mainWindow.setResizable(false);
   }
 
+  // Multi-Monitor: Alle zusätzlichen Docks entfernen
+  if (store.get('multi_monitor_enabled')) {
+    multiMonitorDocking.removeAllDockWindows();
+    console.log('[MultiMonitor] Alle zusätzlichen Docks entfernt');
+  }
+
+  // Windows AppBar deregistrieren - gibt Bildschirmbereich wieder frei
+  if (isWindowsAppBar && appBarManager.getIsRegistered()) {
+    appBarManager.unregisterAll(); // unregisterAll für Multi-Monitor Support
+    console.log('[Docking] AppBar deregistriert');
+  }
+
   // Status zuruecksetzen
   isDocked = false;
   dockPosition = null;
   preDockBounds = null;
   store.delete('dock_position');
   store.delete('pre_dock_bounds');
+
+  // Fenster IMMER im Vordergrund - screen-saver ist hoechste Ebene
+  mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  mainWindow.setVisibleOnAllWorkspaces(false);
+
+  // Multi-Monitor State aktualisieren
+  stateSync.updateSharedState({
+    isDocked: false,
+    dockPosition: null
+  });
 
   // Renderer informieren
   mainWindow.webContents.send('docking-undocked');
@@ -425,6 +867,8 @@ function createTray() {
       mainWindow.hide();
     } else {
       mainWindow?.show();
+      // Sicherstellen, dass Fenster sichtbar ist
+      ensureWindowVisible();
     }
   });
 }
@@ -2049,6 +2493,34 @@ ipcMain.handle('docking:setSnapThreshold', (_, threshold) => {
   store.set('dockSnapThreshold', threshold);
 });
 
+// Multi-Monitor IPC Handler: Store Setting speichern (zusätzlich zu multiMonitorDocking.js)
+// Note: Die anderen IPC Handler werden von multiMonitorDocking.setupIpcHandlers() registriert
+ipcMain.on('multimonitor:save-setting', (_, enabled) => {
+  store.set('multi_monitor_enabled', enabled);
+  console.log('[MultiMonitor] Setting saved:', enabled);
+});
+
+// Cursor Feedback IPC handlers - fügt Text an Cursor-Position in Ziel-App ein
+ipcMain.handle('cursor-feedback:show-recording', async () => {
+  return await cursorFeedback.showRecording();
+});
+
+ipcMain.handle('cursor-feedback:show-processing', async () => {
+  return await cursorFeedback.showProcessing();
+});
+
+ipcMain.handle('cursor-feedback:insert-final', async (_, text) => {
+  return await cursorFeedback.insertFinalText(text);
+});
+
+ipcMain.handle('cursor-feedback:cancel', async () => {
+  return await cursorFeedback.cancel();
+});
+
+ipcMain.handle('cursor-feedback:get-status', () => {
+  return cursorFeedback.getStatus();
+});
+
 // Screen Reading IPC handlers
 // mode can be 'summary' (default) or 'learning' (violet - correction analysis)
 ipcMain.handle('start-screen-reading', async (_, options = {}) => {
@@ -2876,6 +3348,28 @@ ipcMain.handle('notes-delete-permanent', async (_, noteId) => {
   }
 });
 
+// Set note color
+ipcMain.handle('notes-set-color', async (_, noteId, color) => {
+  try {
+    const result = await notesService.setNoteColor(noteId, color);
+    return result;
+  } catch (error) {
+    console.error('notes-set-color error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Set note category
+ipcMain.handle('notes-set-category', async (_, noteId, category) => {
+  try {
+    const result = await notesService.setNoteCategory(noteId, category);
+    return result;
+  } catch (error) {
+    console.error('notes-set-category error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Notes Webview Window
 ipcMain.handle('notes-open-webview', () => {
   try {
@@ -2886,22 +3380,62 @@ ipcMain.handle('notes-open-webview', () => {
   }
 });
 
+// Notes Toggle (open/close)
+ipcMain.handle('notes-toggle-window', () => {
+  if (isNotesWindowOpen()) {
+    closeNotesWebview();
+    return { success: true, isOpen: false };
+  } else {
+    openNotesWebview();
+    return { success: true, isOpen: true };
+  }
+});
+
+// Check if notes window is open
+ipcMain.handle('notes-is-open', () => {
+  return { isOpen: isNotesWindowOpen() };
+});
+
+// Close notes window
+ipcMain.handle('notes-close-window', () => {
+  closeNotesWebview();
+  return { success: true };
+});
+
 function openNotesWebview() {
-  // If window exists, just show and focus it
+  // If window exists, just show, maximize and focus it
   if (notesWindow && !notesWindow.isDestroyed()) {
     notesWindow.show();
+    notesWindow.maximize();
     notesWindow.focus();
     return;
   }
 
-  // Create new window
+  // Get display where mainWindow is (same monitor as dock bar)
+  let targetDisplay = screen.getPrimaryDisplay();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const winBounds = mainWindow.getBounds();
+    const centerPoint = {
+      x: winBounds.x + winBounds.width / 2,
+      y: winBounds.y + winBounds.height / 2
+    };
+    targetDisplay = screen.getDisplayNearestPoint(centerPoint);
+  }
+
+  const { width, height } = targetDisplay.workAreaSize;
+  const { x, y } = targetDisplay.workArea;
+
+  // Create new window on the same monitor as the dock
   notesWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    x: x,
+    y: y,
+    width: width,
+    height: height,
     minWidth: 800,
     minHeight: 600,
     title: 'Smartklick Notizen',
     icon: path.join(__dirname, 'src/assets/icons/icon.png'),
+    show: false,  // Show after maximize
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -2913,9 +3447,198 @@ function openNotesWebview() {
   // Remove menu bar on Windows
   notesWindow.setMenuBarVisibility(false);
 
+  // Show maximized (fullscreen)
+  notesWindow.once('ready-to-show', () => {
+    notesWindow.maximize();
+    notesWindow.show();
+  });
+
   notesWindow.on('closed', () => {
     notesWindow = null;
+    // Notify renderer that notes window was closed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('notes-window-closed');
+    }
   });
+}
+
+function closeNotesWebview() {
+  if (notesWindow && !notesWindow.isDestroyed()) {
+    notesWindow.close();
+  }
+}
+
+function isNotesWindowOpen() {
+  return notesWindow && !notesWindow.isDestroyed() && notesWindow.isVisible();
+}
+
+// =============================================================================
+// ANALYSIS VIEWER WINDOW
+// =============================================================================
+
+function openAnalysisViewer(data) {
+  // Store data to send when window is ready
+  pendingAnalysisData = data;
+
+  // If window exists, just send new data and show it
+  if (analysisWindow && !analysisWindow.isDestroyed()) {
+    analysisWindow.webContents.send('analysis-data', data);
+    analysisWindow.show();
+    analysisWindow.focus();
+    return;
+  }
+
+  // Get display where mainWindow is (same monitor as dock bar)
+  let targetDisplay = screen.getPrimaryDisplay();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const winBounds = mainWindow.getBounds();
+    const centerPoint = {
+      x: winBounds.x + winBounds.width / 2,
+      y: winBounds.y + winBounds.height / 2
+    };
+    targetDisplay = screen.getDisplayNearestPoint(centerPoint);
+  }
+
+  const { width, height } = targetDisplay.workAreaSize;
+  const { x, y } = targetDisplay.workArea;
+
+  // Create new window on the same monitor as the dock
+  analysisWindow = new BrowserWindow({
+    x: x,
+    y: y,
+    width: width,
+    height: height,
+    minWidth: 600,
+    minHeight: 500,
+    title: 'Seitenanalyse',
+    icon: path.join(__dirname, 'src/assets/icons/icon.png'),
+    show: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  analysisWindow.loadFile('src/analysis-viewer.html');
+
+  // Remove menu bar on Windows
+  analysisWindow.setMenuBarVisibility(false);
+
+  // Show maximized (fullscreen)
+  analysisWindow.once('ready-to-show', () => {
+    analysisWindow.maximize();
+    analysisWindow.show();
+  });
+
+  analysisWindow.on('closed', () => {
+    analysisWindow = null;
+    pendingAnalysisData = null;
+  });
+}
+
+// IPC: Analysis viewer is ready, send pending data
+ipcMain.on('analysis-viewer-ready', (event) => {
+  if (pendingAnalysisData && analysisWindow && !analysisWindow.isDestroyed()) {
+    analysisWindow.webContents.send('analysis-data', pendingAnalysisData);
+  }
+});
+
+// IPC: Open analysis viewer with data
+ipcMain.handle('analysis:open', (event, data) => {
+  openAnalysisViewer(data);
+  return { success: true };
+});
+
+// =============================================================================
+// DOCK SETTINGS WINDOW
+// =============================================================================
+
+ipcMain.handle('docking:openSettings', () => {
+  try {
+    openDockSettingsWindow();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+function openDockSettingsWindow() {
+  // If window exists, just show and focus it
+  if (dockSettingsWindow && !dockSettingsWindow.isDestroyed()) {
+    dockSettingsWindow.show();
+    dockSettingsWindow.focus();
+    return dockSettingsWindow;
+  }
+
+  // Calculate position next to dock bar
+  let windowX, windowY;
+  const settingsWidth = 300;
+  const settingsHeight = 400;
+  const currentScreen = screen.getPrimaryDisplay();
+  const { workArea } = currentScreen;
+
+  if (isDocked && dockPosition) {
+    switch (dockPosition) {
+      case 'top':
+        windowX = workArea.x + Math.floor((workArea.width - settingsWidth) / 2);
+        windowY = workArea.y + DOCK_SIZES.horizontal.height + 10;
+        break;
+      case 'bottom':
+        windowX = workArea.x + Math.floor((workArea.width - settingsWidth) / 2);
+        windowY = workArea.y + workArea.height - DOCK_SIZES.horizontal.height - settingsHeight - 10;
+        break;
+      case 'left':
+        windowX = workArea.x + DOCK_SIZES.vertical.width + 10;
+        windowY = workArea.y + Math.floor((workArea.height - settingsHeight) / 2);
+        break;
+      case 'right':
+        windowX = workArea.x + workArea.width - DOCK_SIZES.vertical.width - settingsWidth - 10;
+        windowY = workArea.y + Math.floor((workArea.height - settingsHeight) / 2);
+        break;
+    }
+  } else {
+    // Center on screen if not docked
+    windowX = workArea.x + Math.floor((workArea.width - settingsWidth) / 2);
+    windowY = workArea.y + Math.floor((workArea.height - settingsHeight) / 2);
+  }
+
+  // Create new window
+  dockSettingsWindow = new BrowserWindow({
+    width: settingsWidth,
+    height: settingsHeight,
+    x: windowX,
+    y: windowY,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    title: 'Smartklick Einstellungen',
+    icon: path.join(__dirname, 'src/assets/icons/icon.png'),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  dockSettingsWindow.loadFile('src/dock-settings.html');
+
+  // Remove menu bar on Windows
+  dockSettingsWindow.setMenuBarVisibility(false);
+
+  dockSettingsWindow.on('closed', () => {
+    dockSettingsWindow = null;
+  });
+
+  // Close when clicking outside
+  dockSettingsWindow.on('blur', () => {
+    if (dockSettingsWindow && !dockSettingsWindow.isDestroyed()) {
+      dockSettingsWindow.close();
+    }
+  });
+
+  return dockSettingsWindow;
 }
 
 // =============================================================================
@@ -2932,21 +3655,39 @@ ipcMain.handle('email:openWindow', () => {
 });
 
 function openEmailWindow() {
-  // If window exists, just show and focus it
+  // If window exists, just show, maximize and focus it
   if (emailWindow && !emailWindow.isDestroyed()) {
     emailWindow.show();
+    emailWindow.maximize();
     emailWindow.focus();
     return emailWindow;
   }
 
-  // Create new window
+  // Get display where mainWindow is (same monitor as dock bar)
+  let targetDisplay = screen.getPrimaryDisplay();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const winBounds = mainWindow.getBounds();
+    const centerPoint = {
+      x: winBounds.x + winBounds.width / 2,
+      y: winBounds.y + winBounds.height / 2
+    };
+    targetDisplay = screen.getDisplayNearestPoint(centerPoint);
+  }
+
+  const { width, height } = targetDisplay.workAreaSize;
+  const { x, y } = targetDisplay.workArea;
+
+  // Create new window on the same monitor as the dock
   emailWindow = new BrowserWindow({
-    width: 1100,
-    height: 700,
+    x: x,
+    y: y,
+    width: width,
+    height: height,
     minWidth: 900,
     minHeight: 500,
     title: 'Smartklick E-Mail',
     icon: path.join(__dirname, 'src/assets/icons/icon.png'),
+    show: false,  // Show after maximize
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -2957,6 +3698,12 @@ function openEmailWindow() {
 
   // Remove menu bar on Windows
   emailWindow.setMenuBarVisibility(false);
+
+  // Show maximized (fullscreen)
+  emailWindow.once('ready-to-show', () => {
+    emailWindow.maximize();
+    emailWindow.show();
+  });
 
   emailWindow.on('closed', () => {
     emailWindow = null;
@@ -3077,6 +3824,28 @@ ipcMain.handle('email:analyze', async (_, emailData) => {
   }
 });
 
+// Email KI-Klassifizierung (via Server)
+ipcMain.handle('email:classify', async (_, emailData) => {
+  try {
+    const response = await fetch('http://188.40.97.126:8080/email-classify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: emailData.from || '',
+        subject: emailData.subject || '',
+        preview: emailData.preview || '',
+        language: 'de'
+      })
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('[EMAIL] Classify error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Email Briefing (via Server)
 ipcMain.handle('email:briefing', async (_, emails) => {
   try {
@@ -3150,6 +3919,181 @@ ipcMain.handle('email:sendReply', async (_, messageId, body) => {
   }
 });
 
+// Send new email via IMAP account
+ipcMain.handle('email:sendNew', async (_, { accountId, to, cc, subject, body, attachments }) => {
+  const debugInfo = [];
+  try {
+    debugInfo.push(`To: ${to}, Subject: ${subject}`);
+    debugInfo.push(`Attachments in IPC: ${attachments ? attachments.length : 0}`);
+
+    if (attachments && attachments.length > 0) {
+      attachments.forEach((att, i) => {
+        debugInfo.push(`Att ${i+1}: ${att.filename}, contentLen: ${att.content?.length || 0}, type: ${att.contentType}`);
+      });
+    }
+
+    const result = await imapAccountManager.sendEmail(accountId, { to, cc, subject, body, attachments });
+    debugInfo.push(`SMTP result: messageId=${result.messageId}`);
+
+    return { success: true, messageId: result.messageId, debug: debugInfo };
+  } catch (error) {
+    debugInfo.push(`ERROR: ${error.message}`);
+    return { success: false, error: error.message, debug: debugInfo };
+  }
+});
+
+// AI Compose - Generate email from prompt
+ipcMain.handle('email:aiCompose', async (_, { prompt, subject }) => {
+  try {
+    console.log('[EMAIL] AI Composing email:', prompt);
+
+    const response = await fetch('http://188.40.97.126:8080/email-compose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        subject: subject || '',
+        language: 'de'
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Server-Fehler bei KI-Generierung');
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      text: result.body || result.text || '',
+      subject: result.subject || ''
+    };
+  } catch (error) {
+    console.error('[EMAIL] AI Compose error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// AI Improve - Improve existing email text
+ipcMain.handle('email:aiImprove', async (_, { text }) => {
+  try {
+    console.log('[EMAIL] AI Improving text');
+
+    const response = await fetch('http://188.40.97.126:8080/email-improve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        language: 'de'
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Server-Fehler bei KI-Verbesserung');
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      text: result.improved || result.text || text
+    };
+  } catch (error) {
+    console.error('[EMAIL] AI Improve error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Select attachment for compose
+ipcMain.handle('email:selectAttachment', async () => {
+  const { dialog } = require('electron');
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const result = await dialog.showOpenDialog({
+      title: 'Anhang auswählen',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Alle Dateien', extensions: ['*'] }
+      ]
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { success: false };
+    }
+
+    const filePath = result.filePaths[0];
+    const filename = path.basename(filePath);
+    const content = fs.readFileSync(filePath);
+    const stats = fs.statSync(filePath);
+
+    // Determine MIME type
+    const ext = path.extname(filename).toLowerCase();
+    const mimeTypes = {
+      '.pdf': 'application/pdf',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.txt': 'text/plain',
+      '.zip': 'application/zip',
+      '.mp3': 'audio/mpeg',
+      '.mp4': 'video/mp4'
+    };
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+    console.log(`[EMAIL] Attachment selected: ${filename} (${stats.size} bytes)`);
+
+    return {
+      success: true,
+      attachment: {
+        filename,
+        content: content.toString('base64'),
+        contentType,
+        size: stats.size
+      }
+    };
+  } catch (error) {
+    console.error('[EMAIL] Select attachment error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Save attachment to file
+ipcMain.handle('email:saveAttachment', async (_, { filename, content, contentType }) => {
+  const { dialog } = require('electron');
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    // Show save dialog
+    const result = await dialog.showSaveDialog({
+      title: 'Anhang speichern',
+      defaultPath: filename,
+      filters: [
+        { name: 'Alle Dateien', extensions: ['*'] }
+      ]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, error: 'Abgebrochen' };
+    }
+
+    // Decode base64 and save
+    const buffer = Buffer.from(content, 'base64');
+    fs.writeFileSync(result.filePath, buffer);
+
+    console.log(`[EMAIL] Attachment saved: ${result.filePath}`);
+    return { success: true, path: result.filePath };
+  } catch (error) {
+    console.error('[EMAIL] Save attachment error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Helper function to send commands to email window
 function sendToEmailWindow(channel, ...args) {
   if (emailWindow && !emailWindow.isDestroyed()) {
@@ -3162,6 +4106,101 @@ ipcMain.on('email-command', (_, command) => {
   console.log('[EMAIL] Received command:', command);
   if (emailWindow && !emailWindow.isDestroyed()) {
     emailWindow.webContents.send('email-command', command);
+  }
+});
+
+// =============================================================================
+// CALENDAR WINDOW AND HANDLERS
+// =============================================================================
+
+ipcMain.handle('calendar:openWindow', () => {
+  console.log('[CALENDAR] Opening calendar window');
+  openCalendarWindow();
+  return { success: true };
+});
+
+function openCalendarWindow() {
+  // If window exists, just show it
+  if (calendarWindow && !calendarWindow.isDestroyed()) {
+    calendarWindow.show();
+    calendarWindow.maximize();
+    calendarWindow.focus();
+    return calendarWindow;
+  }
+
+  const { screen } = require('electron');
+
+  // Get the display where the main window is
+  let targetDisplay = screen.getPrimaryDisplay();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const winBounds = mainWindow.getBounds();
+    const centerPoint = {
+      x: winBounds.x + winBounds.width / 2,
+      y: winBounds.y + winBounds.height / 2
+    };
+    targetDisplay = screen.getDisplayNearestPoint(centerPoint);
+  }
+
+  const { width, height } = targetDisplay.workAreaSize;
+  const { x, y } = targetDisplay.workArea;
+
+  calendarWindow = new BrowserWindow({
+    x: x,
+    y: y,
+    width: width,
+    height: height,
+    minWidth: 900,
+    minHeight: 500,
+    title: 'Smartklick Kalender',
+    icon: path.join(__dirname, 'src/assets/icons/icon.png'),
+    show: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  calendarWindow.loadFile('src/calendar-window.html');
+  calendarWindow.setMenuBarVisibility(false);
+
+  calendarWindow.once('ready-to-show', () => {
+    calendarWindow.maximize();
+    calendarWindow.show();
+  });
+
+  calendarWindow.on('closed', () => {
+    calendarWindow = null;
+  });
+
+  return calendarWindow;
+}
+
+// Calendar IPC Handlers
+ipcMain.handle('calendar:getEvents', async (_, startDate, endDate) => {
+  try {
+    const events = await calendarService.getEvents(startDate, endDate);
+    return events;
+  } catch (error) {
+    console.error('[CALENDAR] Error loading events:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('calendar:getTodayEvents', async () => {
+  try {
+    return await calendarService.getTodayEvents();
+  } catch (error) {
+    console.error('[CALENDAR] Error loading today events:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('calendar:getWeekEvents', async () => {
+  try {
+    return await calendarService.getWeekEvents();
+  } catch (error) {
+    console.error('[CALENDAR] Error loading week events:', error);
+    return [];
   }
 });
 
@@ -3353,6 +4392,237 @@ ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 20) => {
   }
 });
 
+// =============================================================================
+// IMAP EMAIL HANDLERS
+// =============================================================================
+
+// =============================================================================
+// IMAP MULTI-ACCOUNT HANDLERS
+// =============================================================================
+
+// Get IMAP presets (for provider selection)
+ipcMain.handle('imap:getPresets', () => {
+  return imapAccountManager.getPresets();
+});
+
+// Get all accounts
+ipcMain.handle('imap:getAccounts', () => {
+  try {
+    const accounts = imapAccountManager.getAccounts();
+    return { success: true, accounts };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Add new account
+ipcMain.handle('imap:addAccount', async (_, accountConfig) => {
+  try {
+    const account = await imapAccountManager.addAccount(accountConfig);
+    return { success: true, account };
+  } catch (error) {
+    console.error('[IMAP] Add account error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Remove account
+ipcMain.handle('imap:removeAccount', async (_, accountId) => {
+  try {
+    await imapAccountManager.removeAccount(accountId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Update account (rename, color change)
+ipcMain.handle('imap:updateAccount', async (_, accountId, updates) => {
+  try {
+    const account = await imapAccountManager.updateAccount(accountId, updates);
+    return { success: true, account };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Test connection with settings (before adding account)
+ipcMain.handle('imap:testConnection', async (_, settings) => {
+  try {
+    const result = await imapAccountManager.testConnection(settings);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get emails for specific account and folder
+ipcMain.handle('imap:getAccountEmails', async (_, accountId, folder = 'INBOX', count = 50) => {
+  try {
+    const emails = await imapAccountManager.getEmails(accountId, folder, count);
+    return { success: true, emails };
+  } catch (error) {
+    console.error('[IMAP] Get emails error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get full email content
+ipcMain.handle('imap:getEmailContent', async (_, accountId, uid, folder = 'INBOX') => {
+  try {
+    console.log(`[IMAP] Getting email content: account=${accountId}, uid=${uid}, folder=${folder}`);
+    const email = await imapAccountManager.getEmailContent(accountId, uid, folder);
+    return { success: true, email };
+  } catch (error) {
+    console.error(`[IMAP] getEmailContent error:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Mark as read
+ipcMain.handle('imap:markAsRead', async (_, accountId, uid, folder = 'INBOX') => {
+  try {
+    const result = await imapAccountManager.markAsRead(accountId, uid, folder);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Toggle star
+ipcMain.handle('imap:toggleStar', async (_, accountId, uid, folder = 'INBOX') => {
+  try {
+    const result = await imapAccountManager.toggleStar(accountId, uid, folder);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Delete email
+ipcMain.handle('imap:deleteEmail', async (_, accountId, uid, folder = 'INBOX') => {
+  try {
+    const result = await imapAccountManager.deleteEmail(accountId, uid, folder);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get folders for account
+ipcMain.handle('imap:getFolders', async (_, accountId) => {
+  try {
+    const result = await imapAccountManager.getFolders(accountId);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get standard folders (mapped to actual server names)
+ipcMain.handle('imap:getStandardFolders', async (_, accountId) => {
+  try {
+    const folders = await imapAccountManager.getStandardFolders(accountId);
+    return { success: true, folders };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get overall status
+ipcMain.handle('imap:getStatus', () => {
+  return {
+    accountCount: imapAccountManager.getAccounts().length,
+    accounts: imapAccountManager.getAccounts().map(a => ({
+      id: a.id,
+      name: a.name,
+      email: a.email
+    }))
+  };
+});
+
+// Disconnect all
+ipcMain.handle('imap:disconnect', async () => {
+  try {
+    await imapAccountManager.disconnectAll();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Legacy single-account support (backwards compatibility)
+ipcMain.handle('imap:configure', async (_, settings) => {
+  try {
+    // Add as new account if not exists
+    const existing = imapAccountManager.getAccounts().find(a => a.email === settings.user);
+    if (!existing) {
+      await imapAccountManager.addAccount({
+        provider: settings.provider,
+        host: settings.host,
+        port: settings.port,
+        tls: settings.tls,
+        email: settings.user,
+        password: settings.password
+      });
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('imap:getSettings', () => {
+  // Return first account for backwards compatibility
+  const accounts = imapAccountManager.getAccounts();
+  if (accounts.length > 0) {
+    return {
+      provider: accounts[0].provider,
+      host: accounts[0].host,
+      port: accounts[0].port,
+      tls: accounts[0].tls,
+      user: accounts[0].email
+    };
+  }
+  return null;
+});
+
+ipcMain.handle('imap:test', async (_, settings) => {
+  return imapAccountManager.testConnection(settings);
+});
+
+ipcMain.handle('imap:getEmails', async (_, count = 20) => {
+  try {
+    const accounts = imapAccountManager.getAccounts();
+    if (accounts.length === 0) {
+      return { success: false, error: 'Keine IMAP-Konten konfiguriert' };
+    }
+    const emails = await imapAccountManager.getEmails(accounts[0].id, 'INBOX', count);
+    return { success: true, emails };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('imap:getUnread', async () => {
+  try {
+    const accounts = imapAccountManager.getAccounts();
+    if (accounts.length === 0) {
+      return { success: false, error: 'Keine IMAP-Konten konfiguriert' };
+    }
+    // Get unread from all accounts
+    const allUnread = [];
+    for (const account of accounts) {
+      const emails = await imapAccountManager.getEmails(account.id, 'INBOX', 50);
+      const unread = emails.filter(e => !e.seen);
+      allUnread.push(...unread.map(e => ({ ...e, accountId: account.id, accountName: account.name })));
+    }
+    return { success: true, emails: allUnread };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // App Events
 app.whenReady().then(() => {
   // Initialize user ID (generate on first launch)
@@ -3378,10 +4648,31 @@ app.whenReady().then(() => {
     console.error('[EMAIL] Provider manager init error:', err);
   });
 
+  // Initialize IMAP Account Manager
+  imapAccountManager.initialize(store);
+  console.log('[IMAP] Account manager initialized');
+
   createWindow();
   createTray();
   registerHotkey();
   initWebSocketServer();
+
+  // Snap Overlay Window fuer Dock-Indikatoren vorbereiten
+  createSnapOverlayWindow();
+
+  // Windows AppBar APIs initialisieren (fuer reservierten Bildschirmbereich)
+  if (isWindowsAppBar) {
+    const initResult = initAppBarAPIs();
+    console.log('[AppBar] Init Ergebnis:', initResult, '- Fehler:', getInitError() || 'keiner');
+  }
+
+  // Multi-Monitor Docking System initialisieren
+  multiMonitorDocking.init({
+    mainWindow: mainWindow,
+    appBarManager: appBarManager,
+    enabled: store.get('multi_monitor_enabled')
+  });
+  console.log('[MultiMonitor] Initialisiert - Enabled:', store.get('multi_monitor_enabled'));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -3401,5 +4692,12 @@ app.on('will-quit', () => {
   stopWakeWordService();
   if (wsServer) {
     wsServer.stop();
+  }
+  // Multi-Monitor Docking aufräumen
+  multiMonitorDocking.removeAllDockWindows();
+
+  // Windows AppBar deregistrieren - WICHTIG!
+  if (isWindowsAppBar && appBarManager.getIsRegistered()) {
+    appBarManager.unregisterAll(); // unregisterAll statt unregister für Multi-Monitor
   }
 });

@@ -25,7 +25,7 @@
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
 
-  /* Note Colors */
+  /* Note Colors - Expanded Palette */
   --note-default: transparent;
   --note-red: #fecaca;
   --note-orange: #fed7aa;
@@ -35,6 +35,12 @@
   --note-blue: #bfdbfe;
   --note-purple: #ddd6fe;
   --note-pink: #fbcfe8;
+  --note-brown: #d7ccc8;
+  --note-gray: #e0e0e0;
+  --note-coral: #ffccbc;
+  --note-lime: #c5e1a5;
+  --note-cyan: #b2ebf2;
+  --note-indigo: #c5cae9;
 
   /* Label Colors */
   --label-links: #3b82f6;
@@ -76,6 +82,12 @@ body.dark-theme {
   --note-blue: #1e3a5f;
   --note-purple: #3b0764;
   --note-pink: #831843;
+  --note-brown: #4e342e;
+  --note-gray: #424242;
+  --note-coral: #bf360c;
+  --note-lime: #33691e;
+  --note-cyan: #006064;
+  --note-indigo: #283593;
 }
 
 * {
@@ -363,6 +375,7 @@ button:hover .icon-sm,
   padding: 24px 32px;
   min-height: calc(100vh - 64px);
   transition: margin-left 0.2s;
+  background: var(--bg-secondary);
 }
 
 .main-content.sidebar-collapsed {
@@ -558,6 +571,42 @@ button:hover .icon-sm,
 .color-option.blue { background: var(--note-blue); }
 .color-option.purple { background: var(--note-purple); }
 .color-option.pink { background: var(--note-pink); }
+.color-option.brown { background: var(--note-brown); }
+.color-option.gray { background: var(--note-gray); }
+.color-option.coral { background: var(--note-coral); }
+.color-option.lime { background: var(--note-lime); }
+.color-option.cyan { background: var(--note-cyan); }
+.color-option.indigo { background: var(--note-indigo); }
+
+/* Color Picker Grid Layout (2 rows) */
+.color-picker {
+  flex-wrap: wrap;
+  width: 200px;
+}
+
+/* Card Inline Color Picker */
+.card-color-picker {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 180px;
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(5px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
 
 /* ==================== NOTES SECTIONS ==================== */
 
@@ -624,6 +673,42 @@ button:hover .icon-sm,
 .note-card.color-blue { background: var(--note-blue); border-color: var(--note-blue); }
 .note-card.color-purple { background: var(--note-purple); border-color: var(--note-purple); }
 .note-card.color-pink { background: var(--note-pink); border-color: var(--note-pink); }
+.note-card.color-brown { background: var(--note-brown); border-color: var(--note-brown); }
+.note-card.color-gray { background: var(--note-gray); border-color: var(--note-gray); }
+.note-card.color-coral { background: var(--note-coral); border-color: var(--note-coral); }
+.note-card.color-lime { background: var(--note-lime); border-color: var(--note-lime); }
+.note-card.color-cyan { background: var(--note-cyan); border-color: var(--note-cyan); }
+.note-card.color-indigo { background: var(--note-indigo); border-color: var(--note-indigo); }
+
+/* Drag and Drop */
+.note-card.dragging {
+  opacity: 0.5;
+  transform: rotate(3deg);
+  box-shadow: var(--shadow-lg);
+  cursor: grabbing !important;
+}
+
+.note-card[draggable="true"] {
+  cursor: grab;
+}
+
+.sidebar-item.drop-target {
+  background: var(--accent-light);
+  border: 2px dashed var(--accent);
+}
+
+.sidebar-item.drop-hover {
+  background: var(--accent);
+  color: white;
+}
+
+.sidebar-item.drop-hover .icon-sm {
+  stroke: white;
+}
+
+.sidebar-item.drop-hover .sidebar-label {
+  color: white;
+}
 
 /* Category Border */
 .note-card.links { border-left: 4px solid var(--label-links); }

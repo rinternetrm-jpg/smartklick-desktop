@@ -494,10 +494,28 @@ class WakeWordService:
                         break
 
                 # Insert text (skip very short or known noise)
-                if clean_text and len(clean_text) >= self.MIN_TEXT_LENGTH:
+                if clean_text:
+                    # Check for NOTIZ command (save note via voice)
+                    clean_lower = clean_text.lower().strip().rstrip('.')
+
+                    if clean_lower.startswith("notiz ") or clean_lower.startswith("note "):
+                        # Extract note content after "notiz " or "note "
+                        note_content = clean_text[6:].strip() if clean_lower.startswith("notiz ") else clean_text[5:].strip()
+                        if note_content:
+                            logger.info(f"NOTIZ command detected: {note_content}")
+                            self.send_message("smartklick_response", {
+                                "query": clean_text,
+                                "response": f"__NOTES_SAVE__:{note_content}"
+                            })
+                        continue
+
+                    # Check minimum length for regular text insertion
+                    if len(clean_text) < self.MIN_TEXT_LENGTH:
+                        logger.info(f"Text too short ({len(clean_text)} chars), ignoring: {clean_text}")
+                        continue
+
                     # Check if text is just noise
                     is_noise = False
-                    clean_lower = clean_text.lower().strip().rstrip('.')
                     for noise in self.NOISE_WORDS:
                         if clean_lower == noise or clean_lower.startswith(noise + ".") or clean_lower.startswith(noise + " "):
                             is_noise = True

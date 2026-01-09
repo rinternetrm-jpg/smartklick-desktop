@@ -349,13 +349,19 @@
                 <div class="color-picker hidden" id="colorPicker">
                   <div class="color-option default selected" data-color="default" title="Standard"></div>
                   <div class="color-option red" data-color="red" title="Rot"></div>
+                  <div class="color-option coral" data-color="coral" title="Koralle"></div>
                   <div class="color-option orange" data-color="orange" title="Orange"></div>
                   <div class="color-option yellow" data-color="yellow" title="Gelb"></div>
+                  <div class="color-option lime" data-color="lime" title="Limette"></div>
                   <div class="color-option green" data-color="green" title="Grün"></div>
                   <div class="color-option teal" data-color="teal" title="Teal"></div>
+                  <div class="color-option cyan" data-color="cyan" title="Cyan"></div>
                   <div class="color-option blue" data-color="blue" title="Blau"></div>
+                  <div class="color-option indigo" data-color="indigo" title="Indigo"></div>
                   <div class="color-option purple" data-color="purple" title="Violett"></div>
                   <div class="color-option pink" data-color="pink" title="Pink"></div>
+                  <div class="color-option brown" data-color="brown" title="Braun"></div>
+                  <div class="color-option gray" data-color="gray" title="Grau"></div>
                 </div>
               </div>
               <button class="toolbar-btn" title="Bild">
@@ -427,13 +433,19 @@
             <div class="color-picker hidden" id="editColorPicker">
               <div class="color-option default" data-color="default" title="Standard"></div>
               <div class="color-option red" data-color="red" title="Rot"></div>
+              <div class="color-option coral" data-color="coral" title="Koralle"></div>
               <div class="color-option orange" data-color="orange" title="Orange"></div>
               <div class="color-option yellow" data-color="yellow" title="Gelb"></div>
+              <div class="color-option lime" data-color="lime" title="Limette"></div>
               <div class="color-option green" data-color="green" title="Grün"></div>
               <div class="color-option teal" data-color="teal" title="Teal"></div>
+              <div class="color-option cyan" data-color="cyan" title="Cyan"></div>
               <div class="color-option blue" data-color="blue" title="Blau"></div>
+              <div class="color-option indigo" data-color="indigo" title="Indigo"></div>
               <div class="color-option purple" data-color="purple" title="Violett"></div>
               <div class="color-option pink" data-color="pink" title="Pink"></div>
+              <div class="color-option brown" data-color="brown" title="Braun"></div>
+              <div class="color-option gray" data-color="gray" title="Grau"></div>
             </div>
           </div>
           <button class="toolbar-btn" title="Bild">
@@ -600,6 +612,7 @@
         document.getElementById('colorPicker').classList.add('hidden');
         document.getElementById('editColorPicker').classList.add('hidden');
         document.getElementById('moreMenu').classList.add('hidden');
+        closeCardColorPicker();
       });
 
       // Auto-save on edit
@@ -692,7 +705,13 @@
         'teal': 'var(--note-teal)',
         'blue': 'var(--note-blue)',
         'purple': 'var(--note-purple)',
-        'pink': 'var(--note-pink)'
+        'pink': 'var(--note-pink)',
+        'brown': 'var(--note-brown)',
+        'gray': 'var(--note-gray)',
+        'coral': 'var(--note-coral)',
+        'lime': 'var(--note-lime)',
+        'cyan': 'var(--note-cyan)',
+        'indigo': 'var(--note-indigo)'
       };
       document.getElementById('noteInput').style.background = colors[selectedColor] || '';
     }
@@ -849,9 +868,92 @@
           e.stopPropagation();
           const noteId = btn.closest('.note-card').dataset.id;
           const action = btn.dataset.action;
-          await handleCardAction(noteId, action);
+          await handleCardAction(noteId, action, e);
         });
       });
+
+      // Setup drag and drop
+      setupDragAndDrop();
+    }
+
+    // ==================== DRAG AND DROP ====================
+    let draggedNoteId = null;
+
+    function setupDragAndDrop() {
+      // Make cards draggable
+      document.querySelectorAll('.note-card').forEach(card => {
+        card.setAttribute('draggable', 'true');
+
+        card.addEventListener('dragstart', (e) => {
+          draggedNoteId = card.dataset.id;
+          card.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', card.dataset.id);
+
+          // Highlight drop targets
+          document.querySelectorAll('.sidebar-item[data-filter]').forEach(item => {
+            const filter = item.dataset.filter;
+            if (['links', 'code', 'ideas', 'general'].includes(filter)) {
+              item.classList.add('drop-target');
+            }
+          });
+        });
+
+        card.addEventListener('dragend', () => {
+          card.classList.remove('dragging');
+          draggedNoteId = null;
+
+          // Remove drop highlights
+          document.querySelectorAll('.sidebar-item').forEach(item => {
+            item.classList.remove('drop-target', 'drop-hover');
+          });
+        });
+      });
+
+      // Setup sidebar items as drop targets
+      document.querySelectorAll('.sidebar-item[data-filter]').forEach(item => {
+        const filter = item.dataset.filter;
+
+        // Only labels can be drop targets
+        if (!['links', 'code', 'ideas', 'general'].includes(filter)) return;
+
+        item.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          item.classList.add('drop-hover');
+        });
+
+        item.addEventListener('dragleave', () => {
+          item.classList.remove('drop-hover');
+        });
+
+        item.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          item.classList.remove('drop-hover');
+
+          if (draggedNoteId) {
+            await changeNoteCategory(draggedNoteId, filter);
+          }
+        });
+      });
+    }
+
+    async function changeNoteCategory(noteId, newCategory) {
+      try {
+        await ipcRenderer.invoke('notes-set-category', noteId, newCategory);
+
+        // Update local state
+        const note = allNotes.find(n => n.id === noteId);
+        if (note) {
+          note.category = newCategory;
+        }
+
+        loadNotes();
+        showToast(`Verschoben zu "${capitalizeFirst(newCategory)}"`);
+      } catch (error) {
+        console.error('Error changing category:', error);
+        showToast('Fehler beim Verschieben');
+      }
     }
 
     function renderNoteCard(note) {
@@ -1095,10 +1197,13 @@
       });
     }
 
-    async function handleCardAction(noteId, action) {
+    async function handleCardAction(noteId, action, event) {
       switch (action) {
         case 'pin':
           await togglePin(noteId);
+          break;
+        case 'palette':
+          showCardColorPicker(noteId, event);
           break;
         case 'archive':
           await ipcRenderer.invoke('notes-archive', noteId);
@@ -1114,6 +1219,101 @@
           });
           loadNotes();
           break;
+      }
+    }
+
+    // Card Color Picker
+    let activeCardColorPicker = null;
+
+    function showCardColorPicker(noteId, event) {
+      // Close any existing picker
+      closeCardColorPicker();
+
+      const card = document.querySelector(`.note-card[data-id="${noteId}"]`);
+      if (!card) return;
+
+      const note = allNotes.find(n => n.id === noteId);
+      const currentColor = note?.color || 'default';
+
+      // Create color picker
+      const picker = document.createElement('div');
+      picker.className = 'card-color-picker';
+      picker.id = 'cardColorPicker';
+
+      const colors = [
+        { name: 'default', title: 'Standard' },
+        { name: 'red', title: 'Rot' },
+        { name: 'coral', title: 'Koralle' },
+        { name: 'orange', title: 'Orange' },
+        { name: 'yellow', title: 'Gelb' },
+        { name: 'lime', title: 'Limette' },
+        { name: 'green', title: 'Grün' },
+        { name: 'teal', title: 'Teal' },
+        { name: 'cyan', title: 'Cyan' },
+        { name: 'blue', title: 'Blau' },
+        { name: 'indigo', title: 'Indigo' },
+        { name: 'purple', title: 'Violett' },
+        { name: 'pink', title: 'Pink' },
+        { name: 'brown', title: 'Braun' },
+        { name: 'gray', title: 'Grau' }
+      ];
+
+      picker.innerHTML = colors.map(c => `
+        <div class="color-option ${c.name} ${c.name === currentColor ? 'selected' : ''}"
+             data-color="${c.name}" title="${c.title}"></div>
+      `).join('');
+
+      card.appendChild(picker);
+      activeCardColorPicker = { picker, noteId };
+
+      // Add click handlers
+      picker.querySelectorAll('.color-option').forEach(opt => {
+        opt.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const color = opt.dataset.color;
+          await setCardColor(noteId, color);
+          closeCardColorPicker();
+        });
+      });
+
+      // Stop propagation
+      event.stopPropagation();
+    }
+
+    function closeCardColorPicker() {
+      if (activeCardColorPicker) {
+        activeCardColorPicker.picker.remove();
+        activeCardColorPicker = null;
+      }
+    }
+
+    async function setCardColor(noteId, color) {
+      try {
+        await ipcRenderer.invoke('notes-set-color', noteId, color);
+
+        // Update local state
+        const note = allNotes.find(n => n.id === noteId);
+        if (note) {
+          note.color = color;
+        }
+
+        // Update card visually
+        const card = document.querySelector(`.note-card[data-id="${noteId}"]`);
+        if (card) {
+          // Remove all color classes
+          card.classList.remove('color-red', 'color-orange', 'color-yellow', 'color-green',
+            'color-teal', 'color-blue', 'color-purple', 'color-pink', 'color-brown',
+            'color-gray', 'color-coral', 'color-lime', 'color-cyan', 'color-indigo');
+
+          if (color && color !== 'default') {
+            card.classList.add(`color-${color}`);
+          }
+        }
+
+        showToast('Farbe geändert');
+      } catch (error) {
+        console.error('Error setting color:', error);
+        showToast('Fehler beim Ändern der Farbe');
       }
     }
 

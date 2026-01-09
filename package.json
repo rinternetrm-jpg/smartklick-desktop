@@ -1,6 +1,6 @@
 {
   "name": "smartklick-desktop",
-  "version": "2.16.0",
+  "version": "2.40.0",
   "description": "Desktop Voice App mit KI-Korrektur",
   "main": "main.js",
   "scripts": {
@@ -21,10 +21,17 @@
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "better-sqlite3": "^9.4.0",
     "electron-store": "^8.1.0",
+    "ffi-napi": "^4.0.3",
     "google-auth-library": "^10.5.0",
     "googleapis": "^169.0.0",
+    "imap": "^0.8.19",
     "isomorphic-fetch": "^3.0.0",
+    "koffi": "^2.15.0",
+    "mailparser": "^3.9.1",
     "openai": "^4.24.0",
+    "ref-napi": "^3.0.3",
+    "ref-struct-di": "^1.1.1",
+    "ref-struct-napi": "^1.1.1",
     "sharp": "^0.33.0",
     "uuid": "^9.0.0",
     "ws": "^8.19.0"

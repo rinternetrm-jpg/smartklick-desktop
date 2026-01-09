@@ -40,8 +40,23 @@ const accountSelector = document.getElementById('accountSelector');
 const addAccountModal = document.getElementById('addAccountModal');
 const addAccountContent = document.getElementById('addAccountContent');
 const outlookSetup = document.getElementById('outlookSetup');
+const imapSetup = document.getElementById('imapSetup');
 const accountOptions = document.querySelector('.account-options');
 const accountLoadingState = document.getElementById('accountLoadingState');
+
+// IMAP presets
+const IMAP_PRESETS = {
+  '1und1': { host: 'imap.1und1.de', port: 993, tls: true },
+  'gmx': { host: 'imap.gmx.net', port: 993, tls: true },
+  'webde': { host: 'imap.web.de', port: 993, tls: true },
+  'tonline': { host: 'secureimap.t-online.de', port: 993, tls: true },
+  'outlook': { host: 'outlook.office365.com', port: 993, tls: true },
+  'yahoo': { host: 'imap.mail.yahoo.com', port: 993, tls: true },
+  'ionos': { host: 'imap.ionos.de', port: 993, tls: true }
+};
+
+// Current email source (gmail, imap)
+let emailSource = 'gmail';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -131,11 +146,32 @@ function setupEventListeners() {
   // Outlook option click
   document.querySelector('[data-provider="outlook"]').addEventListener('click', showOutlookSetup);
 
+  // IMAP option click
+  document.querySelector('[data-provider="imap"]').addEventListener('click', showImapSetup);
+
   // Back to options
   document.getElementById('backToOptionsBtn').addEventListener('click', () => {
     outlookSetup.classList.add('hidden');
     accountOptions.classList.remove('hidden');
   });
+
+  // Back from IMAP
+  document.getElementById('backFromImapBtn').addEventListener('click', () => {
+    imapSetup.classList.add('hidden');
+    accountOptions.classList.remove('hidden');
+  });
+
+  // IMAP provider change
+  document.getElementById('imapProvider').addEventListener('change', (e) => {
+    const isCustom = e.target.value === 'custom';
+    document.getElementById('imapCustomFields').classList.toggle('hidden', !isCustom);
+  });
+
+  // Test IMAP connection
+  document.getElementById('testImapBtn').addEventListener('click', testImapConnection);
+
+  // Connect IMAP
+  document.getElementById('connectImapBtn').addEventListener('click', connectImap);
 
   // Connect Outlook
   document.getElementById('connectOutlookBtn').addEventListener('click', connectOutlook);
@@ -149,6 +185,11 @@ async function loadEmails() {
   showLoading();
 
   try {
+    // Check if IMAP is selected
+    if (selectedAccountId === 'imap') {
+      return loadImapEmails();
+    }
+
     let result;
 
     if (selectedAccountId === 'all') {
@@ -259,7 +300,7 @@ function createEmailItem(email) {
 }
 
 // Select Email
-function selectEmail(email) {
+async function selectEmail(email) {
   currentEmail = email;
 
   // Update list selection
@@ -275,7 +316,38 @@ function selectEmail(email) {
   detailSubject.textContent = email.subject;
   detailFrom.textContent = email.from;
   detailDate.textContent = formatFullDate(email.date);
-  detailBody.textContent = email.body || email.snippet || 'Kein Inhalt';
+
+  // For IMAP emails, load full content
+  if (email.provider === 'imap' && email.uid && !email.body) {
+    detailBody.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Lade Inhalt...</span></div>';
+
+    try {
+      const fullEmail = await ipcRenderer.invoke('imap:getEmailContent', email.uid);
+      if (fullEmail && !fullEmail.error) {
+        email.body = fullEmail.text || fullEmail.html || '';
+        // Prefer HTML if available
+        if (fullEmail.html) {
+          detailBody.innerHTML = fullEmail.html;
+        } else {
+          detailBody.textContent = fullEmail.text || 'Kein Inhalt';
+        }
+
+        // Mark as read
+        if (email.isUnread) {
+          await ipcRenderer.invoke('imap:markAsRead', email.uid);
+          email.isUnread = false;
+          updateUnreadBadge();
+          renderEmailList();
+        }
+      } else {
+        detailBody.textContent = fullEmail.error || 'Fehler beim Laden';
+      }
+    } catch (err) {
+      detailBody.textContent = 'Fehler: ' + err.message;
+    }
+  } else {
+    detailBody.textContent = email.body || email.snippet || 'Kein Inhalt';
+  }
 
   // Update action buttons
   document.getElementById('markReadBtn').textContent = email.isUnread ? 'Als gelesen' : 'Als ungelesen';
@@ -555,6 +627,165 @@ function openAddAccountModal() {
 
 function closeAddAccountModal() {
   addAccountModal.classList.add('hidden');
+}
+
+// =============================================================================
+// IMAP FUNCTIONS
+// =============================================================================
+
+function showImapSetup() {
+  accountOptions.classList.add('hidden');
+  imapSetup.classList.remove('hidden');
+
+  // Load saved IMAP settings
+  ipcRenderer.invoke('imap:getSettings').then(settings => {
+    if (settings) {
+      document.getElementById('imapProvider').value = settings.provider || '1und1';
+      document.getElementById('imapUser').value = settings.user || '';
+      document.getElementById('imapPassword').value = settings.password || '';
+      if (settings.provider === 'custom') {
+        document.getElementById('imapCustomFields').classList.remove('hidden');
+        document.getElementById('imapHost').value = settings.host || '';
+        document.getElementById('imapPort').value = settings.port || 993;
+        document.getElementById('imapTls').checked = settings.tls !== false;
+      }
+    }
+  });
+}
+
+function getImapSettings() {
+  const provider = document.getElementById('imapProvider').value;
+  const preset = IMAP_PRESETS[provider] || {};
+
+  return {
+    provider,
+    host: provider === 'custom' ? document.getElementById('imapHost').value : preset.host,
+    port: provider === 'custom' ? parseInt(document.getElementById('imapPort').value) : preset.port,
+    tls: provider === 'custom' ? document.getElementById('imapTls').checked : preset.tls,
+    user: document.getElementById('imapUser').value.trim(),
+    password: document.getElementById('imapPassword').value
+  };
+}
+
+async function testImapConnection() {
+  const settings = getImapSettings();
+
+  if (!settings.user || !settings.password) {
+    alert('Bitte E-Mail und Passwort eingeben');
+    return;
+  }
+
+  const testBtn = document.getElementById('testImapBtn');
+  testBtn.textContent = 'Teste...';
+  testBtn.disabled = true;
+
+  try {
+    const result = await ipcRenderer.invoke('imap:test', settings);
+    if (result.success) {
+      showNotification('Verbindung erfolgreich!');
+    } else {
+      alert('Verbindung fehlgeschlagen: ' + (result.error || 'Unbekannter Fehler'));
+    }
+  } catch (error) {
+    alert('Fehler: ' + error.message);
+  } finally {
+    testBtn.textContent = 'Testen';
+    testBtn.disabled = false;
+  }
+}
+
+async function connectImap() {
+  const settings = getImapSettings();
+
+  if (!settings.user || !settings.password) {
+    alert('Bitte E-Mail und Passwort eingeben');
+    return;
+  }
+
+  // Show loading
+  imapSetup.classList.add('hidden');
+  accountLoadingState.classList.remove('hidden');
+
+  try {
+    const result = await ipcRenderer.invoke('imap:configure', settings);
+
+    if (result.success) {
+      // Set email source to IMAP
+      emailSource = 'imap';
+      selectedAccountId = 'imap';
+
+      showNotification('IMAP-Konto erfolgreich verbunden!');
+      closeAddAccountModal();
+
+      // Update account selector
+      updateAccountSelectorWithImap(settings.user);
+
+      // Load emails from IMAP
+      loadImapEmails();
+    } else {
+      alert('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'));
+      accountLoadingState.classList.add('hidden');
+      imapSetup.classList.remove('hidden');
+    }
+  } catch (error) {
+    console.error('IMAP config error:', error);
+    alert('Fehler bei der IMAP-Verbindung: ' + error.message);
+    accountLoadingState.classList.add('hidden');
+    imapSetup.classList.remove('hidden');
+  }
+}
+
+function updateAccountSelectorWithImap(email) {
+  // Check if IMAP option exists
+  let imapOption = accountSelector.querySelector('option[value="imap"]');
+  if (!imapOption) {
+    imapOption = document.createElement('option');
+    imapOption.value = 'imap';
+    accountSelector.appendChild(imapOption);
+  }
+  imapOption.textContent = `IMAP (${email})`;
+  accountSelector.value = 'imap';
+}
+
+async function loadImapEmails() {
+  showLoading();
+
+  try {
+    const result = await ipcRenderer.invoke('imap:getEmails', 30);
+
+    if (result.success) {
+      // Transform IMAP emails to common format
+      emails = (result.emails || []).map(email => ({
+        id: email.uid.toString(),
+        uid: email.uid,
+        from: email.from,
+        fromName: extractName(email.from),
+        subject: email.subject,
+        date: email.date ? new Date(email.date).getTime() : Date.now(),
+        dateFormatted: formatDate(email.date ? new Date(email.date).getTime() : Date.now()),
+        snippet: '',
+        body: '',
+        isUnread: !email.isRead,
+        isStarred: email.isStarred,
+        provider: 'imap'
+      }));
+
+      updateUnreadBadge();
+      renderEmailList();
+    } else {
+      showError(result.error || 'Fehler beim Laden');
+    }
+  } catch (error) {
+    console.error('Error loading IMAP emails:', error);
+    showError('Verbindungsfehler: ' + error.message);
+  }
+}
+
+function extractName(from) {
+  if (!from) return 'Unbekannt';
+  const match = from.match(/^"?([^"<]+)"?\s*</);
+  if (match) return match[1].trim();
+  return from.split('@')[0];
 }
 
 function showOutlookSetup() {

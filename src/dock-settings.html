@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smartklick Einstellungen</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(180deg, #1e2030 0%, #171923 100%);
+      color: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      overflow: hidden;
+      -webkit-app-region: drag;
+    }
+
+    .settings-window {
+      padding: 16px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      -webkit-app-region: drag;
+    }
+
+    .settings-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #14b8a6;
+    }
+
+    .close-btn {
+      width: 24px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-app-region: no-drag;
+    }
+
+    .close-btn:hover {
+      background: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    .settings-content {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-app-region: no-drag;
+    }
+
+    .setting-group {
+      margin-bottom: 16px;
+    }
+
+    .setting-group label {
+      display: block;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .setting-row span {
+      font-size: 14px;
+    }
+
+    /* Toggle Switch */
+    .toggle {
+      width: 44px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .toggle.active {
+      background: #14b8a6;
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s ease;
+    }
+
+    .toggle.active::after {
+      transform: translateX(20px);
+    }
+
+    /* Select */
+    select {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      min-width: 120px;
+    }
+
+    select:hover {
+      border-color: #14b8a6;
+    }
+
+    select option {
+      background: #1e2030;
+      color: white;
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 16px 0;
+    }
+
+    /* Version Info */
+    .version-info {
+      text-align: center;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 11px;
+      margin-top: auto;
+      padding-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="settings-window">
+    <div class="settings-header">
+      <span class="settings-title">Einstellungen</span>
+      <button class="close-btn" id="closeBtn">&times;</button>
+    </div>
+
+    <div class="settings-content">
+      <div class="setting-group">
+        <label>Allgemein</label>
+        <div class="setting-row">
+          <span>Autostart</span>
+          <div class="toggle" id="toggleAutostart"></div>
+        </div>
+        <div class="setting-row">
+          <span>Immer im Vordergrund</span>
+          <div class="toggle active" id="toggleAlwaysOnTop"></div>
+        </div>
+        <div class="setting-row">
+          <span>Sound-Feedback</span>
+          <div class="toggle" id="toggleSound"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="setting-group">
+        <label>Dock Position</label>
+        <div class="setting-row">
+          <span>Position</span>
+          <select id="dockPosition">
+            <option value="bottom">Unten</option>
+            <option value="top">Oben</option>
+            <option value="left">Links</option>
+            <option value="right">Rechts</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="setting-group">
+        <label>Multi-Monitor</label>
+        <div class="setting-row">
+          <span>Dock auf allen Monitoren</span>
+          <div class="toggle" id="toggleMultiMonitor"></div>
+        </div>
+        <div class="setting-row monitor-count" id="monitorCountRow" style="display: none;">
+          <span>Erkannte Monitore</span>
+          <span id="monitorCount" style="color: #14b8a6; font-weight: 600;">-</span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="setting-group">
+        <label>Tastenkuerzel</label>
+        <div class="setting-row">
+          <span>Hotkey</span>
+          <select id="hotkeySelect">
+            <option value="CommandOrControl+Shift+S">Strg+Shift+S</option>
+            <option value="Alt+S">Alt+S</option>
+            <option value="F9">F9</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="version-info">
+      Smartklick v2.38.1
+    </div>
+  </div>
+
+  <script>
+    // Close button
+    document.getElementById('closeBtn').addEventListener('click', () => {
+      window.close();
+    });
+
+    // Toggle switches
+    document.querySelectorAll('.toggle').forEach(toggle => {
+      toggle.addEventListener('click', () => {
+        toggle.classList.toggle('active');
+        const settingId = toggle.id;
+        const isActive = toggle.classList.contains('active');
+
+        // Send setting to main process
+        if (window.electronAPI) {
+          const settingMap = {
+            'toggleAutostart': 'autostart',
+            'toggleAlwaysOnTop': 'always_on_top',
+            'toggleSound': 'sound_feedback'
+          };
+          const key = settingMap[settingId];
+          if (key) {
+            window.electronAPI.setSetting(key, isActive);
+          }
+
+          // Multi-Monitor Toggle - uses separate IPC channel
+          if (settingId === 'toggleMultiMonitor' && window.electronAPI?.multiMonitor) {
+            window.electronAPI.multiMonitor.setEnabled(isActive);
+          }
+        }
+      });
+    });
+
+    // Dock position
+    document.getElementById('dockPosition').addEventListener('change', (e) => {
+      const position = e.target.value;
+      if (window.electronAPI?.docking) {
+        window.electronAPI.docking.dock(position);
+      }
+    });
+
+    // Hotkey
+    document.getElementById('hotkeySelect').addEventListener('change', (e) => {
+      const hotkey = e.target.value;
+      if (window.electronAPI) {
+        window.electronAPI.setSetting('hotkey', hotkey);
+      }
+    });
+
+    // Load current settings
+    async function loadSettings() {
+      if (window.electronAPI) {
+        try {
+          const settings = await window.electronAPI.getSettings();
+
+          // Set toggles
+          if (settings.autostart) {
+            document.getElementById('toggleAutostart').classList.add('active');
+          }
+          if (settings.always_on_top !== false) {
+            document.getElementById('toggleAlwaysOnTop').classList.add('active');
+          }
+          if (settings.sound_feedback) {
+            document.getElementById('toggleSound').classList.add('active');
+          }
+          if (settings.multi_monitor_enabled) {
+            const mmToggle = document.getElementById('toggleMultiMonitor');
+            if (mmToggle) mmToggle.classList.add('active');
+          }
+
+          // Set selects
+          if (settings.hotkey) {
+            document.getElementById('hotkeySelect').value = settings.hotkey;
+          }
+        } catch (err) {
+          console.error('Error loading settings:', err);
+        }
+      }
+
+      // Get current dock position
+      if (window.electronAPI?.docking) {
+        try {
+          const status = await window.electronAPI.docking.getStatus();
+          if (status.position) {
+            document.getElementById('dockPosition').value = status.position;
+          }
+        } catch (err) {
+          console.error('Error getting dock status:', err);
+        }
+      }
+
+      // Get multi-monitor status (display count)
+      if (window.electronAPI?.multiMonitor?.getStatus) {
+        try {
+          const status = await window.electronAPI.multiMonitor.getStatus();
+          const countEl = document.getElementById('monitorCount');
+          const rowEl = document.getElementById('monitorCountRow');
+          if (countEl && status?.displayCount) {
+            countEl.textContent = status.displayCount;
+          }
+          if (rowEl) {
+            rowEl.style.display = 'flex';
+          }
+        } catch (err) {
+          console.error('Error getting multi-monitor status:', err);
+        }
+      }
+    }
+
+    loadSettings();
+  </script>
+</body>
+</html>

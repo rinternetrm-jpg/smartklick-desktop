@@ -1,0 +1,365 @@
+/* Smartklick Analysis Viewer - DIN A4 Design */
+
+:root {
+  --sk-bg-dark: #171923;
+  --sk-bg-light: #1e2030;
+  --sk-primary: #14b8a6;
+  --sk-primary-dark: #0d9488;
+  --sk-border: rgba(255, 255, 255, 0.1);
+  --sk-text-light: rgba(255, 255, 255, 0.9);
+  --sk-text-muted: rgba(255, 255, 255, 0.5);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(180deg, var(--sk-bg-light) 0%, var(--sk-bg-dark) 100%);
+  min-height: 100vh;
+  color: var(--sk-text-light);
+  overflow-x: hidden;
+}
+
+/* ========================================
+   HEADER
+   ======================================== */
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: rgba(23, 25, 35, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--sk-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  z-index: 100;
+  -webkit-app-region: drag;
+}
+
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--sk-primary) 0%, var(--sk-primary-dark) 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: white;
+}
+
+.logo-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--sk-text-light);
+}
+
+.close-btn {
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--sk-border);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.close-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--sk-text-muted);
+}
+
+.close-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+}
+
+.close-btn:hover svg {
+  stroke: #ef4444;
+}
+
+/* ========================================
+   MAIN CONTENT
+   ======================================== */
+
+.main-content {
+  padding-top: 56px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+/* ========================================
+   PAPER CONTAINER (A4)
+   ======================================== */
+
+.paper-container {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30px;
+}
+
+.paper {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  width: 100%;
+  min-height: 600px;
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+  color: #1a1a2e;
+
+  /* A4 aspect ratio simulation */
+  aspect-ratio: auto;
+}
+
+.paper-header {
+  padding: 40px 48px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.paper-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.paper-url {
+  font-size: 13px;
+  color: var(--sk-primary-dark);
+  margin-bottom: 8px;
+  word-break: break-all;
+  display: none;
+}
+
+.paper-date {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.paper-content {
+  padding: 32px 48px 48px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: #374151;
+}
+
+.paper-content h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin: 24px 0 12px;
+}
+
+.paper-content h3:first-child {
+  margin-top: 0;
+}
+
+.paper-content p {
+  margin-bottom: 16px;
+}
+
+.paper-content ul {
+  margin: 12px 0 16px 20px;
+}
+
+.paper-content li {
+  margin-bottom: 8px;
+}
+
+.paper-content strong {
+  color: #111827;
+  font-weight: 600;
+}
+
+.paper-content .error {
+  color: #dc2626;
+  text-align: center;
+  padding: 40px;
+}
+
+/* Loading State */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  color: #6b7280;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top-color: var(--sk-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   ACTION BUTTONS
+   ======================================== */
+
+.actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--sk-border);
+  border-radius: 12px;
+  color: var(--sk-text-light);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+}
+
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--sk-primary);
+  transform: translateY(-2px);
+}
+
+.action-btn.primary {
+  background: linear-gradient(135deg, var(--sk-primary) 0%, var(--sk-primary-dark) 100%);
+  border-color: var(--sk-primary);
+  color: white;
+}
+
+.action-btn.primary:hover {
+  box-shadow: 0 4px 20px rgba(20, 184, 166, 0.4);
+}
+
+/* ========================================
+   TOAST
+   ======================================== */
+
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  color: #111827;
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+.toast.hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+  pointer-events: none;
+}
+
+/* ========================================
+   SCROLLBAR
+   ======================================== */
+
+.paper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.paper::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 0 8px 8px 0;
+}
+
+.paper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.paper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+
+@media (max-width: 600px) {
+  .paper-header {
+    padding: 28px 24px 20px;
+  }
+
+  .paper-title {
+    font-size: 20px;
+  }
+
+  .paper-content {
+    padding: 24px 24px 32px;
+    font-size: 14px;
+  }
+
+  .actions {
+    flex-direction: column;
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .action-btn {
+    justify-content: center;
+    width: 100%;
+  }
+}

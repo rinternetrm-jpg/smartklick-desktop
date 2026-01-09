@@ -260,6 +260,7 @@ button, input, select, .tone-buttons, .lang-buttons, .mini-buttons, .action-butt
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  position: relative;
 }
 
 .mic-container {
@@ -280,6 +281,68 @@ button, input, select, .tone-buttons, .lang-buttons, .mini-buttons, .action-butt
 .mic-label {
   font-size: 12px;
   color: #64748b;
+}
+
+/* Notiz gespeichert Popup */
+.note-saved-popup {
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%) translateX(-100%) scale(0);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  padding: 10px 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transition: none;
+}
+
+.note-saved-popup.show {
+  animation: noteSavedPopup 2.5s ease-out forwards;
+}
+
+.note-saved-icon {
+  font-size: 20px;
+  animation: noteIconBounce 0.5s ease-out 0.1s;
+}
+
+.note-saved-text {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@keyframes noteSavedPopup {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-100%) scale(0);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(-100%) scale(1.1);
+  }
+  25% {
+    transform: translateY(-50%) translateX(-100%) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(-100%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-100%) scale(0.8);
+  }
+}
+
+@keyframes noteIconBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
 }
 
 .normal-section {

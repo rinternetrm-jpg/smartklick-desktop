@@ -7,17 +7,19 @@ class DockingManager {
   constructor() {
     this.isDocked = false;
     this.dockPosition = null; // 'top', 'bottom', 'left', 'right'
-    this.settingsOpen = false;
 
     // DOM Elements
     this.dockBar = null;
-    this.settingsPanel = null;
     this.indicators = {};
 
     // Bound handlers
     this.handleModeClick = this.handleModeClick.bind(this);
     this.handleLangClick = this.handleLangClick.bind(this);
     this.handleMicClick = this.handleMicClick.bind(this);
+    this.handleFontClick = this.handleFontClick.bind(this);
+    this.handleNotesClick = this.handleNotesClick.bind(this);
+    this.handleEmailClick = this.handleEmailClick.bind(this);
+    this.handleCalendarClick = this.handleCalendarClick.bind(this);
     this.handleSettingsClick = this.handleSettingsClick.bind(this);
     this.handleUndockClick = this.handleUndockClick.bind(this);
     this.handlePositionChange = this.handlePositionChange.bind(this);
@@ -30,7 +32,6 @@ class DockingManager {
     console.log('[Docking] Initialisiere...');
 
     this.dockBar = document.getElementById('dockBar');
-    this.settingsPanel = document.getElementById('dockSettingsPanel');
     this.indicators = {
       top: document.getElementById('dockIndicatorTop'),
       bottom: document.getElementById('dockIndicatorBottom'),
@@ -67,7 +68,23 @@ class DockingManager {
     const micBtn = this.dockBar.querySelector('#dockMic');
     if (micBtn) micBtn.addEventListener('click', this.handleMicClick);
 
-    // Settings Button - oeffnet/schliesst Panel durch Klasse toggle
+    // A-Button (Screen Reading)
+    const fontBtn = this.dockBar.querySelector('#dockFontBtn');
+    if (fontBtn) fontBtn.addEventListener('click', this.handleFontClick);
+
+    // Notes Button
+    const notesBtn = this.dockBar.querySelector('#dockNotesBtn');
+    if (notesBtn) notesBtn.addEventListener('click', this.handleNotesClick);
+
+    // Email Button
+    const emailBtn = this.dockBar.querySelector('#dockEmailBtn');
+    if (emailBtn) emailBtn.addEventListener('click', this.handleEmailClick);
+
+    // Calendar Button
+    const calendarBtn = this.dockBar.querySelector('#dockCalendarBtn');
+    if (calendarBtn) calendarBtn.addEventListener('click', this.handleCalendarClick);
+
+    // Settings Button - oeffnet Settings Window
     const settingsBtn = this.dockBar.querySelector('#dockSettingsBtn');
     if (settingsBtn) settingsBtn.addEventListener('click', this.handleSettingsClick);
 
@@ -79,14 +96,6 @@ class DockingManager {
     const positionSelect = document.getElementById('dockPositionSelect');
     if (positionSelect) positionSelect.addEventListener('change', this.handlePositionChange);
 
-    // Click ausserhalb Settings Panel schliesst es
-    document.addEventListener('click', (e) => {
-      if (this.settingsOpen &&
-          !this.settingsPanel?.contains(e.target) &&
-          !e.target.closest('#dockSettingsBtn')) {
-        this.closeSettings();
-      }
-    });
   }
 
   /**
@@ -108,6 +117,13 @@ class DockingManager {
 
       window.electronAPI.docking.onUndocked(() => {
         this.onUndocked();
+      });
+    }
+
+    // Notes Window geschlossen (von außen)
+    if (window.electronAPI?.notes?.onWindowClosed) {
+      window.electronAPI.notes.onWindowClosed(() => {
+        this.onNotesWindowClosed();
       });
     }
   }
@@ -177,7 +193,6 @@ class DockingManager {
 
     // Dock-Bar verstecken
     this.dockBar.classList.add('hidden');
-    this.closeSettings();
 
     // Haupt-App anzeigen
     const mainApp = document.getElementById('app');
@@ -185,31 +200,77 @@ class DockingManager {
   }
 
   /**
-   * Settings Panel oeffnen (Leiste expandiert)
-   */
-  openSettings() {
-    this.settingsOpen = true;
-    this.dockBar.classList.add('settings-open');
-  }
-
-  /**
-   * Settings Panel schliessen (Leiste schrumpft)
-   */
-  closeSettings() {
-    this.settingsOpen = false;
-    this.dockBar.classList.remove('settings-open');
-  }
-
-  /**
-   * Settings Toggle
+   * Settings Fenster oeffnen (separates Window)
    */
   handleSettingsClick(e) {
     e.stopPropagation();
-    if (this.settingsOpen) {
-      this.closeSettings();
-    } else {
-      this.openSettings();
+    if (window.electronAPI?.docking) {
+      window.electronAPI.docking.openSettings();
     }
+  }
+
+  /**
+   * A-Button Click (Screen Reading)
+   */
+  handleFontClick(e) {
+    e.stopPropagation();
+    // Dispatch event to app.js to start screen reading
+    document.dispatchEvent(new CustomEvent('dock-screen-read-clicked'));
+    console.log('[Docking] Screen Reading gestartet');
+  }
+
+  /**
+   * Notes-Button Click - Toggle Verhalten
+   */
+  async handleNotesClick(e) {
+    e.stopPropagation();
+    const notesBtn = this.dockBar.querySelector('#dockNotesBtn');
+
+    if (window.electronAPI?.notes?.toggleWindow) {
+      const result = await window.electronAPI.notes.toggleWindow();
+      if (result.success) {
+        // Icon markiert/unmarkiert je nach Zustand
+        if (notesBtn) {
+          notesBtn.classList.toggle('active', result.isOpen);
+        }
+        console.log(`[Docking] Notes ${result.isOpen ? 'geoeffnet' : 'geschlossen'}`);
+      }
+    } else {
+      // Fallback zu altem Verhalten
+      document.dispatchEvent(new CustomEvent('dock-notes-clicked'));
+      console.log('[Docking] Notes geoeffnet (fallback)');
+    }
+  }
+
+  /**
+   * Notes-Fenster geschlossen (von außen) - Icon-Markierung entfernen
+   */
+  onNotesWindowClosed() {
+    const notesBtn = this.dockBar?.querySelector('#dockNotesBtn');
+    if (notesBtn) {
+      notesBtn.classList.remove('active');
+    }
+    console.log('[Docking] Notes-Fenster geschlossen');
+  }
+
+  /**
+   * Email-Button Click
+   */
+  handleEmailClick(e) {
+    e.stopPropagation();
+    // Dispatch event to app.js to open email
+    document.dispatchEvent(new CustomEvent('dock-email-clicked'));
+    console.log('[Docking] Email geoeffnet');
+  }
+
+  /**
+   * Calendar-Button Click
+   */
+  handleCalendarClick(e) {
+    e.stopPropagation();
+    // Dispatch event to app.js to open calendar
+    document.dispatchEvent(new CustomEvent('dock-calendar-clicked'));
+    console.log('[Docking] Kalender geoeffnet');
   }
 
   /**
@@ -287,11 +348,47 @@ class DockingManager {
 
   /**
    * Recording-Status aktualisieren (von app.js)
+   * @param {string} state - 'idle', 'recording', 'processing'
    */
-  setRecordingState(isRecording) {
+  setRecordingState(state) {
     const micBtn = this.dockBar?.querySelector('#dockMic');
-    if (micBtn) {
-      micBtn.classList.toggle('recording', isRecording);
+    const micIcon = micBtn?.querySelector('.mic-icon');
+    const stopIcon = micBtn?.querySelector('.stop-icon');
+    const statusText = this.dockBar?.querySelector('#dockRecordingStatus');
+
+    if (!micBtn) return;
+
+    // Reset classes
+    micBtn.classList.remove('recording', 'processing');
+
+    if (state === 'recording') {
+      // Recording: Show stop icon, show "Aufnahme..." text
+      micBtn.classList.add('recording');
+      micBtn.title = 'Aufnahme stoppen';
+      if (micIcon) micIcon.classList.add('hidden');
+      if (stopIcon) stopIcon.classList.remove('hidden');
+      if (statusText) {
+        statusText.textContent = 'Aufnahme...';
+        statusText.classList.remove('hidden');
+      }
+    } else if (state === 'processing') {
+      // Processing: Show mic icon, show "Verarbeitung..." text
+      micBtn.classList.add('processing');
+      micBtn.title = 'Wird verarbeitet...';
+      if (micIcon) micIcon.classList.remove('hidden');
+      if (stopIcon) stopIcon.classList.add('hidden');
+      if (statusText) {
+        statusText.textContent = 'Verarbeitung...';
+        statusText.classList.remove('hidden');
+      }
+    } else {
+      // Idle: Show mic icon, hide status text
+      micBtn.title = 'Aufnahme starten';
+      if (micIcon) micIcon.classList.remove('hidden');
+      if (stopIcon) stopIcon.classList.add('hidden');
+      if (statusText) {
+        statusText.classList.add('hidden');
+      }
     }
   }
 

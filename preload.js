@@ -67,6 +67,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onCancelled: (callback) => ipcRenderer.on('screen-reading-cancelled', (_, data) => callback(data))
   },
 
+  // Cursor Feedback - fügt Status-Text an Cursor-Position in Ziel-App ein
+  cursorFeedback: {
+    showRecording: () => ipcRenderer.invoke('cursor-feedback:show-recording'),
+    showProcessing: () => ipcRenderer.invoke('cursor-feedback:show-processing'),
+    insertFinal: (text) => ipcRenderer.invoke('cursor-feedback:insert-final', text),
+    cancel: () => ipcRenderer.invoke('cursor-feedback:cancel'),
+    getStatus: () => ipcRenderer.invoke('cursor-feedback:get-status')
+  },
+
   // Chrome Extension
   extension: {
     getStatus: () => ipcRenderer.invoke('get-extension-status'),
@@ -117,6 +126,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getContent: (noteId) => ipcRenderer.invoke('notes-get-content', noteId),
     openFolder: () => ipcRenderer.invoke('notes-open-folder'),
     openWebview: () => ipcRenderer.invoke('notes-open-webview'),
+    toggleWindow: () => ipcRenderer.invoke('notes-toggle-window'),
+    isOpen: () => ipcRenderer.invoke('notes-is-open'),
+    closeWindow: () => ipcRenderer.invoke('notes-close-window'),
+    onWindowClosed: (callback) => ipcRenderer.on('notes-window-closed', () => callback()),
     save: (content) => ipcRenderer.invoke('notes-save', content),
     invalidateCache: () => ipcRenderer.invoke('notes-invalidate-cache')
   },
@@ -157,11 +170,65 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getUnifiedInbox: (max) => ipcRenderer.invoke('email:getUnifiedInbox', max)
   },
 
+  // Calendar
+  calendar: {
+    openWindow: () => ipcRenderer.invoke('calendar:openWindow'),
+    getEvents: (start, end) => ipcRenderer.invoke('calendar:getEvents', start, end),
+    getTodayEvents: () => ipcRenderer.invoke('calendar:getTodayEvents'),
+    getWeekEvents: () => ipcRenderer.invoke('calendar:getWeekEvents')
+  },
+
   // Outlook
   outlook: {
     startAuth: () => ipcRenderer.invoke('outlook:startAuth'),
     setClientId: (clientId) => ipcRenderer.invoke('outlook:setClientId', clientId),
     getClientId: () => ipcRenderer.invoke('outlook:getClientId')
+  },
+
+  // IMAP Multi-Account (for 1&1, GMX, Web.de, T-Online, etc.)
+  imap: {
+    // Provider presets
+    getPresets: () => ipcRenderer.invoke('imap:getPresets'),
+
+    // Multi-Account Management
+    getAccounts: () => ipcRenderer.invoke('imap:getAccounts'),
+    addAccount: (config) => ipcRenderer.invoke('imap:addAccount', config),
+    removeAccount: (accountId) => ipcRenderer.invoke('imap:removeAccount', accountId),
+    updateAccount: (accountId, updates) => ipcRenderer.invoke('imap:updateAccount', accountId, updates),
+    testConnection: (settings) => ipcRenderer.invoke('imap:testConnection', settings),
+
+    // Email Operations (per account)
+    getAccountEmails: (accountId, folder, count) => ipcRenderer.invoke('imap:getAccountEmails', accountId, folder, count),
+    getEmailContent: (accountId, uid) => ipcRenderer.invoke('imap:getEmailContent', accountId, uid),
+    markAsRead: (accountId, uid) => ipcRenderer.invoke('imap:markAsRead', accountId, uid),
+    toggleStar: (accountId, uid) => ipcRenderer.invoke('imap:toggleStar', accountId, uid),
+    deleteEmail: (accountId, uid) => ipcRenderer.invoke('imap:deleteEmail', accountId, uid),
+    getFolders: (accountId) => ipcRenderer.invoke('imap:getFolders', accountId),
+    getStandardFolders: (accountId) => ipcRenderer.invoke('imap:getStandardFolders', accountId),
+
+    // Status & Disconnect
+    getStatus: () => ipcRenderer.invoke('imap:getStatus'),
+    disconnect: () => ipcRenderer.invoke('imap:disconnect'),
+
+    // Legacy single-account (backwards compatibility)
+    configure: (settings) => ipcRenderer.invoke('imap:configure', settings),
+    getSettings: () => ipcRenderer.invoke('imap:getSettings'),
+    test: (settings) => ipcRenderer.invoke('imap:test', settings),
+    getEmails: (count) => ipcRenderer.invoke('imap:getEmails', count),
+    getUnread: () => ipcRenderer.invoke('imap:getUnread')
+  },
+
+  // Analysis Viewer
+  analysis: {
+    open: (data) => ipcRenderer.invoke('analysis:open', data)
+  },
+
+  // Multi-Monitor
+  multiMonitor: {
+    setEnabled: (enabled) => ipcRenderer.send('multimonitor:set-enabled', enabled),
+    getStatus: () => ipcRenderer.invoke('multimonitor:get-status'),
+    dockAll: (position) => ipcRenderer.invoke('multimonitor:dock-all', position),
+    undockAll: () => ipcRenderer.invoke('multimonitor:undock-all')
   },
 
   // Docking System
@@ -170,6 +237,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     dock: (edge) => ipcRenderer.invoke('docking:dock', edge),
     undock: () => ipcRenderer.invoke('docking:undock'),
     setSnapThreshold: (threshold) => ipcRenderer.invoke('docking:setSnapThreshold', threshold),
+    openSettings: () => ipcRenderer.invoke('docking:openSettings'),
 
     // Event listeners
     onApproachingEdge: (callback) => ipcRenderer.on('docking-approaching-edge', (_, data) => callback(data)),

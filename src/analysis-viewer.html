@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seitenanalyse</title>
+  <link rel="stylesheet" href="styles/analysis-viewer.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <div class="logo-icon">A</div>
+        <span class="logo-text">Seitenanalyse</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="close-btn" id="closeBtn" title="Schliessen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- A4 Paper -->
+    <div class="paper-container">
+      <div class="paper" id="paper">
+        <div class="paper-header">
+          <div class="paper-title" id="pageTitle">Seitenanalyse</div>
+          <div class="paper-url" id="pageUrl"></div>
+          <div class="paper-date" id="analysisDate"></div>
+        </div>
+        <div class="paper-content" id="analysisContent">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Analyse wird geladen...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="actions">
+      <button class="action-btn primary" id="saveNoteBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        Notiz speichern
+      </button>
+      <button class="action-btn" id="shareBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="18" cy="5" r="3"></circle>
+          <circle cx="6" cy="12" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+        </svg>
+        Teilen
+      </button>
+      <button class="action-btn" id="copyBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        Kopieren
+      </button>
+    </div>
+  </main>
+
+  <!-- Toast -->
+  <div class="toast hidden" id="toast">
+    <span id="toastMessage"></span>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // State
+    let currentAnalysis = null;
+
+    // DOM Elements
+    const paper = document.getElementById('paper');
+    const pageTitle = document.getElementById('pageTitle');
+    const pageUrl = document.getElementById('pageUrl');
+    const analysisDate = document.getElementById('analysisDate');
+    const analysisContent = document.getElementById('analysisContent');
+    const closeBtn = document.getElementById('closeBtn');
+    const saveNoteBtn = document.getElementById('saveNoteBtn');
+    const shareBtn = document.getElementById('shareBtn');
+    const copyBtn = document.getElementById('copyBtn');
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+      setupEventListeners();
+
+      // Check if we have analysis data passed via IPC
+      ipcRenderer.on('analysis-data', (_, data) => {
+        displayAnalysis(data);
+      });
+
+      // Request analysis data
+      ipcRenderer.send('analysis-viewer-ready');
+    });
+
+    function setupEventListeners() {
+      closeBtn.addEventListener('click', () => {
+        window.close();
+      });
+
+      saveNoteBtn.addEventListener('click', saveAsNote);
+      shareBtn.addEventListener('click', shareAnalysis);
+      copyBtn.addEventListener('click', copyAnalysis);
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          window.close();
+        } else if (e.ctrlKey && e.key === 's') {
+          e.preventDefault();
+          saveAsNote();
+        } else if (e.ctrlKey && e.key === 'c') {
+          // Allow default copy behavior for text selection
+          if (!window.getSelection().toString()) {
+            e.preventDefault();
+            copyAnalysis();
+          }
+        }
+      });
+    }
+
+    function displayAnalysis(data) {
+      currentAnalysis = data;
+
+      // Set title
+      pageTitle.textContent = data.title || 'Seitenanalyse';
+
+      // Set URL if available
+      if (data.url) {
+        pageUrl.textContent = data.url;
+        pageUrl.style.display = 'block';
+      } else {
+        pageUrl.style.display = 'none';
+      }
+
+      // Set date
+      const now = new Date();
+      analysisDate.textContent = `Analysiert am ${now.toLocaleDateString('de-DE')} um ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+
+      // Set content
+      if (data.summary) {
+        // Format the summary with proper structure
+        let html = '';
+
+        if (typeof data.summary === 'string') {
+          html = formatAnalysisText(data.summary);
+        } else if (data.summary.summary) {
+          html = formatAnalysisText(data.summary.summary);
+        }
+
+        // Add key points if available
+        if (data.keyPoints && data.keyPoints.length > 0) {
+          html += '<h3>Kernpunkte</h3><ul>';
+          data.keyPoints.forEach(point => {
+            html += `<li>${escapeHtml(point)}</li>`;
+          });
+          html += '</ul>';
+        }
+
+        // Add recommendations if available
+        if (data.recommendations && data.recommendations.length > 0) {
+          html += '<h3>Empfehlungen</h3><ul>';
+          data.recommendations.forEach(rec => {
+            html += `<li>${escapeHtml(rec)}</li>`;
+          });
+          html += '</ul>';
+        }
+
+        analysisContent.innerHTML = html;
+      } else if (data.text) {
+        analysisContent.innerHTML = formatAnalysisText(data.text);
+      } else {
+        analysisContent.innerHTML = '<p class="error">Keine Analysedaten verfuegbar.</p>';
+      }
+    }
+
+    function formatAnalysisText(text) {
+      // Convert markdown-like text to HTML
+      let html = escapeHtml(text);
+
+      // Convert headers (## or **)
+      html = html.replace(/^##\s+(.+)$/gm, '<h3>$1</h3>');
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+      // Convert bullet points
+      html = html.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+      html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+      // Convert numbered lists
+      html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+
+      // Convert line breaks to paragraphs
+      const paragraphs = html.split(/\n\n+/);
+      html = paragraphs.map(p => {
+        if (p.startsWith('<h3>') || p.startsWith('<ul>') || p.startsWith('<li>')) {
+          return p;
+        }
+        return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+      }).join('');
+
+      return html;
+    }
+
+    async function saveAsNote() {
+      if (!currentAnalysis) {
+        showToast('Keine Analyse zum Speichern');
+        return;
+      }
+
+      try {
+        // Build note content
+        let noteContent = '';
+        if (currentAnalysis.title) {
+          noteContent += currentAnalysis.title + '\n\n';
+        }
+        if (currentAnalysis.url) {
+          noteContent += currentAnalysis.url + '\n\n';
+        }
+        if (currentAnalysis.summary) {
+          noteContent += typeof currentAnalysis.summary === 'string'
+            ? currentAnalysis.summary
+            : currentAnalysis.summary.summary || '';
+        }
+
+        const result = await ipcRenderer.invoke('notes-save', noteContent);
+        if (result.success) {
+          showToast('Als Notiz gespeichert');
+          // Invalidate notes cache so the webview shows the new note
+          await ipcRenderer.invoke('notes-invalidate-cache');
+        } else {
+          showToast('Fehler beim Speichern');
+        }
+      } catch (error) {
+        console.error('Error saving note:', error);
+        showToast('Fehler beim Speichern');
+      }
+    }
+
+    async function shareAnalysis() {
+      if (!currentAnalysis) {
+        showToast('Keine Analyse zum Teilen');
+        return;
+      }
+
+      try {
+        // Build share text
+        let shareText = '';
+        if (currentAnalysis.title) {
+          shareText += currentAnalysis.title + '\n\n';
+        }
+        if (currentAnalysis.summary) {
+          shareText += typeof currentAnalysis.summary === 'string'
+            ? currentAnalysis.summary
+            : currentAnalysis.summary.summary || '';
+        }
+        if (currentAnalysis.url) {
+          shareText += '\n\nQuelle: ' + currentAnalysis.url;
+        }
+
+        // Copy to clipboard (share via clipboard)
+        await navigator.clipboard.writeText(shareText);
+        showToast('Zum Teilen in die Zwischenablage kopiert');
+      } catch (error) {
+        console.error('Error sharing:', error);
+        showToast('Fehler beim Teilen');
+      }
+    }
+
+    async function copyAnalysis() {
+      if (!currentAnalysis) {
+        showToast('Keine Analyse zum Kopieren');
+        return;
+      }
+
+      try {
+        // Build copy text
+        let copyText = '';
+        if (currentAnalysis.title) {
+          copyText += currentAnalysis.title + '\n\n';
+        }
+        if (currentAnalysis.summary) {
+          copyText += typeof currentAnalysis.summary === 'string'
+            ? currentAnalysis.summary
+            : currentAnalysis.summary.summary || '';
+        }
+        if (currentAnalysis.url) {
+          copyText += '\n\nQuelle: ' + currentAnalysis.url;
+        }
+
+        await navigator.clipboard.writeText(copyText);
+        showToast('In Zwischenablage kopiert');
+      } catch (error) {
+        console.error('Error copying:', error);
+        showToast('Fehler beim Kopieren');
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Toast
+    let toastTimeout;
+    function showToast(message) {
+      clearTimeout(toastTimeout);
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMessage').textContent = message;
+      toast.classList.remove('hidden');
+      toastTimeout = setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 3000);
+    }
+  </script>
+</body>
+</html>

@@ -14,6 +14,7 @@ import wave
 import io
 import logging
 import signal
+import time
 from typing import Optional, Callable, Dict, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -23,10 +24,12 @@ import queue
 import numpy as np
 
 # Configure logging
+import tempfile
+log_file = os.path.join(tempfile.gettempdir(), 'smartklick_wake.log')
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.FileHandler('/tmp/smartklick_wake.log'), logging.StreamHandler(sys.stderr)]
+    handlers=[logging.FileHandler(log_file), logging.StreamHandler(sys.stderr)]
 )
 logger = logging.getLogger(__name__)
 
@@ -66,10 +69,28 @@ class WakeWordService:
     FORMAT = np.int16
 
     # Wake word settings
-    WAKE_WORD_THRESHOLD = 0.5
+    WAKE_WORD_THRESHOLD = 0.9  # Higher = less false positives (was 0.5, then 0.8)
     SILENCE_THRESHOLD = 500  # RMS threshold for silence detection
     MAX_RECORDING_SECONDS = 10
     SILENCE_DURATION_END = 1.5  # Seconds of silence to end recording
+
+    # Stop words to cancel recording (nothing will be inserted)
+    STOP_WORDS = ["stop", "stopp", "abbrechen", "cancel", "ende", "pause", "nein", "nicht", "danke", "thank you", "thanks"]
+
+    # Minimum text length to insert (ignore very short transcriptions)
+    MIN_TEXT_LENGTH = 20
+
+    # Noise words to always ignore (wake word echoes, short phrases)
+    NOISE_WORDS = ["danke", "thank you", "thanks", "ja", "nein", "okay", "ok", "shh", "hmm",
+                   "ähm", "ich verstehe", "verstehe", "alles klar", "gut", "yes", "no"]
+
+    # Cooldown after processing (prevents echo/double triggers)
+    COOLDOWN_SECONDS = 4.0
+
+    # Dictation mode settings
+    DICTATION_SILENCE_TIMEOUT = 5.0  # Seconds of silence before sending chunk (was 3)
+    DICTATION_MAX_CHUNK = 60  # Max seconds per chunk before sending (was 30)
+    DICTATION_SKIP_START = 1.5  # Skip first 1.5 seconds (wake word echo)
 
     def __init__(
         self,
@@ -97,6 +118,12 @@ class WakeWordService:
 
         # Event for graceful shutdown
         self.shutdown_event = asyncio.Event()
+
+        # Cooldown tracking
+        self.last_trigger_time = 0
+
+        # Dictation mode
+        self.dictation_active = False
 
     def send_message(self, msg_type: str, data: Dict[str, Any]):
         """Send JSON message to Electron via stdout"""
@@ -287,12 +314,12 @@ class WakeWordService:
             # Convert to WAV
             wav_data = self._audio_to_wav(audio_data)
 
-            # Transcribe
+            # Transcribe - nur Text, keine AI-Antworten
             result = await self.whisper_client.transcribe(
                 audio_data=wav_data,
                 audio_format="wav",
-                jarvis_enabled=True,
-                jarvis_direct_mode=True
+                jarvis_enabled=False,
+                jarvis_direct_mode=False
             )
 
             if not result.success:
@@ -301,6 +328,26 @@ class WakeWordService:
                 return None
 
             logger.info(f"Transcription: {result.text}")
+
+            # Check for stop words - cancel if detected
+            if result.text:
+                text_lower = result.text.lower().strip().rstrip('.')
+                if text_lower in self.STOP_WORDS:
+                    logger.info(f"Stop word detected: {result.text} - cancelling")
+                    self.send_message("cancelled", {"reason": "stop_word"})
+                    return None
+
+            # Check minimum text length
+            if result.text and len(result.text.strip()) < self.MIN_TEXT_LENGTH:
+                logger.info(f"Text too short ({len(result.text)} chars), ignoring: {result.text}")
+                self.send_message("cancelled", {"reason": "too_short", "text": result.text})
+                return None
+
+            # Send text for insertion (main use case: dictation)
+            if result.text:
+                self.send_message("text_input", {"text": result.text})
+                logger.info(f"Text sent for insertion: {result.text}")
+
             self.send_message("transcription", {"text": result.text})
 
             # Check if it's a Smartklick AI response
@@ -312,11 +359,7 @@ class WakeWordService:
                 })
                 return None  # Already handled by AI
 
-            # Parse command
-            parsed = self.command_parser.parse(result.text)
-            logger.info(f"Parsed command: {parsed.action} ({parsed.category.value})")
-
-            return parsed
+            return None  # Normal text input, no command parsing needed
 
         except Exception as e:
             logger.exception("Command processing error")
@@ -351,17 +394,17 @@ class WakeWordService:
 
     async def _listen_loop(self):
         """
-        Main listening loop.
-        Continuously listens for wake word and processes commands.
+        Main listening loop with DICTATION MODE.
+        Wake word starts dictation, stop word ends it.
         """
         import sounddevice as sd
 
         logger.info("Starting listen loop...")
-        self.send_state_update(ServiceState.IDLE, "Listening for 'Hey Smartklick'...")
+        self.send_state_update(ServiceState.IDLE, "Say 'Hey Jarvis' to start dictation...")
 
         audio_buffer = np.zeros(self.CHUNK_SIZE, dtype=np.int16)
 
-        def audio_callback(indata, frames, time, status):
+        def audio_callback(indata, frames, time_info, status):
             nonlocal audio_buffer
             if status:
                 logger.warning(f"Audio status: {status}")
@@ -378,32 +421,190 @@ class WakeWordService:
                 while self.running:
                     await asyncio.sleep(self.CHUNK_SIZE / self.SAMPLE_RATE)
 
-                    # Check for wake word
-                    if self._detect_wake_word(audio_buffer):
-                        # Play acknowledgment sound (sent to Electron)
-                        self.send_message("wake_word_detected", {})
+                    if not self.dictation_active:
+                        # WAITING FOR WAKE WORD
+                        current_time = time.time()
+                        if current_time - self.last_trigger_time < self.COOLDOWN_SECONDS:
+                            continue
 
-                        # Record command
-                        audio_data = await self._record_command()
-
-                        if audio_data is not None and len(audio_data) > self.SAMPLE_RATE * 0.5:
-                            # Process command
-                            command = await self._process_command(audio_data)
-
-                            if command and command.category != CommandCategory.UNKNOWN:
-                                # Execute command
-                                await self._execute_command(command)
-                            elif command and command.category == CommandCategory.UNKNOWN:
-                                self.send_message("unknown_command", {
-                                    "text": command.raw_text
-                                })
-
-                        # Return to idle
-                        self.send_state_update(ServiceState.IDLE, "Listening for 'Hey Smartklick'...")
+                        if self._detect_wake_word(audio_buffer):
+                            self.last_trigger_time = current_time
+                            self.dictation_active = True
+                            self.send_message("wake_word_detected", {})
+                            self.send_message("dictation_started", {})
+                            self.send_state_update(ServiceState.LISTENING, "Dictation active - speak now! Say 'Stopp' to end.")
+                            logger.info("DICTATION MODE STARTED")
+                    else:
+                        # DICTATION MODE ACTIVE - record and transcribe continuously
+                        await self._run_dictation_mode()
 
         except Exception as e:
             logger.exception("Listen loop error")
             self.send_message("error", {"message": str(e)})
+
+    async def _run_dictation_mode(self):
+        """
+        Run continuous dictation until stop word is detected.
+        """
+        import sounddevice as sd
+
+        logger.info("Running dictation mode...")
+
+        while self.dictation_active and self.running:
+            # Record a chunk
+            audio_data = await self._record_dictation_chunk()
+
+            if audio_data is None or len(audio_data) < self.SAMPLE_RATE * 0.5:
+                # Too short or empty, continue listening
+                continue
+
+            # Transcribe
+            self.send_state_update(ServiceState.PROCESSING, "Transcribing...")
+
+            try:
+                wav_data = self._audio_to_wav(audio_data)
+                result = await self.whisper_client.transcribe(
+                    audio_data=wav_data,
+                    audio_format="wav",
+                    jarvis_enabled=False,
+                    jarvis_direct_mode=False
+                )
+
+                if not result.success:
+                    logger.error(f"Transcription failed: {result.error}")
+                    continue
+
+                text = result.text.strip() if result.text else ""
+                logger.info(f"Dictation transcription: {text}")
+
+                if not text:
+                    continue
+
+                # Check for stop words at end of text
+                text_lower = text.lower()
+                stop_words = ["stopp", "stop", "ende diktat", "aufhören"]
+                should_stop = any(text_lower.rstrip('.').endswith(stop) or text_lower.rstrip('.') == stop for stop in stop_words)
+
+                # Remove stop word from text if present at end
+                clean_text = text
+                for stop in stop_words:
+                    if clean_text.lower().rstrip('.').endswith(stop):
+                        # Remove the stop word from the end
+                        clean_text = clean_text[:clean_text.lower().rfind(stop)].strip().rstrip('.')
+                        break
+
+                # Insert text (skip very short or known noise)
+                if clean_text:
+                    # Check for NOTIZ command (save note via voice)
+                    clean_lower = clean_text.lower().strip().rstrip('.')
+
+                    if clean_lower.startswith("notiz ") or clean_lower.startswith("note "):
+                        # Extract note content after "notiz " or "note "
+                        note_content = clean_text[6:].strip() if clean_lower.startswith("notiz ") else clean_text[5:].strip()
+                        if note_content:
+                            logger.info(f"NOTIZ command detected: {note_content}")
+                            self.send_message("smartklick_response", {
+                                "query": clean_text,
+                                "response": f"__NOTES_SAVE__:{note_content}"
+                            })
+                        continue
+
+                    # Check minimum length for regular text insertion
+                    if len(clean_text) < self.MIN_TEXT_LENGTH:
+                        logger.info(f"Text too short ({len(clean_text)} chars), ignoring: {clean_text}")
+                        continue
+
+                    # Check if text is just noise
+                    is_noise = False
+                    for noise in self.NOISE_WORDS:
+                        if clean_lower == noise or clean_lower.startswith(noise + ".") or clean_lower.startswith(noise + " "):
+                            is_noise = True
+                            break
+
+                    if not is_noise:
+                        self.send_message("text_input", {"text": clean_text + " "})  # Add space after
+                        logger.info(f"Inserted: {clean_text}")
+                    else:
+                        logger.info(f"Skipped noise: {clean_text}")
+
+                # End dictation if stop word was detected
+                if should_stop:
+                    logger.info("Stop word detected - ending dictation")
+                    self.dictation_active = False
+                    self.send_message("dictation_ended", {})
+                    self.send_state_update(ServiceState.IDLE, "Say 'Hey Jarvis' to start dictation...")
+                    self.last_trigger_time = time.time()
+                    return
+
+                self.send_state_update(ServiceState.LISTENING, "Dictation active - continue speaking...")
+
+            except Exception as e:
+                logger.error(f"Dictation transcription error: {e}")
+
+    async def _record_dictation_chunk(self) -> Optional[np.ndarray]:
+        """
+        Record audio until silence is detected (for dictation mode).
+        Longer silence timeout than command mode.
+        """
+        import sounddevice as sd
+
+        recording = []
+        silence_chunks = 0
+        silence_chunks_needed = int(self.DICTATION_SILENCE_TIMEOUT * self.SAMPLE_RATE / self.CHUNK_SIZE)
+        max_chunks = int(self.DICTATION_MAX_CHUNK * self.SAMPLE_RATE / self.CHUNK_SIZE)
+        speech_detected = False
+
+        def audio_callback(indata, frames, time_info, status):
+            if status:
+                logger.warning(f"Audio status: {status}")
+            recording.append(indata.copy())
+
+        try:
+            with sd.InputStream(
+                samplerate=self.SAMPLE_RATE,
+                channels=self.CHANNELS,
+                dtype='int16',
+                blocksize=self.CHUNK_SIZE,
+                callback=audio_callback
+            ):
+                chunk_count = 0
+                while chunk_count < max_chunks:
+                    await asyncio.sleep(self.CHUNK_SIZE / self.SAMPLE_RATE)
+                    chunk_count += 1
+
+                    if len(recording) > 0:
+                        last_chunk = recording[-1]
+                        is_silent = self._is_silence(last_chunk)
+
+                        if not is_silent:
+                            speech_detected = True
+                            silence_chunks = 0
+                        else:
+                            silence_chunks += 1
+
+                        # End after silence (only if we had speech)
+                        if speech_detected and silence_chunks >= silence_chunks_needed:
+                            logger.info(f"Silence detected after {chunk_count * self.CHUNK_SIZE / self.SAMPLE_RATE:.1f}s")
+                            break
+
+            if len(recording) == 0:
+                return None
+
+            audio_data = np.concatenate(recording, axis=0).flatten()
+
+            # Skip first part to remove wake word echo
+            skip_samples = int(self.DICTATION_SKIP_START * self.SAMPLE_RATE)
+            if len(audio_data) > skip_samples + self.SAMPLE_RATE:  # Keep at least 1 second
+                audio_data = audio_data[skip_samples:]
+                logger.info(f"Skipped first {self.DICTATION_SKIP_START}s, remaining: {len(audio_data) / self.SAMPLE_RATE:.2f}s")
+            else:
+                logger.info(f"Recorded dictation chunk: {len(audio_data) / self.SAMPLE_RATE:.2f}s")
+
+            return audio_data
+
+        except Exception as e:
+            logger.error(f"Dictation recording error: {e}")
+            return None
 
     async def _handle_stdin(self):
         """

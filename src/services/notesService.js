@@ -233,6 +233,36 @@ class NotesService {
     }
   }
 
+  // Set note color
+  async setNoteColor(noteId, color) {
+    try {
+      const result = await this.fetchFromServer(`/${noteId}/color`, 'POST', { color });
+      if (result.success) {
+        this.cache = null;
+        this.cacheTime = null;
+      }
+      return result;
+    } catch (error) {
+      console.error('Error setting note color:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Set note category
+  async setNoteCategory(noteId, category) {
+    try {
+      const result = await this.fetchFromServer(`/${noteId}/category`, 'POST', { category });
+      if (result.success) {
+        this.cache = null;
+        this.cacheTime = null;
+      }
+      return result;
+    } catch (error) {
+      console.error('Error setting note category:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Get note content
   async getNoteContent(noteId) {
     try {

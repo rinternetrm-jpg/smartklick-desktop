@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smartklick Kalender</title>
+  <link rel="stylesheet" href="styles/calendar.css">
+</head>
+<body>
+  <div id="calendar-app">
+    <!-- Header -->
+    <header class="calendar-header">
+      <div class="header-left">
+        <span class="logo">Smartklick Kalender</span>
+        <button id="todayBtn" class="today-btn">Heute</button>
+        <div class="nav-arrows">
+          <button id="prevBtn" class="nav-btn" title="Zurueck">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <button id="nextBtn" class="nav-btn" title="Weiter">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+            </svg>
+          </button>
+        </div>
+        <span id="currentDateLabel" class="current-date">Januar 2026</span>
+      </div>
+      <div class="header-actions">
+        <div class="view-tabs">
+          <button class="view-btn" data-view="day">Tag</button>
+          <button class="view-btn active" data-view="week">Woche</button>
+          <button class="view-btn" data-view="month">Monat</button>
+        </div>
+        <button id="refreshBtn" class="header-btn" title="Aktualisieren">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+          </svg>
+        </button>
+        <button id="addEventBtn" class="header-btn primary" title="Neuer Termin">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          </svg>
+          Neuer Termin
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="calendar-container">
+      <!-- Mini Calendar Sidebar -->
+      <aside class="calendar-sidebar">
+        <div class="mini-calendar" id="miniCalendar">
+          <!-- Mini calendar will be rendered here -->
+        </div>
+
+        <div class="upcoming-section">
+          <h3>Naechste Termine</h3>
+          <div id="upcomingEvents" class="upcoming-events">
+            <div class="loading-state">
+              <div class="spinner"></div>
+              <span>Lade Termine...</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Calendar View -->
+      <main class="calendar-main">
+        <!-- Day View -->
+        <div id="dayView" class="calendar-view hidden">
+          <div class="day-header">
+            <span id="dayViewDate" class="day-date">Donnerstag, 9. Januar 2026</span>
+          </div>
+          <div class="day-grid" id="dayGrid">
+            <!-- Time slots will be rendered here -->
+          </div>
+        </div>
+
+        <!-- Week View -->
+        <div id="weekView" class="calendar-view">
+          <div class="week-header" id="weekHeader">
+            <!-- Day headers will be rendered here -->
+          </div>
+          <div class="week-grid" id="weekGrid">
+            <!-- Week grid will be rendered here -->
+          </div>
+        </div>
+
+        <!-- Month View -->
+        <div id="monthView" class="calendar-view hidden">
+          <div class="month-header">
+            <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+          </div>
+          <div class="month-grid" id="monthGrid">
+            <!-- Month grid will be rendered here -->
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Event Detail Modal -->
+    <div id="eventModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modalTitle">Termin Details</h2>
+          <button id="closeModal" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="event-time" id="modalTime"></div>
+          <div class="event-description" id="modalDescription"></div>
+          <div class="event-location" id="modalLocation"></div>
+        </div>
+        <div class="modal-actions">
+          <button id="openInGoogle" class="action-btn">In Google Kalender oeffnen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+      <div class="spinner large"></div>
+      <span>Lade Kalender...</span>
+    </div>
+  </div>
+
+  <script src="scripts/calendar-app.js"></script>
+</body>
+</html>
