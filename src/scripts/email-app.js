@@ -20,8 +20,8 @@ let isClassifying = false;  // Flag um doppelte Klassifizierung zu verhindern
 const KATEGORIE_MAP = {
   essenz: { name: 'Essenz', icon: '🔴', color: '#ef4444' },
   wichtig: { name: 'Wichtig', icon: '🟠', color: '#f97316' },
-  normal: { name: 'Normal', icon: '🔵', color: '#3b82f6' },
   info: { name: 'Info', icon: 'ℹ️', color: '#6b7280' },
+  werbung: { name: 'Werbung', icon: '📢', color: '#f59e0b' },
   newsletter: { name: 'Newsletter', icon: '📰', color: '#8b5cf6' },
   spam: { name: 'Spam', icon: '🗑️', color: '#dc2626' }
 };
@@ -551,16 +551,17 @@ class EmailAnalysisAnimation {
     this.counts = {
       essenz: 0,
       wichtig: 0,
-      normal: 0,
       info: 0,
+      werbung: 0,
       newsletter: 0,
       spam: 0
     };
+    // Mapping: Klassifizierungs-Kategorie → Sidebar-Kategorie
     this.categoryMapping = {
       essenz: 'important',
       wichtig: 'important',
-      normal: 'inbox',
-      info: 'inbox',
+      info: 'info',
+      werbung: 'werbung',
       newsletter: 'newsletter',
       spam: 'spam'
     };
@@ -1035,13 +1036,22 @@ function filterByCategory(emailList) {
         e.aktion === 'entscheiden'
       );
     case 'inbox':
-      // Alles außer Spam und Newsletter
+      // Nur unkategorisierte E-Mails
       return emailList.filter(e =>
-        e.kategorie !== 'spam' &&
-        e.kategorie !== 'newsletter' &&
-        !e.isSpam &&
-        !e.isNewsletter
+        !e.kategorie ||
+        (e.kategorie !== 'spam' &&
+         e.kategorie !== 'newsletter' &&
+         e.kategorie !== 'info' &&
+         e.kategorie !== 'werbung' &&
+         e.kategorie !== 'essenz' &&
+         e.kategorie !== 'wichtig' &&
+         !e.isSpam &&
+         !e.isNewsletter)
       );
+    case 'info':
+      return emailList.filter(e => e.kategorie === 'info');
+    case 'werbung':
+      return emailList.filter(e => e.kategorie === 'werbung');
     case 'newsletter':
       return emailList.filter(e => e.kategorie === 'newsletter' || e.isNewsletter);
     case 'sent':
@@ -1049,11 +1059,7 @@ function filterByCategory(emailList) {
     case 'spam':
       return emailList.filter(e => e.kategorie === 'spam' || e.isSpam);
     case 'essenz':
-      // Nur Essenz
       return emailList.filter(e => e.kategorie === 'essenz');
-    case 'info':
-      // Nur Info
-      return emailList.filter(e => e.kategorie === 'info');
     default:
       return emailList;
   }
@@ -1509,10 +1515,13 @@ function updateStats() {
 }
 
 function updateCategoryCounts() {
-  // Inbox (alles außer Spam und Newsletter)
+  // Inbox (nur unkategorisierte E-Mails)
   const inboxCount = emails.filter(e =>
-    e.kategorie !== 'spam' && e.kategorie !== 'newsletter' &&
-    !e.isSpam && !e.isNewsletter
+    !e.kategorie ||
+    (e.kategorie !== 'spam' && e.kategorie !== 'newsletter' &&
+     e.kategorie !== 'info' && e.kategorie !== 'werbung' &&
+     e.kategorie !== 'essenz' && e.kategorie !== 'wichtig' &&
+     !e.isSpam && !e.isNewsletter)
   ).length;
   document.getElementById('catInbox').textContent = `${inboxCount} E-Mails`;
 
@@ -1545,6 +1554,14 @@ function updateCategoryCounts() {
   } else {
     document.getElementById('badgeAction').classList.add('hidden');
   }
+
+  // Info
+  const infoCount = emails.filter(e => e.kategorie === 'info').length;
+  document.getElementById('catInfo').textContent = `${infoCount} E-Mails`;
+
+  // Werbung
+  const werbungCount = emails.filter(e => e.kategorie === 'werbung').length;
+  document.getElementById('catWerbung').textContent = `${werbungCount} E-Mails`;
 
   // Newsletter
   const newsletterCount = emails.filter(e => e.kategorie === 'newsletter' || e.isNewsletter).length;
@@ -1682,6 +1699,7 @@ async function analyzeAllEmails() {
 
   // Setze Flag um doppelte Klassifizierung zu verhindern
   isClassifying = true;
+  emailAnalysisAnimation.isAnalyzing = true;
 
   // Zeige Loading-Status auf Button
   const analyzeBtn = document.getElementById('analyzeAllBtn');
@@ -1689,66 +1707,119 @@ async function analyzeAllEmails() {
     analyzeBtn.classList.add('loading');
   }
 
+  // Progress Indicator anzeigen
+  const progressIndicator = document.getElementById('analysisProgressIndicator');
+  const progressCount = progressIndicator?.querySelector('.progress-count');
+  if (progressIndicator) progressIndicator.classList.add('visible');
+
   try {
-    console.log('[ANALYZE] Starte KI-Analyse für', emails.length, 'E-Mails');
+    console.log('[ANALYZE] Starte SEQUENTIELLE KI-Analyse für', emails.length, 'E-Mails');
     const startTime = Date.now();
+    const totalEmails = emails.length;
 
-    // Bereite E-Mails für Klassifizierung vor
-    const emailsForClassification = emails.map(e => ({
-      id: e.id,
-      from: { address: e.from, name: e.fromName },
-      subject: e.subject,
-      text: e.body || e.snippet || '',
-      date: e.date,
-      to: e.to || [],
-      cc: e.cc || [],
-      attachments: e.attachments || []
-    }));
+    // Reset Zähler
+    emailAnalysisAnimation.resetCounts();
 
-    // Rufe die Klassifizierung auf
-    const result = await ipcRenderer.invoke('email:classifyBatch', emailsForClassification);
+    // SEQUENTIELLE Verarbeitung: Eine E-Mail nach der anderen
+    for (let i = 0; i < totalEmails; i++) {
+      const email = emails[i];
 
-    if (result.success && result.classifications) {
-      console.log('[ANALYZE] Klassifizierung erfolgreich, starte Animation...');
-
-      // Die Animation übernimmt ab hier (inkl. Fortschritt und Summary)
-      await animateSorting(result.classifications);
-
-      // Aktualisiere Statistiken
-      classifierStats = await ipcRenderer.invoke('email:classifierStats');
-
-      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`[ANALYZE] Analyse abgeschlossen in ${duration}s`);
-
-      // Log Klassifizierungsergebnisse
-      const kategorieStats = {};
-      emails.forEach(e => {
-        const kat = e.kategorie || 'unclassified';
-        kategorieStats[kat] = (kategorieStats[kat] || 0) + 1;
-      });
-      console.log('[ANALYZE] Ergebnisse:', kategorieStats);
-
-      // Zeige Classifier-Kosten wenn verfügbar
-      if (classifierStats?.stats) {
-        console.log('[CLASSIFIER] Stufe 2:', classifierStats.stats.stufe2);
-        console.log('[CLASSIFIER] Stufe 3:', classifierStats.stats.stufe3);
-        console.log('[CLASSIFIER] Kosten:', classifierStats.stats.kostenGesamt);
+      // Update Progress
+      if (progressCount) {
+        progressCount.textContent = `${i + 1}/${totalEmails}`;
       }
-    } else {
-      console.error('[ANALYZE] Klassifizierung fehlgeschlagen:', result.error);
-      showToast('Klassifizierung fehlgeschlagen: ' + (result.error || 'Unbekannter Fehler'), 'error');
+
+      // Bereite E-Mail für Klassifizierung vor
+      const emailForClassification = {
+        id: email.id,
+        from: { address: email.from, name: email.fromName },
+        subject: email.subject,
+        text: email.body || email.snippet || '',
+        date: email.date,
+        to: email.to || [],
+        cc: email.cc || [],
+        attachments: email.attachments || []
+      };
+
+      // Klassifiziere DIESE EINE E-Mail
+      const result = await ipcRenderer.invoke('email:classify', emailForClassification);
+
+      if (result.success && result.classification) {
+        const classification = result.classification;
+
+        // Speichere Klassifizierung
+        emailClassifications[email.id] = classification;
+
+        // Update E-Mail Daten
+        email.kategorie = classification.kategorie;
+        email.confidence = classification.confidence;
+        email.tags = classification.tags || [];
+        email.zusammenfassung = classification.zusammenfassung;
+        email.aktion = classification.aktion;
+        email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
+        email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
+        email.isSpam = classification.kategorie === 'spam';
+        email.isNewsletter = classification.kategorie === 'newsletter';
+        email.canAutoReply = classification.autoAntwortMöglich;
+
+        // SOFORT Animation für diese E-Mail
+        await emailAnalysisAnimation.animateEmailToCategory(email, classification.kategorie, i);
+
+        // Update Counts nach jeder E-Mail
+        updateCategoryCounts();
+
+        console.log(`[ANALYZE] ${i + 1}/${totalEmails}: ${email.subject?.substring(0, 30)}... → ${classification.kategorie}`);
+      } else {
+        console.warn(`[ANALYZE] Fehler bei E-Mail ${i + 1}:`, result.error);
+      }
+
+      // Kurze Pause zwischen E-Mails (100ms)
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
+
+    // Progress ausblenden
+    if (progressIndicator) progressIndicator.classList.remove('visible');
+
+    // Aktualisiere Statistiken
+    classifierStats = await ipcRenderer.invoke('email:classifierStats');
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[ANALYZE] Analyse abgeschlossen in ${duration}s`);
+
+    // Log Klassifizierungsergebnisse
+    const kategorieStats = {};
+    emails.forEach(e => {
+      const kat = e.kategorie || 'unclassified';
+      kategorieStats[kat] = (kategorieStats[kat] || 0) + 1;
+    });
+    console.log('[ANALYZE] Ergebnisse:', kategorieStats);
+
+    // Zeige Classifier-Kosten wenn verfügbar
+    if (classifierStats?.stats) {
+      console.log('[CLASSIFIER] Stufe 2:', classifierStats.stats.stufe2);
+      console.log('[CLASSIFIER] Stufe 3:', classifierStats.stats.stufe3);
+      console.log('[CLASSIFIER] Kosten:', classifierStats.stats.kostenGesamt);
+    }
+
+    // Wechsle zu "Wichtig" Kategorie wenn fertig
+    switchToCategory('important');
+
+    // Zeige Summary
+    emailAnalysisAnimation.showSummary();
 
   } catch (error) {
     console.error('[ANALYZE] Fehler:', error);
     showToast('Analyse-Fehler: ' + error.message, 'error');
   } finally {
-    // Reset Flag und Button
+    // Reset Flags und Button
     isClassifying = false;
+    emailAnalysisAnimation.isAnalyzing = false;
     const analyzeBtn = document.getElementById('analyzeAllBtn');
     if (analyzeBtn) {
       analyzeBtn.classList.remove('loading');
     }
+    const progressIndicator = document.getElementById('analysisProgressIndicator');
+    if (progressIndicator) progressIndicator.classList.remove('visible');
   }
 }
 

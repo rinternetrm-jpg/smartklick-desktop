@@ -61,30 +61,39 @@ ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
 INHALT: ${body}
 
-SPAM/WERBUNG erkennen:
-- "Deals", "Sale", "Knaller", "Rabatt", "% Rabatt" = SPAM
-- "Konzert kommt", "Tribute to", Events = NEWSLETTER
-- Marketing wie "Kennen Sie...", "Entdecken Sie..." = SPAM
-- Eventim, MediaMarkt, 1&1 Marketing, Shops = SPAM/NEWSLETTER
+WERBUNG (Social Media, Shops):
+- Facebook, LinkedIn, Instagram, Twitter = WERBUNG
+- Amazon, eBay, Zalando, MediaMarkt = WERBUNG
+- "hat gepostet", "neue Nachricht", "hat kommentiert" = WERBUNG
+- Rabatte, Sales, Angebote = WERBUNG
 
-INFO (automatisch, keine Antwort nötig):
+INFO (System-Benachrichtigungen):
 - WordPress, IONOS, Hostinger = INFO
-- Google/GitHub Sicherheitswarnungen = INFO
-- Bestellbestätigungen, Versandstatus = INFO
+- Google/GitHub Security = INFO
+- Bestellbestätigungen, Versand = INFO
 - noreply@, notification@ = INFO
 
-ESSENZ nur wenn BEIDES zutrifft:
-1. Echter Mensch schreibt PERSÖNLICH (nicht automatisch generiert)
-2. Erwartet konkrete Antwort/Aktion von mir
+NEWSLETTER:
+- Abonnierte Updates, Weekly, Monthly = NEWSLETTER
+- Blogs, News-Dienste = NEWSLETTER
+
+SPAM:
+- Phishing, Betrug = SPAM
+- Unbekannte Absender mit Links = SPAM
+
+ESSENZ nur wenn:
+- Echter Mensch schreibt PERSÖNLICH
+- Erwartet Antwort/Aktion
 
 Kategorien:
-- ESSENZ = Mensch erwartet persönliche Antwort
-- WICHTIG = Könnte Antwort brauchen, nicht sicher
-- INFO = Automatische Benachrichtigung
-- NEWSLETTER = Marketing, Updates, Events
-- SPAM = Werbung, unerwünscht
+- ESSENZ = Mensch erwartet Antwort
+- WICHTIG = Könnte Antwort brauchen
+- INFO = System-Mails
+- WERBUNG = Social Media, Shops
+- NEWSLETTER = Abonnierte Updates
+- SPAM = Phishing, Betrug
 
-JSON: {"kat":"info|essenz|wichtig|newsletter|spam","conf":0-100,"sum":"Was will die Mail?"}`;
+JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","conf":0-100,"sum":"Was will die Mail?"}`;
 
     try {
       const response = await this.openai.chat.completions.create({

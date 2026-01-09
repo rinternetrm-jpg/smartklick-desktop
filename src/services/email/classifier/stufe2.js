@@ -63,27 +63,36 @@ class Stufe2Classifier {
 ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
 
-WICHTIG - Das sind KEINE echten Menschen:
-- WordPress, IONOS, Hostinger, Strato = Hosting-Benachrichtigungen → INFO
-- noreply@, no-reply@, notification@, info@, support@ = Automatisch → INFO
-- Facebook, LinkedIn, Twitter, Instagram = Social Media → INFO oder NEWSLETTER
-- Amazon, PayPal, DHL, Hermes = Bestellungen/Versand → INFO
-- Newsletter, "Dein Update", "Weekly" = NEWSLETTER
+WERBUNG (Social Media, Shops, Marketing):
+- Facebook, LinkedIn, Twitter, Instagram, TikTok = WERBUNG
+- Shops: Amazon, eBay, Zalando, MediaMarkt = WERBUNG
+- "Neue Nachricht", "hat gepostet", "hat kommentiert" = WERBUNG
+- Rabatte, Sales, Angebote = WERBUNG
+
+INFO (Automatische Benachrichtigungen):
+- WordPress, IONOS, Hostinger, Strato = INFO
+- noreply@, notification@, info@ = INFO
+- Bestellbestätigungen, Versand-Updates = INFO
+- GitHub, Google Security = INFO
+
+NEWSLETTER (Abonnierte Updates):
+- Newsletter, "Weekly", "Monthly" = NEWSLETTER
+- Blogs, News-Dienste = NEWSLETTER
 
 ECHTE Menschen (ESSENZ/WICHTIG):
-- Persönliche E-Mail-Adresse (vorname.nachname@firma.de)
-- Direkter Betreff wie "Frage zu...", "Können wir...", "Bitte um..."
-- Jemand der PERSÖNLICH schreibt und eine Antwort erwartet
+- Persönliche E-Mail (vorname.nachname@firma.de)
+- Betreff: "Frage zu...", "Können wir...", "Bitte um..."
+- Jemand der PERSÖNLICH schreibt
 
 Kategorien:
-- ESSENZ = Echter Mensch schreibt persönlich UND erwartet Antwort/Aktion
-- WICHTIG = Könnte wichtig sein, aber nicht sicher ob Antwort nötig
-- INFO = Automatische System-Mails, Bestätigungen, Benachrichtigungen
-- NEWSLETTER = Regelmäßige Updates, Marketing, Werbung die ich evtl. abonniert habe
-- SPAM = Unerwünschte Werbung, Phishing
+- ESSENZ = Echter Mensch erwartet Antwort
+- WICHTIG = Könnte Antwort brauchen
+- INFO = System-Mails, Bestätigungen
+- WERBUNG = Social Media, Shops, Marketing
+- NEWSLETTER = Abonnierte Updates
+- SPAM = Phishing, Betrug
 
-Antworte NUR mit JSON:
-{"kategorie":"essenz|wichtig|info|newsletter|spam","confidence":0-100,"grund":"max 10 Worte"}`;
+JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","conf":0-100,"grund":"max 5 Worte"}`;
 
     try {
       const response = await this.openai.chat.completions.create({
@@ -111,12 +120,16 @@ Antworte NUR mit JSON:
       const result = JSON.parse(jsonStr);
       console.log('[STUFE2] Parsed:', result);
 
+      // Kategorie aus "kat" oder "kategorie" lesen
+      const kategorie = (result.kat || result.kategorie || 'info').toLowerCase();
+      const confidence = result.conf || result.confidence || 70;
+
       // Brauchen wir mehr Text? Nur bei niedriger Confidence
-      const needsMoreText = result.confidence < 60;
+      const needsMoreText = confidence < 60;
 
       return {
-        kategorie: result.kategorie?.toLowerCase() || 'info',
-        confidence: result.confidence || 70,
+        kategorie,
+        confidence,
         grund: result.grund,
         needsMoreText,
         stufe: 2
@@ -162,18 +175,20 @@ ${batch.map((e, idx) => {
   return `[${idx + 1}] ${from.name || ''} <${from.address || ''}> | ${e.subject || ''}`;
 }).join('\n')}
 
-KEINE echten Menschen: WordPress, IONOS, Hostinger, Strato, noreply@, notification@, Facebook, LinkedIn, Amazon, PayPal, DHL → INFO
-ECHTE Menschen: Persönliche Adresse (vorname@), direkter Betreff ("Frage zu...", "Können wir...") → ESSENZ/WICHTIG
+WERBUNG: Facebook, LinkedIn, Instagram, Amazon, eBay, Shops, "hat gepostet", Rabatt
+INFO: WordPress, IONOS, noreply@, Bestätigungen, System-Mails
+NEWSLETTER: Abonnierte Updates, Weekly, Monthly
+ESSENZ/WICHTIG: Echte Menschen mit persönlicher Anfrage
 
 Kategorien:
-- ESSENZ = Echter Mensch erwartet Antwort
-- WICHTIG = Könnte wichtig sein
-- INFO = System-Mail, Bestätigung
-- NEWSLETTER = Marketing, Updates
-- SPAM = Unerwünscht
+- ESSENZ = Mensch erwartet Antwort
+- WICHTIG = Könnte Antwort brauchen
+- INFO = System-Mails
+- WERBUNG = Social Media, Shops
+- NEWSLETTER = Abonnierte Updates
+- SPAM = Phishing
 
-JSON Array:
-[{"nr":1,"kat":"info","conf":85},{"nr":2,"kat":"essenz","conf":90},...]`;
+JSON: [{"nr":1,"kat":"info","conf":85},{"nr":2,"kat":"werbung","conf":90},...]`;
 
       try {
         const response = await this.openai.chat.completions.create({
