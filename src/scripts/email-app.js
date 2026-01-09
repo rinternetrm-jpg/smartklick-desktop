@@ -707,6 +707,20 @@ class EmailAnalysisAnimation {
       return;
     }
 
+    // WICHTIG: Wenn E-Mail im Posteingang bleibt (normal/info), keine Flug-Animation
+    // Nur Emails die WOANDERS hinfliegen (spam, newsletter, wichtig) bekommen Animation
+    const isMovingAway = targetCategory !== 'inbox';
+
+    if (!isMovingAway) {
+      // E-Mail bleibt im Posteingang - nur kurzes Highlight, kein Flug
+      this.counts[kategorie]++;
+      emailElement.style.transition = 'background 0.3s ease';
+      emailElement.style.background = 'rgba(20, 184, 166, 0.1)';
+      await this.sleep(150);
+      emailElement.style.background = '';
+      return;
+    }
+
     // Positionen berechnen
     const emailRect = emailElement.getBoundingClientRect();
     const categoryRect = categoryElement.getBoundingClientRect();
@@ -714,7 +728,7 @@ class EmailAnalysisAnimation {
     // PHASE 1: Klon erstellen für Flug-Animation
     const clone = this.createFlyingClone(emailElement, emailRect, kategorie);
 
-    // PHASE 2: Original E-Mail schrumpfen lassen
+    // PHASE 2: Original E-Mail schrumpfen lassen (nur wenn es wegfliegt)
     emailElement.classList.add('shrinking');
 
     // PHASE 3: Trail-Effekt erstellen (von rechts nach links)
