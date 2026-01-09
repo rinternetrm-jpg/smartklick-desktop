@@ -14,6 +14,7 @@ let selectedAccountId = 'all';
 let autoReplyEnabled = false;
 let autoClassifyEnabled = true;
 let classifierStats = null;
+let isClassifying = false;  // Flag um doppelte Klassifizierung zu verhindern
 
 // Kategorie-Mapping für UI
 const KATEGORIE_MAP = {
@@ -467,6 +468,13 @@ async function classifyAllEmails() {
     return;
   }
 
+  // Verhindere doppelte Klassifizierung
+  if (isClassifying) {
+    console.log('[CLASSIFY] Already classifying, skipping...');
+    return;
+  }
+
+  isClassifying = true;
   const totalEmails = emails.length;
   console.log('[CLASSIFY] Starting auto-classification for', totalEmails, 'emails');
 
@@ -527,6 +535,8 @@ async function classifyAllEmails() {
     }
   } catch (error) {
     console.error('[CLASSIFY] Fehler bei Batch-Klassifizierung:', error);
+  } finally {
+    isClassifying = false;
   }
 }
 
@@ -1665,9 +1675,18 @@ async function analyzeAllEmails() {
   }
 
   // Prüfe ob bereits eine Analyse läuft
-  if (emailAnalysisAnimation.isAnalyzing) {
+  if (emailAnalysisAnimation.isAnalyzing || isClassifying) {
     showToast('Analyse läuft bereits...', 'info');
     return;
+  }
+
+  // Setze Flag um doppelte Klassifizierung zu verhindern
+  isClassifying = true;
+
+  // Zeige Loading-Status auf Button
+  const analyzeBtn = document.getElementById('analyzeAllBtn');
+  if (analyzeBtn) {
+    analyzeBtn.classList.add('loading');
   }
 
   try {
@@ -1723,6 +1742,13 @@ async function analyzeAllEmails() {
   } catch (error) {
     console.error('[ANALYZE] Fehler:', error);
     showToast('Analyse-Fehler: ' + error.message, 'error');
+  } finally {
+    // Reset Flag und Button
+    isClassifying = false;
+    const analyzeBtn = document.getElementById('analyzeAllBtn');
+    if (analyzeBtn) {
+      analyzeBtn.classList.remove('loading');
+    }
   }
 }
 

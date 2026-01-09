@@ -21,7 +21,16 @@ class Stufe2Classifier {
   }
 
   initOpenAI() {
-    const apiKey = this.store.get('openaiApiKey') || process.env.OPENAI_API_KEY;
+    const storeKey = this.store.get('openaiApiKey');
+    const envKey = process.env.OPENAI_API_KEY;
+    const apiKey = storeKey || envKey;
+
+    console.log('[STUFE2] API Key Status:', {
+      fromStore: storeKey ? 'found (' + storeKey.substring(0, 10) + '...)' : 'not set',
+      fromEnv: envKey ? 'found (' + envKey.substring(0, 10) + '...)' : 'not set',
+      using: apiKey ? 'configured' : 'MISSING'
+    });
+
     if (apiKey) {
       this.openai = new OpenAI({ apiKey });
     }
@@ -34,9 +43,9 @@ class Stufe2Classifier {
 
   async klassifiziere(email) {
     if (!this.openai) {
-      console.warn('OpenAI API Key nicht konfiguriert');
+      console.warn('[STUFE2] OpenAI API Key nicht konfiguriert!');
       return {
-        kategorie: 'normal',
+        kategorie: 'info',  // Fallback zu info
         confidence: 50,
         needsMoreText: false,
         stufe: 2,
@@ -85,6 +94,7 @@ Antworte NUR mit JSON:
       });
 
       const content = response.choices[0].message.content.trim();
+      console.log('[STUFE2] GPT Response:', content.substring(0, 200));
 
       // Parse JSON
       let jsonStr = content;
@@ -92,7 +102,14 @@ Antworte NUR mit JSON:
         jsonStr = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
       }
 
+      // Find JSON in response
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+
       const result = JSON.parse(jsonStr);
+      console.log('[STUFE2] Parsed:', result);
 
       // Brauchen wir mehr Text? Nur bei niedriger Confidence
       const needsMoreText = result.confidence < 60;
@@ -106,9 +123,10 @@ Antworte NUR mit JSON:
       };
 
     } catch (error) {
-      console.error('Stufe 2 GPT Fehler:', error.message);
+      console.error('[STUFE2] GPT Fehler:', error.message);
+      console.error('[STUFE2] Full error:', error);
       return {
-        kategorie: 'normal',
+        kategorie: 'info',  // Fallback zu info statt normal
         confidence: 50,
         needsMoreText: true,
         stufe: 2,
@@ -120,8 +138,9 @@ Antworte NUR mit JSON:
   // Batch-Klassifizierung für mehrere E-Mails
   async batchKlassifiziere(emails) {
     if (!this.openai) {
+      console.warn('[STUFE2-BATCH] OpenAI API Key nicht konfiguriert!');
       return emails.map(() => ({
-        kategorie: 'normal',
+        kategorie: 'info',
         confidence: 50,
         needsMoreText: false,
         stufe: 2,
@@ -165,12 +184,21 @@ JSON Array:
         });
 
         const content = response.choices[0].message.content.trim();
+        console.log('[STUFE2-BATCH] GPT Response:', content.substring(0, 300));
+
         let jsonStr = content;
         if (content.includes('```')) {
           jsonStr = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
         }
 
+        // Find JSON array in response
+        const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          jsonStr = arrayMatch[0];
+        }
+
         const batchResponse = JSON.parse(jsonStr);
+        console.log('[STUFE2-BATCH] Parsed', batchResponse.length, 'results');
 
         for (let j = 0; j < batch.length; j++) {
           const gptResult = batchResponse.find(r => r.nr === j + 1) || batchResponse[j];
@@ -187,8 +215,9 @@ JSON Array:
               stufe: 2
             });
           } else {
+            console.warn('[STUFE2-BATCH] Kein Result für Email', j + 1);
             results.push({
-              kategorie: 'normal',
+              kategorie: 'info',
               confidence: 50,
               needsMoreText: true,
               stufe: 2
@@ -197,12 +226,13 @@ JSON Array:
         }
 
       } catch (error) {
-        console.error('Batch Stufe 2 Fehler:', error.message);
+        console.error('[STUFE2-BATCH] Fehler:', error.message);
+        console.error('[STUFE2-BATCH] Full error:', error);
 
         // Fallback für die ganze Batch
         for (let j = 0; j < batch.length; j++) {
           results.push({
-            kategorie: 'normal',
+            kategorie: 'info',
             confidence: 50,
             needsMoreText: true,
             stufe: 2,
