@@ -1550,7 +1550,7 @@ async function clearAllData() {
     // Update UI
     updateAccountDropdown();
     renderAccountCards();
-    renderEmails();
+    renderEmailList();
     showEmailDetail(null);
 
     showToast('Alle Daten gelöscht. Bitte App neu starten.', 'success');

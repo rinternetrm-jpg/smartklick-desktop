@@ -113,7 +113,16 @@ class EmailLearner {
 
   // Klassifizierung erfolgreich abgeschlossen
   trackKlassifizierung(email, result) {
-    const stats = this.store.get('stats');
+    // Ensure stats object exists (might be cleared)
+    this.initStats();
+    const stats = this.store.get('stats') || {
+      totalClassified: 0,
+      korrekturen: 0,
+      korrekturen_details: [],
+      absenderScores: {},
+      muster: {},
+      lastUpdated: new Date().toISOString()
+    };
     stats.totalClassified++;
     stats.lastUpdated = new Date().toISOString();
     this.store.set('stats', stats);
@@ -286,32 +295,49 @@ class EmailLearner {
   // === STATISTIK METHODEN ===
 
   getStats() {
-    return this.store.get('stats');
+    this.initStats();
+    return this.store.get('stats') || {
+      totalClassified: 0,
+      korrekturen: 0,
+      korrekturen_details: [],
+      absenderScores: {},
+      muster: {},
+      lastUpdated: new Date().toISOString()
+    };
   }
 
   getLernfortschritt() {
-    const stats = this.store.get('stats');
+    this.initStats();
+    const stats = this.store.get('stats') || {
+      totalClassified: 0,
+      korrekturen: 0,
+      korrekturen_details: [],
+      absenderScores: {},
+      muster: {},
+      lastUpdated: new Date().toISOString()
+    };
     const muster = this.store.get('stats.muster', {});
     const absenderScores = this.store.get('stats.absenderScores', {});
 
     return {
-      totalClassified: stats.totalClassified,
-      korrekturen: stats.korrekturen,
+      totalClassified: stats.totalClassified || 0,
+      korrekturen: stats.korrekturen || 0,
       gelernteAbsender: Object.keys(absenderScores).length,
       gelernteMuster: Object.keys(muster).length,
       whitelist: this.stufe1?.whitelist?.length || 0,
       blacklist: this.stufe1?.blacklist?.length || 0,
-      genauigkeit: stats.totalClassified > 0
-        ? Math.round(((stats.totalClassified - stats.korrekturen) / stats.totalClassified) * 100)
+      genauigkeit: (stats.totalClassified || 0) > 0
+        ? Math.round(((stats.totalClassified - (stats.korrekturen || 0)) / stats.totalClassified) * 100)
         : 100,
-      lastUpdated: stats.lastUpdated
+      lastUpdated: stats.lastUpdated || new Date().toISOString()
     };
   }
 
   // Letzte Korrekturen anzeigen
   getLetzteKorrekturen(limit = 10) {
-    const stats = this.store.get('stats');
-    return stats.korrekturen_details.slice(-limit).reverse();
+    this.initStats();
+    const stats = this.store.get('stats') || { korrekturen_details: [] };
+    return (stats.korrekturen_details || []).slice(-limit).reverse();
   }
 
   // Top-Muster anzeigen
