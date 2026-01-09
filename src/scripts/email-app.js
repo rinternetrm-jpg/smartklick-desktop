@@ -438,14 +438,18 @@ async function loadEmails() {
   }
 }
 
-// Intelligente E-Mail-Klassifizierung
+// Intelligente E-Mail-Klassifizierung mit Animation
 async function classifyAllEmails() {
   if (emails.length === 0) {
     console.log('[CLASSIFY] No emails to classify');
     return;
   }
 
-  console.log('[CLASSIFY] Starting classification for', emails.length, 'emails');
+  const totalEmails = emails.length;
+  console.log('[CLASSIFY] Starting classification for', totalEmails, 'emails');
+
+  // Zeige Fortschritts-Toast
+  showToast(`🔍 Analysiere ${totalEmails} E-Mails...`, 'info');
 
   try {
     // Bereite E-Mails für Klassifizierung vor
@@ -465,27 +469,8 @@ async function classifyAllEmails() {
     console.log('[CLASSIFY] IPC result:', result);
 
     if (result.success && result.classifications) {
-      // Speichere Klassifizierungen
-      result.classifications.forEach((classification, index) => {
-        const email = emails[index];
-        if (email && classification) {
-          emailClassifications[email.id] = classification;
-
-          // Update E-Mail mit Klassifizierung
-          email.kategorie = classification.kategorie;
-          email.confidence = classification.confidence;
-          email.tags = classification.tags || [];
-          email.zusammenfassung = classification.zusammenfassung;
-          email.aktion = classification.aktion;
-
-          // Mapping zu bestehenden Feldern
-          email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
-          email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
-          email.isSpam = classification.kategorie === 'spam';
-          email.isNewsletter = classification.kategorie === 'newsletter';
-          email.canAutoReply = classification.autoAntwortMöglich;
-        }
-      });
+      // Starte animiertes Sortieren
+      await animateSorting(result.classifications);
 
       // Aktualisiere Statistiken
       classifierStats = await ipcRenderer.invoke('email:classifierStats');
@@ -497,25 +482,105 @@ async function classifyAllEmails() {
         kategorieStats[kat] = (kategorieStats[kat] || 0) + 1;
       });
       console.log('[CLASSIFY] Ergebnisse:', kategorieStats);
-      console.log('[CLASSIFY] Stats:', classifierStats);
 
-      // Toast mit Ergebnis zeigen
+      // Finale Zusammenfassung
       const essenzCount = emails.filter(e => e.kategorie === 'essenz').length;
       const wichtigCount = emails.filter(e => e.kategorie === 'wichtig').length;
-      if (essenzCount > 0 || wichtigCount > 0) {
-        showToast(`${essenzCount} Essenz, ${wichtigCount} Wichtig klassifiziert`);
-      }
+      const spamCount = emails.filter(e => e.kategorie === 'spam').length;
+      const newsletterCount = emails.filter(e => e.kategorie === 'newsletter').length;
 
-      // WICHTIG: UI aktualisieren nach Klassifizierung!
-      renderEmailList();
-      updateCategoryCounts();
-      console.log('[CLASSIFY] UI aktualisiert');
+      showToast(`✅ Sortiert: ${essenzCount} Essenz, ${wichtigCount} Wichtig, ${spamCount} Spam, ${newsletterCount} Newsletter`);
     } else {
       console.error('[CLASSIFY] Failed:', result.error);
+      showToast('❌ Klassifizierung fehlgeschlagen', 'error');
     }
   } catch (error) {
     console.error('[CLASSIFY] Fehler bei Batch-Klassifizierung:', error);
+    showToast('❌ Fehler: ' + error.message, 'error');
   }
+}
+
+// Animiertes Sortieren der E-Mails in Kategorien
+async function animateSorting(classifications) {
+  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const sortDelay = Math.min(100, 3000 / classifications.length); // Max 3 Sekunden gesamt
+
+  // Kategorien-Zähler für Animation
+  const kategorieCounter = {
+    essenz: 0,
+    wichtig: 0,
+    normal: 0,
+    info: 0,
+    newsletter: 0,
+    spam: 0
+  };
+
+  // Verarbeite jede E-Mail mit Animation
+  for (let i = 0; i < classifications.length; i++) {
+    const classification = classifications[i];
+    const email = emails[i];
+
+    if (email && classification) {
+      // Speichere Klassifizierung
+      emailClassifications[email.id] = classification;
+
+      // Update E-Mail
+      email.kategorie = classification.kategorie;
+      email.confidence = classification.confidence;
+      email.tags = classification.tags || [];
+      email.zusammenfassung = classification.zusammenfassung;
+      email.aktion = classification.aktion;
+      email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
+      email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
+      email.isSpam = classification.kategorie === 'spam';
+      email.isNewsletter = classification.kategorie === 'newsletter';
+      email.canAutoReply = classification.autoAntwortMöglich;
+
+      // Zähler erhöhen
+      if (kategorieCounter[classification.kategorie] !== undefined) {
+        kategorieCounter[classification.kategorie]++;
+      }
+
+      // E-Mail-Element in der Liste finden und animieren
+      const emailEl = document.querySelector(`[data-email-id="${email.id}"]`);
+      if (emailEl) {
+        // Füge Kategorie-Klasse hinzu mit Animation
+        emailEl.classList.add('sorting-animation');
+        emailEl.dataset.kategorie = classification.kategorie;
+
+        // Füge Kategorie-Badge hinzu
+        const existingBadge = emailEl.querySelector('.sort-badge');
+        if (existingBadge) existingBadge.remove();
+
+        const badge = document.createElement('span');
+        badge.className = 'sort-badge';
+        badge.textContent = KATEGORIE_MAP[classification.kategorie]?.icon || '📧';
+        badge.style.cssText = `
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%) scale(0);
+          font-size: 20px;
+          animation: popIn 0.3s ease forwards;
+        `;
+        emailEl.style.position = 'relative';
+        emailEl.appendChild(badge);
+      }
+
+      // Sidebar-Zahlen live aktualisieren (alle 5 E-Mails)
+      if (i % 5 === 0 || i === classifications.length - 1) {
+        updateCategoryCounts();
+      }
+
+      // Kurze Verzögerung für Animation
+      await delay(sortDelay);
+    }
+  }
+
+  // Finale UI-Aktualisierung
+  renderEmailList();
+  updateCategoryCounts();
+  console.log('[CLASSIFY] Animation abgeschlossen');
 }
 
 async function loadImapEmails() {

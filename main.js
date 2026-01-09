@@ -3969,11 +3969,11 @@ ipcMain.handle('email:clearAllData', () => {
     const learningStore = new Store({ name: 'email-learning' });
     learningStore.clear();
 
-    // Clear email accounts
+    // Clear email accounts (benannter Store)
     const accountsStore = new Store({ name: 'email-accounts' });
     accountsStore.clear();
 
-    // Clear IMAP settings
+    // Clear IMAP settings (benannter Store)
     const imapStore = new Store({ name: 'imap-accounts' });
     imapStore.clear();
 
@@ -3981,18 +3981,36 @@ ipcMain.handle('email:clearAllData', () => {
     const gmailStore = new Store({ name: 'gmail-tokens' });
     gmailStore.clear();
 
-    // Clear general settings store
-    const settingsStore = new Store();
-    settingsStore.delete('emailAccounts');
-    settingsStore.delete('imapAccounts');
-    settingsStore.delete('gmailTokens');
+    // WICHTIG: Clear IMAP accounts im Haupt-Store (wo imapAccountManager speichert!)
+    store.delete('imap_accounts');
+    store.delete('emailAccounts');
+    store.delete('imapAccounts');
+    store.delete('gmailTokens');
 
-    // Reset in-memory managers
+    // Reset in-memory managers RICHTIG
     if (imapAccountManager) {
-      imapAccountManager.accounts = [];
+      // Clear the Map, not set to array
+      if (imapAccountManager.accounts instanceof Map) {
+        imapAccountManager.accounts.clear();
+      } else {
+        imapAccountManager.accounts = new Map();
+      }
+      // Close all connections
+      if (imapAccountManager.connections instanceof Map) {
+        imapAccountManager.connections.forEach((conn, id) => {
+          try { conn.end(); } catch(e) {}
+        });
+        imapAccountManager.connections.clear();
+      }
+      // Save empty state
+      imapAccountManager.saveAccounts();
     }
+
     if (emailProviderManager) {
       emailProviderManager.accounts = [];
+      if (emailProviderManager.store) {
+        emailProviderManager.store.clear();
+      }
     }
 
     // Try to delete Gmail token file if exists
@@ -4538,6 +4556,26 @@ ipcMain.handle('email:getAccounts', () => {
 });
 
 ipcMain.handle('email:removeAccount', async (_, accountId) => {
+  console.log('[EMAIL] Removing account:', accountId);
+
+  // Check if it's an IMAP account (starts with 'imap-')
+  if (accountId && accountId.startsWith('imap-')) {
+    if (imapAccountManager) {
+      const email = accountId.replace('imap-', '');
+      // Find and remove by email
+      const accounts = imapAccountManager.getAccounts();
+      const account = accounts.find(a => a.email === email);
+      if (account) {
+        imapAccountManager.accounts.delete(account.id);
+        imapAccountManager.saveAccounts();
+        console.log('[EMAIL] IMAP account removed:', email);
+        return { success: true };
+      }
+    }
+    return { success: false, error: 'IMAP account not found' };
+  }
+
+  // Otherwise use emailProviderManager
   if (!emailProviderManager) {
     return { success: false, error: 'Provider manager not initialized' };
   }
