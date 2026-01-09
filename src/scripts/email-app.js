@@ -147,6 +147,20 @@ function initializeElements() {
     briefingContent: document.getElementById('briefingContent'),
     closeBriefingBtn: document.getElementById('closeBriefingBtn'),
 
+    // Compose Modal
+    composeModal: document.getElementById('composeModal'),
+    closeComposeBtn: document.getElementById('closeComposeBtn'),
+    composeTo: document.getElementById('composeTo'),
+    composeCc: document.getElementById('composeCc'),
+    composeSubject: document.getElementById('composeSubject'),
+    composeBody: document.getElementById('composeBody'),
+    composeAiPrompt: document.getElementById('composeAiPrompt'),
+    composeAiBtn: document.getElementById('composeAiBtn'),
+    composeAttachments: document.getElementById('composeAttachments'),
+    composeAttachBtn: document.getElementById('composeAttachBtn'),
+    composeDiscardBtn: document.getElementById('composeDiscardBtn'),
+    composeSendBtn: document.getElementById('composeSendBtn'),
+
     // Toast
     toast: document.getElementById('toast')
   };
@@ -263,6 +277,13 @@ function setupEventListeners() {
   elements.closeBriefingBtn?.addEventListener('click', () => {
     elements.briefingModal.classList.add('hidden');
   });
+
+  // Compose Modal
+  elements.closeComposeBtn?.addEventListener('click', closeComposeModal);
+  elements.composeDiscardBtn?.addEventListener('click', closeComposeModal);
+  elements.composeSendBtn?.addEventListener('click', sendNewEmail);
+  elements.composeAiBtn?.addEventListener('click', generateComposeAI);
+  elements.composeAttachBtn?.addEventListener('click', addComposeAttachment);
 
   // Click outside to close dropdowns
   document.addEventListener('click', (e) => {
@@ -416,7 +437,12 @@ async function loadEmails() {
 
 // Intelligente E-Mail-Klassifizierung
 async function classifyAllEmails() {
-  if (emails.length === 0) return;
+  if (emails.length === 0) {
+    console.log('[CLASSIFY] No emails to classify');
+    return;
+  }
+
+  console.log('[CLASSIFY] Starting classification for', emails.length, 'emails');
 
   try {
     // Bereite E-Mails für Klassifizierung vor
@@ -431,7 +457,9 @@ async function classifyAllEmails() {
       attachments: e.attachments || []
     }));
 
+    console.log('[CLASSIFY] Calling IPC email:classifyBatch');
     const result = await ipcRenderer.invoke('email:classifyBatch', emailsForClassification);
+    console.log('[CLASSIFY] IPC result:', result);
 
     if (result.success && result.classifications) {
       // Speichere Klassifizierungen
@@ -458,10 +486,27 @@ async function classifyAllEmails() {
 
       // Aktualisiere Statistiken
       classifierStats = await ipcRenderer.invoke('email:classifierStats');
-      console.log('[CLASSIFIER] Klassifizierung abgeschlossen:', classifierStats);
+
+      // Log Klassifizierungsergebnisse
+      const kategorieStats = {};
+      emails.forEach(e => {
+        const kat = e.kategorie || 'unclassified';
+        kategorieStats[kat] = (kategorieStats[kat] || 0) + 1;
+      });
+      console.log('[CLASSIFY] Ergebnisse:', kategorieStats);
+      console.log('[CLASSIFY] Stats:', classifierStats);
+
+      // Toast mit Ergebnis zeigen
+      const essenzCount = emails.filter(e => e.kategorie === 'essenz').length;
+      const wichtigCount = emails.filter(e => e.kategorie === 'wichtig').length;
+      if (essenzCount > 0 || wichtigCount > 0) {
+        showToast(`${essenzCount} Essenz, ${wichtigCount} Wichtig klassifiziert`);
+      }
+    } else {
+      console.error('[CLASSIFY] Failed:', result.error);
     }
   } catch (error) {
-    console.error('[CLASSIFIER] Fehler bei Batch-Klassifizierung:', error);
+    console.error('[CLASSIFY] Fehler bei Batch-Klassifizierung:', error);
   }
 }
 
@@ -1483,9 +1528,156 @@ async function removeAccount(accountId) {
   }
 }
 
+// =============================================================================
+// COMPOSE EMAIL
+// =============================================================================
+
+let composeAttachments = [];
+
 function composeNewEmail() {
-  showToast('Neue E-Mail Funktion kommt bald...', 'warning');
+  // Reset form
+  elements.composeTo.value = '';
+  elements.composeCc.value = '';
+  elements.composeSubject.value = '';
+  elements.composeBody.value = '';
+  elements.composeAiPrompt.value = '';
+  composeAttachments = [];
+  renderComposeAttachments();
+
+  // Show modal
+  elements.composeModal.classList.remove('hidden');
+  elements.composeTo.focus();
 }
+
+function closeComposeModal() {
+  elements.composeModal.classList.add('hidden');
+  composeAttachments = [];
+}
+
+async function sendNewEmail() {
+  const to = elements.composeTo.value.trim();
+  const cc = elements.composeCc.value.trim();
+  const subject = elements.composeSubject.value.trim();
+  const body = elements.composeBody.value.trim();
+
+  if (!to) {
+    showToast('Bitte gib einen Empfänger ein', 'warning');
+    elements.composeTo.focus();
+    return;
+  }
+
+  if (!subject) {
+    showToast('Bitte gib einen Betreff ein', 'warning');
+    elements.composeSubject.focus();
+    return;
+  }
+
+  if (!body) {
+    showToast('Bitte schreibe eine Nachricht', 'warning');
+    elements.composeBody.focus();
+    return;
+  }
+
+  elements.composeSendBtn.innerHTML = '📤 Sende...';
+  elements.composeSendBtn.disabled = true;
+
+  try {
+    const result = await ipcRenderer.invoke('email:sendNew', {
+      accountId: selectedAccountId === 'all' ? null : selectedAccountId,
+      to,
+      cc: cc || null,
+      subject,
+      body,
+      attachments: composeAttachments
+    });
+
+    if (result.success) {
+      showToast('E-Mail gesendet!');
+      closeComposeModal();
+    } else {
+      showToast('Fehler: ' + (result.error || 'Senden fehlgeschlagen'), 'error');
+    }
+  } catch (error) {
+    console.error('Send email error:', error);
+    showToast('Fehler beim Senden', 'error');
+  } finally {
+    elements.composeSendBtn.innerHTML = '📤 Senden';
+    elements.composeSendBtn.disabled = false;
+  }
+}
+
+async function generateComposeAI() {
+  const prompt = elements.composeAiPrompt.value.trim();
+
+  if (!prompt) {
+    showToast('Bitte beschreibe was du schreiben möchtest', 'warning');
+    elements.composeAiPrompt.focus();
+    return;
+  }
+
+  elements.composeAiBtn.innerHTML = '⏳ Generiere...';
+  elements.composeAiBtn.disabled = true;
+
+  try {
+    const result = await ipcRenderer.invoke('email:aiCompose', {
+      prompt,
+      subject: elements.composeSubject.value
+    });
+
+    if (result.success) {
+      if (result.subject && !elements.composeSubject.value) {
+        elements.composeSubject.value = result.subject;
+      }
+      elements.composeBody.value = result.body || result.text || '';
+      showToast('KI-Text generiert!');
+    } else {
+      showToast('Fehler: ' + (result.error || 'Generierung fehlgeschlagen'), 'error');
+    }
+  } catch (error) {
+    console.error('AI compose error:', error);
+    showToast('Fehler bei KI-Generierung', 'error');
+  } finally {
+    elements.composeAiBtn.innerHTML = 'Generieren';
+    elements.composeAiBtn.disabled = false;
+  }
+}
+
+async function addComposeAttachment() {
+  try {
+    const result = await ipcRenderer.invoke('email:selectAttachment');
+
+    if (result.success && result.attachment) {
+      composeAttachments.push(result.attachment);
+      renderComposeAttachments();
+      showToast('Anhang hinzugefügt');
+    }
+  } catch (error) {
+    console.error('Attachment error:', error);
+    showToast('Fehler beim Hinzufügen', 'error');
+  }
+}
+
+function removeComposeAttachment(index) {
+  composeAttachments.splice(index, 1);
+  renderComposeAttachments();
+}
+
+function renderComposeAttachments() {
+  if (composeAttachments.length === 0) {
+    elements.composeAttachments.innerHTML = '';
+    return;
+  }
+
+  elements.composeAttachments.innerHTML = composeAttachments.map((att, i) => `
+    <div class="compose-attachment-item">
+      <span>📎 ${escapeHtml(att.filename)}</span>
+      <span class="remove-attachment" onclick="removeComposeAttachment(${i})">✕</span>
+    </div>
+  `).join('');
+}
+
+// Make removeComposeAttachment global
+window.removeComposeAttachment = removeComposeAttachment;
 
 // =============================================================================
 // UTILITIES

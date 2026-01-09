@@ -584,6 +584,57 @@
     </div>
   </div>
 
+  <!-- Compose Email Modal -->
+  <div class="modal-overlay hidden" id="composeModal">
+    <div class="modal compose-modal">
+      <div class="modal-header">
+        <div class="modal-icon">✉️</div>
+        <div>
+          <div class="modal-title">Neue E-Mail</div>
+          <div class="modal-subtitle">Verfasse eine neue Nachricht</div>
+        </div>
+        <button class="modal-close" id="closeComposeBtn">✕</button>
+      </div>
+      <div class="modal-body compose-body">
+        <div class="compose-field">
+          <label>An:</label>
+          <input type="email" id="composeTo" placeholder="empfaenger@beispiel.de" />
+        </div>
+        <div class="compose-field">
+          <label>CC:</label>
+          <input type="email" id="composeCc" placeholder="Optional" />
+        </div>
+        <div class="compose-field">
+          <label>Betreff:</label>
+          <input type="text" id="composeSubject" placeholder="Betreff der E-Mail" />
+        </div>
+        <div class="compose-field compose-body-field">
+          <label>Nachricht:</label>
+          <textarea id="composeBody" placeholder="Deine Nachricht..."></textarea>
+        </div>
+        <div class="compose-ai-section">
+          <div class="compose-ai-header">
+            <span>🤖 KI-Assistent</span>
+          </div>
+          <div class="compose-ai-input">
+            <input type="text" id="composeAiPrompt" placeholder="Beschreibe was du schreiben möchtest..." />
+            <button class="btn-secondary" id="composeAiBtn">Generieren</button>
+          </div>
+        </div>
+        <div class="compose-attachments" id="composeAttachments">
+          <!-- Attachments will be added here -->
+        </div>
+      </div>
+      <div class="modal-actions compose-actions">
+        <button class="btn-secondary" id="composeAttachBtn">📎 Anhang</button>
+        <div class="compose-actions-right">
+          <button class="btn-secondary" id="composeDiscardBtn">Verwerfen</button>
+          <button class="btn-primary" id="composeSendBtn">📤 Senden</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div class="toast" id="toast"></div>
 

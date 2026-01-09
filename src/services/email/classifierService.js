@@ -4,16 +4,38 @@
  * Wird im Main Process verwendet und über IPC aufgerufen
  */
 
-const { IntelligentEmailClassifier, KATEGORIEN, TAGS } = require('./classifier');
-
+let IntelligentEmailClassifier, KATEGORIEN, TAGS;
 let classifier = null;
+let initError = null;
+
+// Lazy load to catch errors
+function loadClassifier() {
+  if (initError) {
+    throw initError;
+  }
+  if (!IntelligentEmailClassifier) {
+    try {
+      const classifierModule = require('./classifier');
+      IntelligentEmailClassifier = classifierModule.IntelligentEmailClassifier;
+      KATEGORIEN = classifierModule.KATEGORIEN;
+      TAGS = classifierModule.TAGS;
+      console.log('[CLASSIFIER] Module loaded successfully');
+    } catch (error) {
+      console.error('[CLASSIFIER] Failed to load module:', error);
+      initError = error;
+      throw error;
+    }
+  }
+}
 
 function getClassifier() {
   if (!classifier) {
+    loadClassifier();
     classifier = new IntelligentEmailClassifier({
       enableGPT: true,
       enableLearning: true
     });
+    console.log('[CLASSIFIER] Classifier initialized');
   }
   return classifier;
 }
@@ -21,8 +43,10 @@ function getClassifier() {
 // Einzelne E-Mail klassifizieren
 async function classifyEmail(email) {
   try {
+    console.log('[CLASSIFIER] Classifying single email:', email.subject);
     const cls = getClassifier();
     const result = await cls.klassifiziere(email);
+    console.log('[CLASSIFIER] Result:', result.kategorie, result.confidence);
     return { success: true, classification: result };
   } catch (error) {
     console.error('[CLASSIFIER] Error:', error);
@@ -33,8 +57,10 @@ async function classifyEmail(email) {
 // Mehrere E-Mails klassifizieren (Batch)
 async function classifyEmails(emails) {
   try {
+    console.log('[CLASSIFIER] Batch classifying', emails.length, 'emails');
     const cls = getClassifier();
     const results = await cls.klassifiziereBatch(emails);
+    console.log('[CLASSIFIER] Batch complete, results:', results.length);
     return { success: true, classifications: results };
   } catch (error) {
     console.error('[CLASSIFIER] Batch error:', error);

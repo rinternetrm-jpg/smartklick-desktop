@@ -4396,10 +4396,31 @@ ipcMain.handle('outlook:getClientId', () => {
 
 // Multi-Account Email Handlers
 ipcMain.handle('email:getAccounts', () => {
-  if (!emailProviderManager) {
-    return { success: false, error: 'Provider manager not initialized' };
+  const accounts = [];
+
+  // Email Provider Manager Accounts (Gmail, Outlook)
+  if (emailProviderManager) {
+    const providerAccounts = emailProviderManager.getAccounts() || [];
+    accounts.push(...providerAccounts.map(a => ({
+      ...a,
+      connected: true
+    })));
   }
-  return { success: true, accounts: emailProviderManager.getAccounts() };
+
+  // IMAP Accounts
+  if (imapAccountManager) {
+    const imapAccounts = imapAccountManager.getAccounts() || [];
+    accounts.push(...imapAccounts.map(a => ({
+      id: `imap-${a.email}`,
+      name: a.provider || 'IMAP',
+      email: a.email,
+      provider: 'imap',
+      host: a.host,
+      connected: true
+    })));
+  }
+
+  return { success: true, accounts };
 });
 
 ipcMain.handle('email:removeAccount', async (_, accountId) => {
