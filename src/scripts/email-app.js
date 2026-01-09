@@ -1018,6 +1018,22 @@ function renderEmailList() {
   });
 }
 
+function switchToCategory(categoryName) {
+  // Entferne active von allen Kategorien
+  document.querySelectorAll('.category-item').forEach(i => i.classList.remove('active'));
+
+  // Setze active auf die gewählte Kategorie
+  const targetItem = document.querySelector(`.category-item[data-category="${categoryName}"]`);
+  if (targetItem) {
+    targetItem.classList.add('active');
+  }
+
+  // Update currentCategory und UI
+  currentCategory = categoryName;
+  updateHeader();
+  renderEmailList();
+}
+
 function filterByCategory(emailList) {
   switch (currentCategory) {
     case 'important':
