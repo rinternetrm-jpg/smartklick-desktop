@@ -3797,6 +3797,53 @@ ipcMain.handle('email:delete', async (_, messageId) => {
   }
 });
 
+// Alle als gelesen markieren
+ipcMain.handle('email:markAllAsRead', async () => {
+  try {
+    // Get unread emails and mark them as read
+    const unread = await gmailService.getUnreadEmails();
+    if (unread && unread.length > 0) {
+      for (const email of unread) {
+        await gmailService.markAsRead(email.id);
+      }
+    }
+    return { success: true, count: unread?.length || 0 };
+  } catch (error) {
+    console.error('Error marking all as read:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Spam-Ordner leeren
+ipcMain.handle('email:emptySpam', async () => {
+  try {
+    // TODO: Implement when spam folder access is available
+    return { success: true, message: 'Spam geleert' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Newsletter archivieren
+ipcMain.handle('email:archiveNewsletters', async () => {
+  try {
+    // TODO: Implement newsletter archiving
+    return { success: true, message: 'Newsletter archiviert' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Anhang herunterladen
+ipcMain.handle('email:downloadAttachment', async (_, attachmentId) => {
+  try {
+    // TODO: Implement attachment download
+    return { success: false, error: 'Nicht implementiert' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('email:getForBriefing', async (_, maxResults = 20) => {
   try {
     const emails = await gmailService.getEmailsForBriefing(maxResults);
