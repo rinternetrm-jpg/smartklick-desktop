@@ -1835,8 +1835,20 @@ function showOutlookSetup() {
 }
 
 function showImapSetup() {
+  console.log('[UI] showImapSetup called');
+  console.log('[UI] accountOptions:', elements.accountOptions);
+  console.log('[UI] imapSetup:', elements.imapSetup);
   elements.accountOptions.classList.add('hidden');
   elements.imapSetup.classList.remove('hidden');
+
+  // Focus auf E-Mail Feld setzen
+  setTimeout(() => {
+    const emailInput = document.getElementById('imapEmail');
+    console.log('[UI] imapEmail input:', emailInput);
+    if (emailInput) {
+      emailInput.focus();
+    }
+  }, 100);
 }
 
 async function connectGmail() {
