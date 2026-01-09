@@ -2,6 +2,31 @@ const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut, nativeImage, cl
 const path = require('path');
 const fs = require('fs');
 const Store = require('electron-store');
+
+// ============================================
+// .env Datei laden (für OpenAI API Key etc.)
+// ============================================
+function loadEnvFile() {
+  const envPath = path.join(__dirname, '.env');
+  try {
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf-8');
+      envContent.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          const [key, ...valueParts] = trimmed.split('=');
+          if (key && valueParts.length > 0) {
+            process.env[key.trim()] = valueParts.join('=').trim();
+          }
+        }
+      });
+      console.log('[ENV] .env Datei geladen');
+    }
+  } catch (error) {
+    console.error('[ENV] Fehler beim Laden der .env:', error.message);
+  }
+}
+loadEnvFile();
 const { exec, spawn } = require('child_process');
 const readline = require('readline');
 const https = require('https');
