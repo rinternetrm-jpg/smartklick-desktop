@@ -405,17 +405,34 @@ async function loadEmails() {
   try {
     let result;
 
+    // Prüfe zuerst ob Konten vorhanden sind
+    if (accounts.length === 0) {
+      console.log('[EMAIL] Keine Konten konfiguriert');
+      emails = [];
+      updateStats();
+      updateCategoryCounts();
+      renderEmailList();
+      hideLoading();
+      return;
+    }
+
     if (selectedAccountId === 'all') {
       result = await ipcRenderer.invoke('email:getUnifiedInbox', 30);
-    } else if (selectedAccountId === 'imap') {
+    } else if (selectedAccountId === 'imap' || selectedAccountId?.startsWith('imap-')) {
       return loadImapEmails();
     } else {
       result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, 30);
     }
 
-    // Fallback
-    if (!result || result.error === 'Provider manager not initialized') {
-      result = await ipcRenderer.invoke('email:getRecent', 30);
+    // Kein Fallback mehr - wenn keine Konten, keine E-Mails
+    if (!result || !result.success) {
+      console.log('[EMAIL] Keine E-Mails:', result?.error || 'Kein Ergebnis');
+      emails = [];
+      updateStats();
+      updateCategoryCounts();
+      renderEmailList();
+      hideLoading();
+      return;
     }
 
     if (result.success) {
@@ -429,12 +446,13 @@ async function loadEmails() {
       updateStats();
       updateCategoryCounts();
       renderEmailList();
-    } else {
-      showError(result.error || 'Fehler beim Laden');
     }
   } catch (error) {
     console.error('Error loading emails:', error);
-    showError('Verbindungsfehler');
+    emails = [];
+    updateStats();
+    updateCategoryCounts();
+    renderEmailList();
   }
 }
 
@@ -631,6 +649,10 @@ function showLoading() {
   elements.loadingState.classList.remove('hidden');
   elements.emptyState.classList.add('hidden');
   elements.emailItems.innerHTML = '';
+}
+
+function hideLoading() {
+  elements.loadingState.classList.add('hidden');
 }
 
 function showError(message) {

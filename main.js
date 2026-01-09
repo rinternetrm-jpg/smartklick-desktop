@@ -3981,6 +3981,28 @@ ipcMain.handle('email:clearAllData', () => {
     const gmailStore = new Store({ name: 'gmail-tokens' });
     gmailStore.clear();
 
+    // WICHTIG: Clear Google OAuth tokens (das ist der eigentliche Token-Store!)
+    const googleTokenStore = new Store({
+      name: 'google-tokens',
+      encryptionKey: 'smartklick-secure-key-2024'
+    });
+    googleTokenStore.clear();
+    console.log('[EMAIL] Google OAuth tokens cleared');
+
+    // Reset Google Auth Service
+    if (googleAuth) {
+      googleAuth.isAuthenticated = false;
+      googleAuth.userInfo = null;
+      if (googleAuth.oauth2Client) {
+        googleAuth.oauth2Client.setCredentials({});
+      }
+    }
+
+    // Reset Gmail Service
+    if (gmailService) {
+      gmailService.gmail = null;
+    }
+
     // WICHTIG: Clear IMAP accounts im Haupt-Store (wo imapAccountManager speichert!)
     store.delete('imap_accounts');
     store.delete('emailAccounts');
