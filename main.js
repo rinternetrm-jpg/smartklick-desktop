@@ -5,28 +5,41 @@ const Store = require('electron-store');
 
 // ============================================
 // .env Datei laden (für OpenAI API Key etc.)
+// WICHTIG: Muss VOR allen anderen requires passieren!
 // ============================================
-function loadEnvFile() {
-  const envPath = path.join(__dirname, '.env');
-  try {
-    if (fs.existsSync(envPath)) {
-      const envContent = fs.readFileSync(envPath, 'utf-8');
-      envContent.split('\n').forEach(line => {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#')) {
-          const [key, ...valueParts] = trimmed.split('=');
-          if (key && valueParts.length > 0) {
-            process.env[key.trim()] = valueParts.join('=').trim();
+(function loadEnvFile() {
+  // Suche .env an mehreren Orten (synchron, vor app.ready)
+  const possiblePaths = [
+    path.join(__dirname, '.env'),                    // Development / Source
+    path.join(process.cwd(), '.env'),                // Current working directory
+    path.join(process.resourcesPath || __dirname, '.env'), // Resources (Production)
+  ];
+
+  for (const envPath of possiblePaths) {
+    try {
+      if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, 'utf-8');
+        envContent.split('\n').forEach(line => {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#')) {
+            const [key, ...valueParts] = trimmed.split('=');
+            if (key && valueParts.length > 0) {
+              process.env[key.trim()] = valueParts.join('=').trim();
+            }
           }
+        });
+        console.log('[ENV] .env geladen von:', envPath);
+        if (process.env.OPENAI_API_KEY) {
+          console.log('[ENV] OPENAI_API_KEY gefunden:', process.env.OPENAI_API_KEY.substring(0, 10) + '...');
         }
-      });
-      console.log('[ENV] .env Datei geladen');
+        return;
+      }
+    } catch (error) {
+      console.log('[ENV] Fehler bei:', envPath, error.message);
     }
-  } catch (error) {
-    console.error('[ENV] Fehler beim Laden der .env:', error.message);
   }
-}
-loadEnvFile();
+  console.log('[ENV] Keine .env Datei gefunden');
+})();
 const { exec, spawn } = require('child_process');
 const readline = require('readline');
 const https = require('https');
