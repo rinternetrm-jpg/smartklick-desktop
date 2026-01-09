@@ -1,48 +1,16 @@
-// Email Window App
+// Email Window App - New Dashboard Design
 const { ipcRenderer } = require('electron');
 
 // State
 let emails = [];
 let currentEmail = null;
-let currentTab = 'inbox';
+let currentCategory = 'inbox';
 let currentReplyType = 'professional';
 let isGeneratingReply = false;
 let accounts = [];
-let selectedAccountId = 'all'; // 'all' for unified inbox
-
-// DOM Elements
-const emailItems = document.getElementById('emailItems');
-const loadingState = document.getElementById('loadingState');
-const emptyState = document.getElementById('emptyState');
-const unreadBadge = document.getElementById('unreadBadge');
-
-const detailPlaceholder = document.getElementById('detailPlaceholder');
-const detailContent = document.getElementById('detailContent');
-const detailSubject = document.getElementById('detailSubject');
-const detailFrom = document.getElementById('detailFrom');
-const detailDate = document.getElementById('detailDate');
-const detailBody = document.getElementById('detailBody');
-
-const analysisPanel = document.getElementById('analysisPanel');
-const analysisContent = document.getElementById('analysisContent');
-
-const briefingModal = document.getElementById('briefingModal');
-const briefingContent = document.getElementById('briefingContent');
-
-// Reply Panel Elements
-const replyPanel = document.getElementById('replyPanel');
-const replyText = document.getElementById('replyText');
-const replyToAddress = document.getElementById('replyToAddress');
-const quickRepliesList = document.getElementById('quickRepliesList');
-
-// Account Elements
-const accountSelector = document.getElementById('accountSelector');
-const addAccountModal = document.getElementById('addAccountModal');
-const addAccountContent = document.getElementById('addAccountContent');
-const outlookSetup = document.getElementById('outlookSetup');
-const imapSetup = document.getElementById('imapSetup');
-const accountOptions = document.querySelector('.account-options');
-const accountLoadingState = document.getElementById('accountLoadingState');
+let selectedAccountId = 'all';
+let autoReplyEnabled = false;
+let autoClassifyEnabled = true;
 
 // IMAP presets
 const IMAP_PRESETS = {
@@ -55,62 +23,169 @@ const IMAP_PRESETS = {
   'ionos': { host: 'imap.ionos.de', port: 993, tls: true }
 };
 
-// Current email source (gmail, imap)
-let emailSource = 'gmail';
+// DOM Elements - will be initialized after DOMContentLoaded
+let elements = {};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  initializeElements();
   setupEventListeners();
   loadAccounts();
   loadEmails();
+  renderChart();
 });
 
-// Event Listeners
+function initializeElements() {
+  elements = {
+    // Sidebar
+    settingsBtn: document.getElementById('settingsBtn'),
+    accountSelector: document.getElementById('accountSelector'),
+    accountDropdownMenu: document.getElementById('accountDropdownMenu'),
+    currentAccountAvatar: document.getElementById('currentAccountAvatar'),
+    currentAccountName: document.getElementById('currentAccountName'),
+    currentAccountEmail: document.getElementById('currentAccountEmail'),
+    statReceived: document.getElementById('statReceived'),
+    statReplied: document.getElementById('statReplied'),
+    analyzeAllBtn: document.getElementById('analyzeAllBtn'),
+
+    // Header
+    headerTitle: document.getElementById('headerTitle'),
+    headerSubtitle: document.getElementById('headerSubtitle'),
+    refreshBtn: document.getElementById('refreshBtn'),
+    filterBtn: document.getElementById('filterBtn'),
+    composeBtn: document.getElementById('composeBtn'),
+
+    // Email List
+    emailList: document.getElementById('emailList'),
+    emailItems: document.getElementById('emailItems'),
+    loadingState: document.getElementById('loadingState'),
+    emptyState: document.getElementById('emptyState'),
+
+    // Email Detail
+    emailDetail: document.getElementById('emailDetail'),
+    detailPlaceholder: document.getElementById('detailPlaceholder'),
+    detailContent: document.getElementById('detailContent'),
+    detailSubject: document.getElementById('detailSubject'),
+    detailFrom: document.getElementById('detailFrom'),
+    detailDate: document.getElementById('detailDate'),
+    detailBody: document.getElementById('detailBody'),
+    attachmentsSection: document.getElementById('attachmentsSection'),
+    attachmentsList: document.getElementById('attachmentsList'),
+
+    // Action Buttons
+    replyBtn: document.getElementById('replyBtn'),
+    analyzeBtn: document.getElementById('analyzeBtn'),
+    archiveBtn: document.getElementById('archiveBtn'),
+    starBtn: document.getElementById('starBtn'),
+    deleteBtn: document.getElementById('deleteBtn'),
+
+    // Analysis Panel
+    analysisPanel: document.getElementById('analysisPanel'),
+    analysisContent: document.getElementById('analysisContent'),
+    closeAnalysisBtn: document.getElementById('closeAnalysisBtn'),
+
+    // Reply Panel
+    replyPanel: document.getElementById('replyPanel'),
+    replyToAddress: document.getElementById('replyToAddress'),
+    quickRepliesList: document.getElementById('quickRepliesList'),
+    replyText: document.getElementById('replyText'),
+    closeReplyBtn: document.getElementById('closeReplyBtn'),
+    refreshQuickReplies: document.getElementById('refreshQuickReplies'),
+    generateReplyBtn: document.getElementById('generateReplyBtn'),
+    sendReplyBtn: document.getElementById('sendReplyBtn'),
+    discardReplyBtn: document.getElementById('discardReplyBtn'),
+
+    // Right Panel - Dashboard
+    chartBars: document.getElementById('chartBars'),
+    autoReplyToggle: document.getElementById('autoReplyToggle'),
+    autoReplyCount: document.getElementById('autoReplyCount'),
+    briefingBtn: document.getElementById('briefingBtn'),
+    emptySpamBtn: document.getElementById('emptySpamBtn'),
+    spamCount: document.getElementById('spamCount'),
+    archiveNewsletterBtn: document.getElementById('archiveNewsletterBtn'),
+    markAllReadBtn: document.getElementById('markAllReadBtn'),
+
+    // Settings Panel
+    settingsOverlay: document.getElementById('settingsOverlay'),
+    settingsPanel: document.getElementById('settingsPanel'),
+    closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+    accountCardsContainer: document.getElementById('accountCardsContainer'),
+    addAccountBtn: document.getElementById('addAccountBtn'),
+    autoClassifyToggle: document.getElementById('autoClassifyToggle'),
+    autoReplySettingToggle: document.getElementById('autoReplySettingToggle'),
+
+    // Add Account Modal
+    addAccountModal: document.getElementById('addAccountModal'),
+    closeAddAccountBtn: document.getElementById('closeAddAccountBtn'),
+    accountOptions: document.getElementById('accountOptions'),
+    gmailSetup: document.getElementById('gmailSetup'),
+    outlookSetup: document.getElementById('outlookSetup'),
+    imapSetup: document.getElementById('imapSetup'),
+    accountLoadingState: document.getElementById('accountLoadingState'),
+
+    // Analysis Modal
+    analysisModal: document.getElementById('analysisModal'),
+    analysisProgressFill: document.getElementById('analysisProgressFill'),
+    analysisProgressText: document.getElementById('analysisProgressText'),
+    closeAnalysisModalBtn: document.getElementById('closeAnalysisModalBtn'),
+
+    // Briefing Modal
+    briefingModal: document.getElementById('briefingModal'),
+    briefingContent: document.getElementById('briefingContent'),
+    closeBriefingBtn: document.getElementById('closeBriefingBtn'),
+
+    // Toast
+    toast: document.getElementById('toast')
+  };
+}
+
 function setupEventListeners() {
-  // Tab buttons
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentTab = btn.dataset.tab;
+  // Settings Button
+  elements.settingsBtn.addEventListener('click', openSettings);
+  elements.closeSettingsBtn.addEventListener('click', closeSettings);
+  elements.settingsOverlay.addEventListener('click', closeSettings);
+
+  // Account Selector
+  elements.accountSelector.addEventListener('click', toggleAccountDropdown);
+
+  // Category Items
+  document.querySelectorAll('.category-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.category-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      currentCategory = item.dataset.category;
+      updateHeader();
       renderEmailList();
     });
   });
 
-  // Refresh button
-  document.getElementById('refreshBtn').addEventListener('click', loadEmails);
+  // Analyze All Button
+  elements.analyzeAllBtn.addEventListener('click', analyzeAllEmails);
 
-  // Briefing button
-  document.getElementById('briefingBtn').addEventListener('click', showBriefing);
+  // Header Actions
+  elements.refreshBtn.addEventListener('click', loadEmails);
+  elements.composeBtn.addEventListener('click', composeNewEmail);
 
-  // Action buttons
-  document.getElementById('analyzeBtn').addEventListener('click', analyzeCurrentEmail);
-  document.getElementById('markReadBtn').addEventListener('click', markCurrentAsRead);
-  document.getElementById('starBtn').addEventListener('click', starCurrentEmail);
-  document.getElementById('archiveBtn').addEventListener('click', archiveCurrentEmail);
-  document.getElementById('deleteBtn').addEventListener('click', deleteCurrentEmail);
+  // Email Actions
+  elements.replyBtn.addEventListener('click', openReplyPanel);
+  elements.analyzeBtn.addEventListener('click', analyzeCurrentEmail);
+  elements.archiveBtn.addEventListener('click', archiveCurrentEmail);
+  elements.starBtn.addEventListener('click', starCurrentEmail);
+  elements.deleteBtn.addEventListener('click', deleteCurrentEmail);
 
-  // Close buttons
-  document.getElementById('closeAnalysisBtn').addEventListener('click', () => {
-    analysisPanel.classList.add('hidden');
+  // Analysis Panel
+  elements.closeAnalysisBtn.addEventListener('click', () => {
+    elements.analysisPanel.classList.add('hidden');
   });
 
-  document.getElementById('closeBriefingBtn').addEventListener('click', () => {
-    briefingModal.classList.add('hidden');
-  });
+  // Reply Panel
+  elements.closeReplyBtn.addEventListener('click', closeReplyPanel);
+  elements.refreshQuickReplies.addEventListener('click', loadQuickReplies);
+  elements.generateReplyBtn.addEventListener('click', generateKiReply);
+  elements.sendReplyBtn.addEventListener('click', sendReply);
+  elements.discardReplyBtn.addEventListener('click', closeReplyPanel);
 
-  // Modal backdrop click
-  document.querySelector('.modal-backdrop').addEventListener('click', () => {
-    briefingModal.classList.add('hidden');
-  });
-
-  // Reply button
-  document.getElementById('replyBtn').addEventListener('click', openReplyPanel);
-
-  // Close reply panel
-  document.getElementById('closeReplyBtn').addEventListener('click', closeReplyPanel);
-
-  // Reply type buttons
+  // Reply Type Buttons
   document.querySelectorAll('.reply-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.reply-type-btn').forEach(b => b.classList.remove('active'));
@@ -119,95 +194,197 @@ function setupEventListeners() {
     });
   });
 
-  // Generate KI reply
-  document.getElementById('generateReplyBtn').addEventListener('click', generateKiReply);
+  // Dashboard Quick Actions
+  elements.briefingBtn.addEventListener('click', showBriefing);
+  elements.emptySpamBtn.addEventListener('click', emptySpam);
+  elements.archiveNewsletterBtn.addEventListener('click', archiveNewsletters);
+  elements.markAllReadBtn.addEventListener('click', markAllAsRead);
 
-  // Send reply
-  document.getElementById('sendReplyBtn').addEventListener('click', sendReply);
+  // Auto-Reply Toggle
+  elements.autoReplyToggle.addEventListener('click', toggleAutoReply);
 
-  // Discard reply
-  document.getElementById('discardReplyBtn').addEventListener('click', closeReplyPanel);
-
-  // Refresh quick replies
-  document.getElementById('refreshQuickReplies').addEventListener('click', loadQuickReplies);
-
-  // Account selector
-  accountSelector.addEventListener('change', (e) => {
-    selectedAccountId = e.target.value;
-    loadEmails();
+  // Settings Toggles
+  elements.autoClassifyToggle.addEventListener('click', () => {
+    autoClassifyEnabled = !autoClassifyEnabled;
+    elements.autoClassifyToggle.classList.toggle('active', autoClassifyEnabled);
   });
 
-  // Add account button
-  document.getElementById('addAccountBtn').addEventListener('click', openAddAccountModal);
+  elements.autoReplySettingToggle.addEventListener('click', () => {
+    autoReplyEnabled = !autoReplyEnabled;
+    elements.autoReplySettingToggle.classList.toggle('active', autoReplyEnabled);
+    elements.autoReplyToggle.classList.toggle('active', autoReplyEnabled);
+  });
 
-  // Close add account modal
-  document.getElementById('closeAddAccountBtn').addEventListener('click', closeAddAccountModal);
+  // Add Account
+  elements.addAccountBtn.addEventListener('click', openAddAccountModal);
+  elements.closeAddAccountBtn.addEventListener('click', closeAddAccountModal);
 
-  // Outlook option click
+  // Provider Buttons
+  document.querySelector('[data-provider="gmail"]').addEventListener('click', showGmailSetup);
   document.querySelector('[data-provider="outlook"]').addEventListener('click', showOutlookSetup);
-
-  // IMAP option click
   document.querySelector('[data-provider="imap"]').addEventListener('click', showImapSetup);
 
-  // Back to options
-  document.getElementById('backToOptionsBtn').addEventListener('click', () => {
-    outlookSetup.classList.add('hidden');
-    accountOptions.classList.remove('hidden');
-  });
+  // Back Buttons
+  document.getElementById('backFromGmailBtn')?.addEventListener('click', backToAccountOptions);
+  document.getElementById('backFromOutlookBtn')?.addEventListener('click', backToAccountOptions);
+  document.getElementById('backFromImapBtn')?.addEventListener('click', backToAccountOptions);
 
-  // Back from IMAP
-  document.getElementById('backFromImapBtn').addEventListener('click', () => {
-    imapSetup.classList.add('hidden');
-    accountOptions.classList.remove('hidden');
-  });
+  // Connect Buttons
+  document.getElementById('connectGmailBtn')?.addEventListener('click', connectGmail);
+  document.getElementById('connectOutlookBtn')?.addEventListener('click', connectOutlook);
+  document.getElementById('testImapBtn')?.addEventListener('click', testImapConnection);
+  document.getElementById('connectImapBtn')?.addEventListener('click', connectImap);
 
-  // IMAP provider change
-  document.getElementById('imapProvider').addEventListener('change', (e) => {
+  // IMAP Provider Change
+  document.getElementById('imapProvider')?.addEventListener('change', (e) => {
     const isCustom = e.target.value === 'custom';
     document.getElementById('imapCustomFields').classList.toggle('hidden', !isCustom);
   });
 
-  // Test IMAP connection
-  document.getElementById('testImapBtn').addEventListener('click', testImapConnection);
+  // Close Analysis Modal
+  elements.closeAnalysisModalBtn?.addEventListener('click', () => {
+    elements.analysisModal.classList.add('hidden');
+  });
 
-  // Connect IMAP
-  document.getElementById('connectImapBtn').addEventListener('click', connectImap);
+  // Close Briefing Modal
+  elements.closeBriefingBtn?.addEventListener('click', () => {
+    elements.briefingModal.classList.add('hidden');
+  });
 
-  // Connect Outlook
-  document.getElementById('connectOutlookBtn').addEventListener('click', connectOutlook);
-
-  // Add account modal backdrop
-  addAccountModal.querySelector('.modal-backdrop').addEventListener('click', closeAddAccountModal);
+  // Click outside to close dropdowns
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.account-selector') && !e.target.closest('.account-dropdown-menu')) {
+      elements.accountDropdownMenu.classList.add('hidden');
+    }
+  });
 }
 
-// Load Emails
+// =============================================================================
+// SETTINGS PANEL
+// =============================================================================
+
+function openSettings() {
+  elements.settingsOverlay.classList.remove('hidden');
+  elements.settingsPanel.classList.add('open');
+  renderAccountCards();
+}
+
+function closeSettings() {
+  elements.settingsOverlay.classList.add('hidden');
+  elements.settingsPanel.classList.remove('open');
+}
+
+function renderAccountCards() {
+  elements.accountCardsContainer.innerHTML = accounts.map(account => `
+    <div class="account-card" data-id="${account.id}">
+      <div class="account-card-header">
+        <div class="account-card-avatar ${account.provider}">${account.email?.[0]?.toUpperCase() || '?'}</div>
+        <div class="account-card-info">
+          <h4>${account.name || account.email}</h4>
+          <p>${account.email}</p>
+        </div>
+      </div>
+      <div class="account-card-status">
+        <div class="status-dot ${account.connected ? 'connected' : 'error'}"></div>
+        <span>${account.connected ? 'Verbunden' : 'Nicht verbunden'}</span>
+      </div>
+      <div class="account-card-actions">
+        <button class="account-card-btn secondary" onclick="syncAccount('${account.id}')">Sync</button>
+        <button class="account-card-btn danger" onclick="removeAccount('${account.id}')">Entfernen</button>
+      </div>
+    </div>
+  `).join('') || '<p style="color: var(--text-muted); text-align: center; padding: 20px;">Keine Konten verbunden</p>';
+}
+
+// =============================================================================
+// ACCOUNT DROPDOWN
+// =============================================================================
+
+function toggleAccountDropdown() {
+  elements.accountDropdownMenu.classList.toggle('hidden');
+}
+
+function selectAccount(accountId) {
+  selectedAccountId = accountId;
+
+  // Update dropdown items
+  document.querySelectorAll('.account-dropdown-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.account === accountId);
+  });
+
+  // Update selector display
+  if (accountId === 'all') {
+    elements.currentAccountName.textContent = 'Alle Konten';
+    elements.currentAccountEmail.textContent = 'Unified Inbox';
+    elements.currentAccountAvatar.textContent = '✉';
+  } else {
+    const account = accounts.find(a => a.id === accountId);
+    if (account) {
+      elements.currentAccountName.textContent = account.name || account.email;
+      elements.currentAccountEmail.textContent = account.email;
+      elements.currentAccountAvatar.textContent = account.email?.[0]?.toUpperCase() || '?';
+    }
+  }
+
+  elements.accountDropdownMenu.classList.add('hidden');
+  loadEmails();
+}
+
+function updateAccountDropdown() {
+  const dropdown = elements.accountDropdownMenu;
+
+  // Keep the "All Accounts" item, remove others
+  const allItem = dropdown.querySelector('[data-account="all"]');
+  dropdown.innerHTML = '';
+  dropdown.appendChild(allItem);
+
+  // Add account items
+  accounts.forEach(account => {
+    const item = document.createElement('div');
+    item.className = 'account-dropdown-item';
+    item.dataset.account = account.id;
+    item.innerHTML = `
+      <div class="dropdown-avatar ${account.provider}">${account.email?.[0]?.toUpperCase() || '?'}</div>
+      <div class="dropdown-info">
+        <div class="dropdown-name">${account.name || account.email}</div>
+        <div class="dropdown-email">${account.email}</div>
+      </div>
+    `;
+    item.addEventListener('click', () => selectAccount(account.id));
+    dropdown.appendChild(item);
+  });
+
+  // Re-add click handler for all accounts
+  allItem.addEventListener('click', () => selectAccount('all'));
+}
+
+// =============================================================================
+// EMAIL LOADING
+// =============================================================================
+
 async function loadEmails() {
   showLoading();
 
   try {
-    // Check if IMAP is selected
-    if (selectedAccountId === 'imap') {
-      return loadImapEmails();
-    }
-
     let result;
 
     if (selectedAccountId === 'all') {
-      // Unified inbox
-      result = await ipcRenderer.invoke('email:getUnifiedInbox', 20);
+      result = await ipcRenderer.invoke('email:getUnifiedInbox', 30);
+    } else if (selectedAccountId === 'imap') {
+      return loadImapEmails();
     } else {
-      // Specific account
-      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, 20);
+      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, 30);
     }
 
-    // Fallback to old method if new methods not available
+    // Fallback
     if (!result || result.error === 'Provider manager not initialized') {
-      result = await ipcRenderer.invoke('email:getRecent', 20);
+      result = await ipcRenderer.invoke('email:getRecent', 30);
     }
 
     if (result.success) {
       emails = result.emails || [];
-      updateUnreadBadge();
+      updateStats();
+      updateCategoryCounts();
       renderEmailList();
     } else {
       showError(result.error || 'Fehler beim Laden');
@@ -218,51 +395,104 @@ async function loadEmails() {
   }
 }
 
+async function loadImapEmails() {
+  try {
+    const result = await ipcRenderer.invoke('imap:getEmails', 30);
+
+    if (result.success) {
+      emails = (result.emails || []).map(email => ({
+        id: email.uid.toString(),
+        uid: email.uid,
+        from: email.from,
+        fromName: extractName(email.from),
+        subject: email.subject,
+        date: email.date ? new Date(email.date).getTime() : Date.now(),
+        dateFormatted: formatDate(email.date ? new Date(email.date).getTime() : Date.now()),
+        snippet: '',
+        body: '',
+        isUnread: !email.isRead,
+        isStarred: email.isStarred,
+        provider: 'imap'
+      }));
+
+      updateStats();
+      updateCategoryCounts();
+      renderEmailList();
+    } else {
+      showError(result.error || 'Fehler beim Laden');
+    }
+  } catch (error) {
+    console.error('Error loading IMAP emails:', error);
+    showError('Verbindungsfehler: ' + error.message);
+  }
+}
+
+async function loadAccounts() {
+  try {
+    const result = await ipcRenderer.invoke('email:getAccounts');
+    if (result.success) {
+      accounts = result.accounts || [];
+      updateAccountDropdown();
+    }
+  } catch (error) {
+    console.error('Error loading accounts:', error);
+  }
+}
+
 function showLoading() {
-  loadingState.classList.remove('hidden');
-  emptyState.classList.add('hidden');
-  // Clear existing items except loading/empty
-  const items = emailItems.querySelectorAll('.email-item');
-  items.forEach(item => item.remove());
+  elements.loadingState.classList.remove('hidden');
+  elements.emptyState.classList.add('hidden');
+  elements.emailItems.innerHTML = '';
 }
 
 function showError(message) {
-  loadingState.classList.add('hidden');
-  emptyState.textContent = message;
-  emptyState.classList.remove('hidden');
+  elements.loadingState.classList.add('hidden');
+  elements.emptyState.innerHTML = `<span style="font-size: 48px;">❌</span><p>${message}</p>`;
+  elements.emptyState.classList.remove('hidden');
 }
 
-function updateUnreadBadge() {
-  const unreadCount = emails.filter(e => e.isUnread).length;
-  unreadBadge.textContent = unreadCount;
-  unreadBadge.style.display = unreadCount > 0 ? 'inline' : 'none';
-}
+// =============================================================================
+// EMAIL RENDERING
+// =============================================================================
 
-// Render Email List
 function renderEmailList() {
-  loadingState.classList.add('hidden');
+  elements.loadingState.classList.add('hidden');
 
-  // Filter by tab
-  let filteredEmails = [...emails];
-  if (currentTab === 'unread') {
-    filteredEmails = emails.filter(e => e.isUnread);
-  }
+  // Filter by category
+  let filteredEmails = filterByCategory([...emails]);
 
-  // Clear existing items
-  const items = emailItems.querySelectorAll('.email-item');
-  items.forEach(item => item.remove());
+  elements.emailItems.innerHTML = '';
 
   if (filteredEmails.length === 0) {
-    emptyState.classList.remove('hidden');
+    elements.emptyState.classList.remove('hidden');
     return;
   }
 
-  emptyState.classList.add('hidden');
+  elements.emptyState.classList.add('hidden');
 
   filteredEmails.forEach(email => {
     const item = createEmailItem(email);
-    emailItems.appendChild(item);
+    elements.emailItems.appendChild(item);
   });
+}
+
+function filterByCategory(emailList) {
+  switch (currentCategory) {
+    case 'important':
+      return emailList.filter(e => e.isImportant || e.isStarred);
+    case 'action':
+      return emailList.filter(e => e.needsAction);
+    case 'inbox':
+      return emailList.filter(e => !e.isSpam && !e.isNewsletter);
+    case 'newsletter':
+      return emailList.filter(e => e.isNewsletter);
+    case 'sent':
+      return emailList.filter(e => e.isSent);
+    case 'spam':
+      return emailList.filter(e => e.isSpam);
+    default:
+      return emailList;
+  }
 }
 
 function createEmailItem(email) {
@@ -272,26 +502,36 @@ function createEmailItem(email) {
   item.dataset.accountId = email.accountId || '';
 
   if (email.isUnread) item.classList.add('unread');
+  if (email.isImportant || email.needsAction) item.classList.add('urgent');
   if (currentEmail && currentEmail.id === email.id) item.classList.add('active');
 
-  const badges = [];
-  if (email.isStarred) badges.push('<span class="email-badge starred">Markiert</span>');
-  if (email.isImportant) badges.push('<span class="email-badge important">Wichtig</span>');
+  // Priority dot
+  let priorityClass = 'normal';
+  if (email.isImportant) priorityClass = 'high';
+  else if (email.needsAction) priorityClass = 'medium';
+  else if (email.isSpam || email.isNewsletter) priorityClass = 'low';
 
-  // Provider badge for unified inbox
-  let providerBadge = '';
-  if (selectedAccountId === 'all' && email.provider) {
-    providerBadge = `<span class="provider-badge ${email.provider}">${email.provider === 'outlook' ? 'Outlook' : 'Gmail'}</span>`;
+  // Tags
+  let tagsHtml = '';
+  const tags = [];
+  if (email.needsAction) tags.push('<span class="email-tag action">Aktion nötig</span>');
+  if (email.canAutoReply) tags.push('<span class="email-tag auto">Auto-Antwort</span>');
+  if (email.isNewsletter) tags.push('<span class="email-tag info">Newsletter</span>');
+  if (tags.length > 0) {
+    tagsHtml = `<div class="email-tags">${tags.join('')}</div>`;
   }
 
   item.innerHTML = `
-    <div class="email-top">
-      <span class="email-from">${escapeHtml(email.fromName || email.from)}${providerBadge}</span>
-      <span class="email-date">${email.dateFormatted || formatDate(email.date)}</span>
+    <div class="email-priority ${priorityClass}"></div>
+    <div class="email-content">
+      <div class="email-header">
+        <span class="email-sender">${escapeHtml(email.fromName || email.from)}</span>
+        <span class="email-time">${email.dateFormatted || formatDate(email.date)}</span>
+      </div>
+      <div class="email-subject">${escapeHtml(email.subject)}</div>
+      <div class="email-preview">${escapeHtml(email.snippet || '')}</div>
+      ${tagsHtml}
     </div>
-    <div class="email-subject">${escapeHtml(email.subject)}</div>
-    <div class="email-snippet">${escapeHtml(email.snippet || '')}</div>
-    ${badges.length > 0 ? `<div class="email-badges">${badges.join('')}</div>` : ''}
   `;
 
   item.addEventListener('click', () => selectEmail(email));
@@ -299,7 +539,10 @@ function createEmailItem(email) {
   return item;
 }
 
-// Select Email
+// =============================================================================
+// EMAIL SELECTION & DETAIL
+// =============================================================================
+
 async function selectEmail(email) {
   currentEmail = email;
 
@@ -309,57 +552,76 @@ async function selectEmail(email) {
   });
 
   // Show detail
-  detailPlaceholder.classList.add('hidden');
-  detailContent.classList.remove('hidden');
-  analysisPanel.classList.add('hidden');
+  elements.detailPlaceholder.classList.add('hidden');
+  elements.detailContent.classList.remove('hidden');
+  elements.analysisPanel.classList.add('hidden');
+  elements.replyPanel.classList.add('hidden');
 
-  detailSubject.textContent = email.subject;
-  detailFrom.textContent = email.from;
-  detailDate.textContent = formatFullDate(email.date);
+  elements.detailSubject.textContent = email.subject;
+  elements.detailFrom.textContent = email.from;
+  elements.detailDate.textContent = formatFullDate(email.date);
 
-  // For IMAP emails, load full content
+  // Load full content for IMAP emails
   if (email.provider === 'imap' && email.uid && !email.body) {
-    detailBody.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Lade Inhalt...</span></div>';
+    elements.detailBody.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Lade Inhalt...</span></div>';
 
     try {
       const fullEmail = await ipcRenderer.invoke('imap:getEmailContent', email.uid);
       if (fullEmail && !fullEmail.error) {
         email.body = fullEmail.text || fullEmail.html || '';
-        // Prefer HTML if available
         if (fullEmail.html) {
-          detailBody.innerHTML = fullEmail.html;
+          elements.detailBody.innerHTML = fullEmail.html;
         } else {
-          detailBody.textContent = fullEmail.text || 'Kein Inhalt';
+          elements.detailBody.textContent = fullEmail.text || 'Kein Inhalt';
         }
 
         // Mark as read
         if (email.isUnread) {
           await ipcRenderer.invoke('imap:markAsRead', email.uid);
           email.isUnread = false;
-          updateUnreadBadge();
+          updateStats();
           renderEmailList();
         }
       } else {
-        detailBody.textContent = fullEmail.error || 'Fehler beim Laden';
+        elements.detailBody.textContent = fullEmail.error || 'Fehler beim Laden';
       }
     } catch (err) {
-      detailBody.textContent = 'Fehler: ' + err.message;
+      elements.detailBody.textContent = 'Fehler: ' + err.message;
     }
   } else {
-    detailBody.textContent = email.body || email.snippet || 'Kein Inhalt';
+    elements.detailBody.textContent = email.body || email.snippet || 'Kein Inhalt';
   }
 
   // Update action buttons
-  document.getElementById('markReadBtn').textContent = email.isUnread ? 'Als gelesen' : 'Als ungelesen';
-  document.getElementById('starBtn').textContent = email.isStarred ? 'Nicht markieren' : 'Markieren';
+  elements.starBtn.innerHTML = email.isStarred ? '⭐ Markiert' : '☆ Markieren';
+
+  // Show attachments if any
+  if (email.attachments && email.attachments.length > 0) {
+    elements.attachmentsSection.classList.remove('hidden');
+    elements.attachmentsList.innerHTML = email.attachments.map(att => `
+      <div class="attachment-item" onclick="downloadAttachment('${att.id}')">
+        <span class="attachment-icon">📎</span>
+        <div>
+          <span class="attachment-name">${escapeHtml(att.filename)}</span>
+          <span class="attachment-size">${formatSize(att.size)}</span>
+        </div>
+      </div>
+    `).join('');
+  } else {
+    elements.attachmentsSection.classList.add('hidden');
+  }
 }
 
-// Actions
+// =============================================================================
+// EMAIL ACTIONS
+// =============================================================================
+
 async function analyzeCurrentEmail() {
   if (!currentEmail) return;
 
-  analysisPanel.classList.remove('hidden');
-  analysisContent.innerHTML = `
+  elements.analysisPanel.classList.remove('hidden');
+  elements.replyPanel.classList.add('hidden');
+  elements.analysisContent.innerHTML = `
     <div class="loading-state">
       <div class="spinner"></div>
       <span>Analysiere E-Mail...</span>
@@ -376,11 +638,11 @@ async function analyzeCurrentEmail() {
     if (result.success && result.analysis) {
       renderAnalysis(result.analysis);
     } else {
-      analysisContent.innerHTML = `<div class="empty-state">Analyse fehlgeschlagen: ${result.error || 'Unbekannter Fehler'}</div>`;
+      elements.analysisContent.innerHTML = `<div class="empty-state">Analyse fehlgeschlagen: ${result.error || 'Unbekannter Fehler'}</div>`;
     }
   } catch (error) {
     console.error('Analysis error:', error);
-    analysisContent.innerHTML = `<div class="empty-state">Fehler bei der Analyse</div>`;
+    elements.analysisContent.innerHTML = `<div class="empty-state">Fehler bei der Analyse</div>`;
   }
 }
 
@@ -400,7 +662,7 @@ function renderAnalysis(analysis) {
     `;
   }
 
-  analysisContent.innerHTML = `
+  elements.analysisContent.innerHTML = `
     <div class="analysis-section">
       <div class="analysis-label">Zusammenfassung</div>
       <div class="analysis-value">${escapeHtml(analysis.summary || 'Keine Zusammenfassung')}</div>
@@ -419,34 +681,10 @@ function renderAnalysis(analysis) {
     </div>
 
     <div class="analysis-section">
-      <div class="analysis-label">Absicht des Absenders</div>
-      <div class="analysis-value">${escapeHtml(analysis.intent || 'Unklar')}</div>
-    </div>
-
-    <div class="analysis-section">
       <div class="analysis-label">Empfohlene Aktion</div>
       <div class="analysis-value">${escapeHtml(analysis.suggestedAction || 'Keine')}</div>
     </div>
   `;
-}
-
-async function markCurrentAsRead() {
-  if (!currentEmail) return;
-
-  try {
-    if (currentEmail.isUnread) {
-      await ipcRenderer.invoke('email:markAsRead', currentEmail.id);
-      currentEmail.isUnread = false;
-    } else {
-      // Mark as unread is not implemented in the basic service
-    }
-
-    updateUnreadBadge();
-    renderEmailList();
-    document.getElementById('markReadBtn').textContent = currentEmail.isUnread ? 'Als gelesen' : 'Als ungelesen';
-  } catch (error) {
-    console.error('Error marking email:', error);
-  }
 }
 
 async function starCurrentEmail() {
@@ -461,10 +699,11 @@ async function starCurrentEmail() {
       currentEmail.isStarred = true;
     }
 
+    elements.starBtn.innerHTML = currentEmail.isStarred ? '⭐ Markiert' : '☆ Markieren';
     renderEmailList();
-    document.getElementById('starBtn').textContent = currentEmail.isStarred ? 'Nicht markieren' : 'Markieren';
   } catch (error) {
     console.error('Error starring email:', error);
+    showToast('Fehler beim Markieren', 'error');
   }
 }
 
@@ -474,406 +713,68 @@ async function archiveCurrentEmail() {
   try {
     await ipcRenderer.invoke('email:archive', currentEmail.id);
 
-    // Remove from list
     emails = emails.filter(e => e.id !== currentEmail.id);
     currentEmail = null;
 
     renderEmailList();
-    detailPlaceholder.classList.remove('hidden');
-    detailContent.classList.add('hidden');
+    elements.detailPlaceholder.classList.remove('hidden');
+    elements.detailContent.classList.add('hidden');
+    showToast('E-Mail archiviert');
   } catch (error) {
     console.error('Error archiving email:', error);
+    showToast('Fehler beim Archivieren', 'error');
   }
 }
 
 async function deleteCurrentEmail() {
   if (!currentEmail) return;
 
-  if (!confirm('E-Mail wirklich loeschen?')) return;
+  if (!confirm('E-Mail wirklich löschen?')) return;
 
   try {
     await ipcRenderer.invoke('email:delete', currentEmail.id);
 
-    // Remove from list
     emails = emails.filter(e => e.id !== currentEmail.id);
     currentEmail = null;
 
     renderEmailList();
-    detailPlaceholder.classList.remove('hidden');
-    detailContent.classList.add('hidden');
+    elements.detailPlaceholder.classList.remove('hidden');
+    elements.detailContent.classList.add('hidden');
+    showToast('E-Mail gelöscht');
   } catch (error) {
     console.error('Error deleting email:', error);
-  }
-}
-
-// Briefing
-async function showBriefing() {
-  briefingModal.classList.remove('hidden');
-  briefingContent.innerHTML = `
-    <div class="loading-state">
-      <div class="spinner"></div>
-      <span>Erstelle Briefing...</span>
-    </div>
-  `;
-
-  try {
-    // Get emails for briefing
-    const briefingEmails = await ipcRenderer.invoke('email:getForBriefing', 20);
-
-    if (!briefingEmails.success) {
-      briefingContent.innerHTML = `<div class="empty-state">Fehler: ${briefingEmails.error}</div>`;
-      return;
-    }
-
-    // Request briefing from server
-    const result = await ipcRenderer.invoke('email:briefing', briefingEmails.emails);
-
-    if (result.success) {
-      renderBriefing(result);
-    } else {
-      briefingContent.innerHTML = `<div class="empty-state">Briefing fehlgeschlagen: ${result.error}</div>`;
-    }
-  } catch (error) {
-    console.error('Briefing error:', error);
-    briefingContent.innerHTML = `<div class="empty-state">Fehler beim Erstellen des Briefings</div>`;
-  }
-}
-
-function renderBriefing(result) {
-  const stats = result.stats || { total: 0, unread: 0, urgent: 0 };
-  const highlights = result.highlights || [];
-
-  let highlightsHtml = '';
-  if (highlights.length > 0) {
-    highlightsHtml = `
-      <div class="highlights-section">
-        <div class="highlights-title">Wichtige E-Mails</div>
-        ${highlights.map(h => `
-          <div class="highlight-item">
-            <div class="highlight-sender">${escapeHtml(h.sender)}</div>
-            <div class="highlight-subject">${escapeHtml(h.subject)}</div>
-            <div class="highlight-reason">${escapeHtml(h.reason)}</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  briefingContent.innerHTML = `
-    <div class="briefing-text">${escapeHtml(result.briefing || 'Kein Briefing verfuegbar')}</div>
-
-    <div class="briefing-stats">
-      <div class="stat-item">
-        <div class="stat-value">${stats.total}</div>
-        <div class="stat-label">Gesamt</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value">${stats.unread}</div>
-        <div class="stat-label">Ungelesen</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value">${stats.urgent}</div>
-        <div class="stat-label">Dringend</div>
-      </div>
-    </div>
-
-    ${highlightsHtml}
-  `;
-}
-
-// =============================================================================
-// ACCOUNT FUNCTIONS
-// =============================================================================
-
-async function loadAccounts() {
-  try {
-    const result = await ipcRenderer.invoke('email:getAccounts');
-    if (result.success) {
-      accounts = result.accounts || [];
-      updateAccountSelector();
-    }
-  } catch (error) {
-    console.error('Error loading accounts:', error);
-  }
-}
-
-function updateAccountSelector() {
-  // Clear existing options (except 'all')
-  while (accountSelector.options.length > 1) {
-    accountSelector.remove(1);
-  }
-
-  // Add account options
-  accounts.forEach(account => {
-    const option = document.createElement('option');
-    option.value = account.id;
-    option.textContent = `${account.name} (${account.email})`;
-    if (account.isDefault) {
-      option.textContent += ' *';
-    }
-    accountSelector.appendChild(option);
-  });
-
-  // Select current account
-  accountSelector.value = selectedAccountId;
-}
-
-function openAddAccountModal() {
-  addAccountModal.classList.remove('hidden');
-  outlookSetup.classList.add('hidden');
-  accountOptions.classList.remove('hidden');
-  accountLoadingState.classList.add('hidden');
-}
-
-function closeAddAccountModal() {
-  addAccountModal.classList.add('hidden');
-}
-
-// =============================================================================
-// IMAP FUNCTIONS
-// =============================================================================
-
-function showImapSetup() {
-  accountOptions.classList.add('hidden');
-  imapSetup.classList.remove('hidden');
-
-  // Load saved IMAP settings
-  ipcRenderer.invoke('imap:getSettings').then(settings => {
-    if (settings) {
-      document.getElementById('imapProvider').value = settings.provider || '1und1';
-      document.getElementById('imapUser').value = settings.user || '';
-      document.getElementById('imapPassword').value = settings.password || '';
-      if (settings.provider === 'custom') {
-        document.getElementById('imapCustomFields').classList.remove('hidden');
-        document.getElementById('imapHost').value = settings.host || '';
-        document.getElementById('imapPort').value = settings.port || 993;
-        document.getElementById('imapTls').checked = settings.tls !== false;
-      }
-    }
-  });
-}
-
-function getImapSettings() {
-  const provider = document.getElementById('imapProvider').value;
-  const preset = IMAP_PRESETS[provider] || {};
-
-  return {
-    provider,
-    host: provider === 'custom' ? document.getElementById('imapHost').value : preset.host,
-    port: provider === 'custom' ? parseInt(document.getElementById('imapPort').value) : preset.port,
-    tls: provider === 'custom' ? document.getElementById('imapTls').checked : preset.tls,
-    user: document.getElementById('imapUser').value.trim(),
-    password: document.getElementById('imapPassword').value
-  };
-}
-
-async function testImapConnection() {
-  const settings = getImapSettings();
-
-  if (!settings.user || !settings.password) {
-    alert('Bitte E-Mail und Passwort eingeben');
-    return;
-  }
-
-  const testBtn = document.getElementById('testImapBtn');
-  testBtn.textContent = 'Teste...';
-  testBtn.disabled = true;
-
-  try {
-    const result = await ipcRenderer.invoke('imap:test', settings);
-    if (result.success) {
-      showNotification('Verbindung erfolgreich!');
-    } else {
-      alert('Verbindung fehlgeschlagen: ' + (result.error || 'Unbekannter Fehler'));
-    }
-  } catch (error) {
-    alert('Fehler: ' + error.message);
-  } finally {
-    testBtn.textContent = 'Testen';
-    testBtn.disabled = false;
-  }
-}
-
-async function connectImap() {
-  const settings = getImapSettings();
-
-  if (!settings.user || !settings.password) {
-    alert('Bitte E-Mail und Passwort eingeben');
-    return;
-  }
-
-  // Show loading
-  imapSetup.classList.add('hidden');
-  accountLoadingState.classList.remove('hidden');
-
-  try {
-    const result = await ipcRenderer.invoke('imap:configure', settings);
-
-    if (result.success) {
-      // Set email source to IMAP
-      emailSource = 'imap';
-      selectedAccountId = 'imap';
-
-      showNotification('IMAP-Konto erfolgreich verbunden!');
-      closeAddAccountModal();
-
-      // Update account selector
-      updateAccountSelectorWithImap(settings.user);
-
-      // Load emails from IMAP
-      loadImapEmails();
-    } else {
-      alert('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'));
-      accountLoadingState.classList.add('hidden');
-      imapSetup.classList.remove('hidden');
-    }
-  } catch (error) {
-    console.error('IMAP config error:', error);
-    alert('Fehler bei der IMAP-Verbindung: ' + error.message);
-    accountLoadingState.classList.add('hidden');
-    imapSetup.classList.remove('hidden');
-  }
-}
-
-function updateAccountSelectorWithImap(email) {
-  // Check if IMAP option exists
-  let imapOption = accountSelector.querySelector('option[value="imap"]');
-  if (!imapOption) {
-    imapOption = document.createElement('option');
-    imapOption.value = 'imap';
-    accountSelector.appendChild(imapOption);
-  }
-  imapOption.textContent = `IMAP (${email})`;
-  accountSelector.value = 'imap';
-}
-
-async function loadImapEmails() {
-  showLoading();
-
-  try {
-    const result = await ipcRenderer.invoke('imap:getEmails', 30);
-
-    if (result.success) {
-      // Transform IMAP emails to common format
-      emails = (result.emails || []).map(email => ({
-        id: email.uid.toString(),
-        uid: email.uid,
-        from: email.from,
-        fromName: extractName(email.from),
-        subject: email.subject,
-        date: email.date ? new Date(email.date).getTime() : Date.now(),
-        dateFormatted: formatDate(email.date ? new Date(email.date).getTime() : Date.now()),
-        snippet: '',
-        body: '',
-        isUnread: !email.isRead,
-        isStarred: email.isStarred,
-        provider: 'imap'
-      }));
-
-      updateUnreadBadge();
-      renderEmailList();
-    } else {
-      showError(result.error || 'Fehler beim Laden');
-    }
-  } catch (error) {
-    console.error('Error loading IMAP emails:', error);
-    showError('Verbindungsfehler: ' + error.message);
-  }
-}
-
-function extractName(from) {
-  if (!from) return 'Unbekannt';
-  const match = from.match(/^"?([^"<]+)"?\s*</);
-  if (match) return match[1].trim();
-  return from.split('@')[0];
-}
-
-function showOutlookSetup() {
-  accountOptions.classList.add('hidden');
-  outlookSetup.classList.remove('hidden');
-
-  // Load saved client ID
-  ipcRenderer.invoke('outlook:getClientId').then(clientId => {
-    document.getElementById('outlookClientId').value = clientId || '';
-  });
-}
-
-async function connectOutlook() {
-  const clientId = document.getElementById('outlookClientId').value.trim();
-
-  if (!clientId) {
-    alert('Bitte gib eine Client ID ein');
-    return;
-  }
-
-  // Validate format (UUID)
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(clientId)) {
-    alert('Ungueltige Client ID Format. Erwarte: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
-    return;
-  }
-
-  // Save client ID
-  await ipcRenderer.invoke('outlook:setClientId', clientId);
-
-  // Show loading
-  outlookSetup.classList.add('hidden');
-  accountLoadingState.classList.remove('hidden');
-
-  try {
-    const result = await ipcRenderer.invoke('outlook:startAuth');
-
-    if (result.success) {
-      showNotification('Outlook-Konto erfolgreich verbunden!');
-      await loadAccounts();
-      closeAddAccountModal();
-      loadEmails();
-    } else {
-      alert('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'));
-      accountLoadingState.classList.add('hidden');
-      outlookSetup.classList.remove('hidden');
-    }
-  } catch (error) {
-    console.error('Outlook auth error:', error);
-    alert('Fehler bei der Outlook-Verbindung');
-    accountLoadingState.classList.add('hidden');
-    outlookSetup.classList.remove('hidden');
+    showToast('Fehler beim Löschen', 'error');
   }
 }
 
 // =============================================================================
-// REPLY FUNCTIONS
+// REPLY PANEL
 // =============================================================================
 
 function openReplyPanel() {
   if (!currentEmail) return;
 
-  replyPanel.classList.remove('hidden');
-  analysisPanel.classList.add('hidden');
+  elements.replyPanel.classList.remove('hidden');
+  elements.analysisPanel.classList.add('hidden');
+  elements.replyToAddress.textContent = currentEmail.from;
+  elements.replyText.value = '';
 
-  // Set recipient
-  replyToAddress.textContent = currentEmail.from;
-
-  // Clear previous text
-  replyText.value = '';
-
-  // Load quick replies
   loadQuickReplies();
 }
 
 function closeReplyPanel() {
-  replyPanel.classList.add('hidden');
-  replyText.value = '';
-  quickRepliesList.innerHTML = '';
+  elements.replyPanel.classList.add('hidden');
+  elements.replyText.value = '';
+  elements.quickRepliesList.innerHTML = '';
 }
 
 async function loadQuickReplies() {
   if (!currentEmail) return;
 
-  quickRepliesList.innerHTML = `
-    <div class="loading-quick-replies">
+  elements.quickRepliesList.innerHTML = `
+    <div class="quick-reply-loading">
       <div class="spinner small"></div>
-      <span>Lade Vorschlaege...</span>
+      Generiere Vorschläge...
     </div>
   `;
 
@@ -887,26 +788,23 @@ async function loadQuickReplies() {
     if (result.success && result.quick_replies) {
       renderQuickReplies(result.quick_replies);
     } else {
-      quickRepliesList.innerHTML = `<div class="quick-reply-error">Keine Vorschlaege verfuegbar</div>`;
+      elements.quickRepliesList.innerHTML = `<div style="color: var(--text-muted); padding: 12px; text-align: center;">Keine Vorschläge verfügbar</div>`;
     }
   } catch (error) {
     console.error('Quick replies error:', error);
-    quickRepliesList.innerHTML = `<div class="quick-reply-error">Fehler beim Laden</div>`;
+    elements.quickRepliesList.innerHTML = `<div style="color: var(--text-muted); padding: 12px; text-align: center;">Fehler beim Laden</div>`;
   }
 }
 
 function renderQuickReplies(replies) {
-  quickRepliesList.innerHTML = replies.map((reply, index) => `
-    <button class="quick-reply-btn" data-index="${index}">
-      <span class="quick-reply-text">${escapeHtml(reply)}</span>
-    </button>
+  elements.quickRepliesList.innerHTML = replies.map((reply, index) => `
+    <button class="quick-reply-btn" data-index="${index}">${escapeHtml(reply)}</button>
   `).join('');
 
-  // Add click handlers
-  quickRepliesList.querySelectorAll('.quick-reply-btn').forEach(btn => {
+  elements.quickRepliesList.querySelectorAll('.quick-reply-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const text = replies[parseInt(btn.dataset.index)];
-      replyText.value = text;
+      elements.replyText.value = text;
     });
   });
 }
@@ -915,12 +813,8 @@ async function generateKiReply() {
   if (!currentEmail || isGeneratingReply) return;
 
   isGeneratingReply = true;
-  const generateBtn = document.getElementById('generateReplyBtn');
-  generateBtn.innerHTML = `
-    <div class="spinner small"></div>
-    <span>Generiere...</span>
-  `;
-  generateBtn.disabled = true;
+  elements.generateReplyBtn.innerHTML = '<div class="spinner small"></div> Generiere...';
+  elements.generateReplyBtn.disabled = true;
 
   try {
     const result = await ipcRenderer.invoke('email:generateReply', {
@@ -928,84 +822,479 @@ async function generateKiReply() {
       originalSubject: currentEmail.subject,
       originalSender: currentEmail.fromName || currentEmail.from,
       replyType: currentReplyType,
-      context: replyText.value || ''
+      context: elements.replyText.value || ''
     });
 
     if (result.success && result.reply) {
-      replyText.value = result.reply;
+      elements.replyText.value = result.reply;
     } else {
-      alert('Fehler beim Generieren: ' + (result.error || 'Unbekannter Fehler'));
+      showToast('Fehler beim Generieren: ' + (result.error || 'Unbekannter Fehler'), 'error');
     }
   } catch (error) {
     console.error('Generate reply error:', error);
-    alert('Fehler beim Generieren der Antwort');
+    showToast('Fehler beim Generieren', 'error');
   } finally {
     isGeneratingReply = false;
-    generateBtn.innerHTML = `
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-        <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5z"/>
-      </svg>
-      KI-Antwort generieren
-    `;
-    generateBtn.disabled = false;
+    elements.generateReplyBtn.innerHTML = '🤖 KI generieren';
+    elements.generateReplyBtn.disabled = false;
   }
 }
 
 async function sendReply() {
-  if (!currentEmail || !replyText.value.trim()) {
-    alert('Bitte schreibe zuerst eine Antwort');
+  if (!currentEmail || !elements.replyText.value.trim()) {
+    showToast('Bitte schreibe zuerst eine Antwort', 'warning');
     return;
   }
 
-  const sendBtn = document.getElementById('sendReplyBtn');
-  sendBtn.textContent = 'Sende...';
-  sendBtn.disabled = true;
+  elements.sendReplyBtn.innerHTML = '📤 Sende...';
+  elements.sendReplyBtn.disabled = true;
 
   try {
-    const result = await ipcRenderer.invoke('email:sendReply', currentEmail.id, replyText.value);
+    const result = await ipcRenderer.invoke('email:sendReply', currentEmail.id, elements.replyText.value);
 
     if (result.success) {
-      // Show success
       closeReplyPanel();
-      showNotification('Antwort gesendet!');
+      showToast('Antwort gesendet!');
 
-      // Mark original as read
       if (currentEmail.isUnread) {
         await ipcRenderer.invoke('email:markAsRead', currentEmail.id);
         currentEmail.isUnread = false;
-        updateUnreadBadge();
+        updateStats();
         renderEmailList();
       }
     } else {
-      alert('Fehler beim Senden: ' + (result.error || 'Unbekannter Fehler'));
+      showToast('Fehler beim Senden: ' + (result.error || 'Unbekannter Fehler'), 'error');
     }
   } catch (error) {
     console.error('Send reply error:', error);
-    alert('Fehler beim Senden der Antwort');
+    showToast('Fehler beim Senden', 'error');
   } finally {
-    sendBtn.textContent = 'Senden';
-    sendBtn.disabled = false;
+    elements.sendReplyBtn.innerHTML = '📤 Senden';
+    elements.sendReplyBtn.disabled = false;
   }
 }
 
-function showNotification(message) {
-  // Create toast notification
-  const toast = document.createElement('div');
-  toast.className = 'toast-notification';
-  toast.textContent = message;
-  document.body.appendChild(toast);
+// =============================================================================
+// DASHBOARD & STATS
+// =============================================================================
 
-  setTimeout(() => {
-    toast.classList.add('show');
-  }, 10);
+function updateStats() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  setTimeout(() => {
-    toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
+  const todayEmails = emails.filter(e => e.date && new Date(e.date) >= today);
+  elements.statReceived.textContent = todayEmails.length;
+  elements.statReplied.textContent = emails.filter(e => e.hasReply).length || 0;
+
+  // Update header subtitle
+  const unreadCount = emails.filter(e => e.isUnread).length;
+  elements.headerSubtitle.textContent = `${emails.length} E-Mails, ${unreadCount} ungelesen`;
 }
 
-// Helpers
+function updateCategoryCounts() {
+  // Inbox
+  const inboxCount = emails.filter(e => !e.isSpam && !e.isNewsletter).length;
+  document.getElementById('catInbox').textContent = `${inboxCount} E-Mails`;
+
+  // Important
+  const importantCount = emails.filter(e => e.isImportant || e.isStarred).length;
+  document.getElementById('catImportant').textContent = `${importantCount} E-Mails`;
+  if (importantCount > 0) {
+    document.getElementById('badgeImportant').textContent = importantCount;
+    document.getElementById('badgeImportant').classList.remove('hidden');
+  } else {
+    document.getElementById('badgeImportant').classList.add('hidden');
+  }
+
+  // Action
+  const actionCount = emails.filter(e => e.needsAction).length;
+  document.getElementById('catAction').textContent = `${actionCount} E-Mails`;
+  if (actionCount > 0) {
+    document.getElementById('badgeAction').textContent = actionCount;
+    document.getElementById('badgeAction').classList.remove('hidden');
+  } else {
+    document.getElementById('badgeAction').classList.add('hidden');
+  }
+
+  // Newsletter
+  const newsletterCount = emails.filter(e => e.isNewsletter).length;
+  document.getElementById('catNewsletter').textContent = `${newsletterCount} E-Mails`;
+
+  // Spam
+  const spamCount = emails.filter(e => e.isSpam).length;
+  document.getElementById('catSpam').textContent = `${spamCount} E-Mails`;
+  elements.spamCount.textContent = spamCount;
+
+  // Sent
+  const sentCount = emails.filter(e => e.isSent).length;
+  document.getElementById('catSent').textContent = `${sentCount} E-Mails`;
+}
+
+function updateHeader() {
+  const titles = {
+    inbox: 'Posteingang',
+    important: 'Wichtig',
+    action: 'Aktion erforderlich',
+    newsletter: 'Newsletter',
+    sent: 'Gesendet',
+    spam: 'Spam'
+  };
+  elements.headerTitle.textContent = titles[currentCategory] || 'Posteingang';
+}
+
+function renderChart() {
+  // Sample data for the week
+  const days = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  const data = [
+    { spam: 5, news: 8, normal: 15, important: 3 },
+    { spam: 3, news: 12, normal: 20, important: 5 },
+    { spam: 7, news: 6, normal: 18, important: 4 },
+    { spam: 4, news: 10, normal: 22, important: 6 },
+    { spam: 2, news: 9, normal: 16, important: 3 },
+    { spam: 1, news: 4, normal: 8, important: 1 },
+    { spam: 2, news: 5, normal: 10, important: 2 }
+  ];
+
+  const maxTotal = Math.max(...data.map(d => d.spam + d.news + d.normal + d.important));
+
+  elements.chartBars.innerHTML = data.map((d, i) => {
+    const total = d.spam + d.news + d.normal + d.important;
+    const scale = 100 / maxTotal;
+
+    return `
+      <div class="chart-row">
+        <span class="chart-label">${days[i]}</span>
+        <div class="chart-bar-container">
+          <div class="chart-bar spam" style="width: ${d.spam * scale}%"></div>
+          <div class="chart-bar news" style="width: ${d.news * scale}%"></div>
+          <div class="chart-bar normal" style="width: ${d.normal * scale}%"></div>
+          <div class="chart-bar important" style="width: ${d.important * scale}%"></div>
+        </div>
+        <span class="chart-total">${total}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// =============================================================================
+// QUICK ACTIONS
+// =============================================================================
+
+async function showBriefing() {
+  elements.briefingModal.classList.remove('hidden');
+  elements.briefingContent.innerHTML = `
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <span>Erstelle Briefing...</span>
+    </div>
+  `;
+
+  try {
+    const briefingEmails = await ipcRenderer.invoke('email:getForBriefing', 20);
+
+    if (!briefingEmails.success) {
+      elements.briefingContent.innerHTML = `<div class="empty-state">Fehler: ${briefingEmails.error}</div>`;
+      return;
+    }
+
+    const result = await ipcRenderer.invoke('email:briefing', briefingEmails.emails);
+
+    if (result.success) {
+      renderBriefing(result);
+    } else {
+      elements.briefingContent.innerHTML = `<div class="empty-state">Briefing fehlgeschlagen: ${result.error}</div>`;
+    }
+  } catch (error) {
+    console.error('Briefing error:', error);
+    elements.briefingContent.innerHTML = `<div class="empty-state">Fehler beim Erstellen</div>`;
+  }
+}
+
+function renderBriefing(result) {
+  const stats = result.stats || { total: 0, unread: 0, urgent: 0 };
+
+  elements.briefingContent.innerHTML = `
+    <div class="briefing-text">${escapeHtml(result.briefing || 'Kein Briefing verfügbar')}</div>
+
+    <div class="briefing-stats">
+      <div class="briefing-stat">
+        <div class="briefing-stat-value">${stats.total}</div>
+        <div class="briefing-stat-label">Gesamt</div>
+      </div>
+      <div class="briefing-stat">
+        <div class="briefing-stat-value">${stats.unread}</div>
+        <div class="briefing-stat-label">Ungelesen</div>
+      </div>
+      <div class="briefing-stat">
+        <div class="briefing-stat-value">${stats.urgent}</div>
+        <div class="briefing-stat-label">Dringend</div>
+      </div>
+    </div>
+  `;
+}
+
+async function analyzeAllEmails() {
+  elements.analysisModal.classList.remove('hidden');
+
+  // Simulate analysis progress
+  let progress = 0;
+  const interval = setInterval(() => {
+    progress += Math.random() * 15;
+    if (progress > 100) progress = 100;
+    elements.analysisProgressFill.style.width = `${progress}%`;
+
+    if (progress >= 100) {
+      clearInterval(interval);
+      elements.analysisProgressText.textContent = 'Analyse abgeschlossen!';
+
+      // Update result numbers (simulated)
+      document.getElementById('resultSpam').textContent = Math.floor(Math.random() * 5);
+      document.getElementById('resultImportant').textContent = Math.floor(Math.random() * 8) + 2;
+      document.getElementById('resultAction').textContent = Math.floor(Math.random() * 4);
+      document.getElementById('resultAuto').textContent = Math.floor(Math.random() * 6);
+    }
+  }, 200);
+}
+
+async function emptySpam() {
+  if (!confirm('Alle Spam-E-Mails löschen?')) return;
+
+  try {
+    await ipcRenderer.invoke('email:emptySpam');
+    emails = emails.filter(e => !e.isSpam);
+    updateCategoryCounts();
+    renderEmailList();
+    showToast('Spam geleert');
+  } catch (error) {
+    console.error('Error emptying spam:', error);
+    showToast('Fehler beim Leeren', 'error');
+  }
+}
+
+async function archiveNewsletters() {
+  try {
+    await ipcRenderer.invoke('email:archiveNewsletters');
+    emails = emails.filter(e => !e.isNewsletter);
+    updateCategoryCounts();
+    renderEmailList();
+    showToast('Newsletter archiviert');
+  } catch (error) {
+    console.error('Error archiving newsletters:', error);
+    showToast('Fehler beim Archivieren', 'error');
+  }
+}
+
+async function markAllAsRead() {
+  try {
+    await ipcRenderer.invoke('email:markAllAsRead');
+    emails.forEach(e => e.isUnread = false);
+    updateStats();
+    renderEmailList();
+    showToast('Alle als gelesen markiert');
+  } catch (error) {
+    console.error('Error marking all as read:', error);
+    showToast('Fehler', 'error');
+  }
+}
+
+function toggleAutoReply() {
+  autoReplyEnabled = !autoReplyEnabled;
+  elements.autoReplyToggle.classList.toggle('active', autoReplyEnabled);
+  elements.autoReplySettingToggle.classList.toggle('active', autoReplyEnabled);
+  showToast(autoReplyEnabled ? 'Auto-Antworten aktiviert' : 'Auto-Antworten deaktiviert');
+}
+
+// =============================================================================
+// ACCOUNT MANAGEMENT
+// =============================================================================
+
+function openAddAccountModal() {
+  elements.addAccountModal.classList.remove('hidden');
+  elements.accountOptions.classList.remove('hidden');
+  elements.gmailSetup?.classList.add('hidden');
+  elements.outlookSetup?.classList.add('hidden');
+  elements.imapSetup?.classList.add('hidden');
+  elements.accountLoadingState.classList.add('hidden');
+}
+
+function closeAddAccountModal() {
+  elements.addAccountModal.classList.add('hidden');
+}
+
+function backToAccountOptions() {
+  elements.gmailSetup?.classList.add('hidden');
+  elements.outlookSetup?.classList.add('hidden');
+  elements.imapSetup?.classList.add('hidden');
+  elements.accountOptions.classList.remove('hidden');
+}
+
+function showGmailSetup() {
+  elements.accountOptions.classList.add('hidden');
+  elements.gmailSetup.classList.remove('hidden');
+}
+
+function showOutlookSetup() {
+  elements.accountOptions.classList.add('hidden');
+  elements.outlookSetup.classList.remove('hidden');
+}
+
+function showImapSetup() {
+  elements.accountOptions.classList.add('hidden');
+  elements.imapSetup.classList.remove('hidden');
+}
+
+async function connectGmail() {
+  elements.gmailSetup.classList.add('hidden');
+  elements.accountLoadingState.classList.remove('hidden');
+
+  try {
+    const result = await ipcRenderer.invoke('google:startAuth');
+
+    if (result.success) {
+      showToast('Gmail-Konto verbunden!');
+      await loadAccounts();
+      closeAddAccountModal();
+      loadEmails();
+    } else {
+      showToast('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'), 'error');
+      elements.accountLoadingState.classList.add('hidden');
+      elements.gmailSetup.classList.remove('hidden');
+    }
+  } catch (error) {
+    console.error('Gmail auth error:', error);
+    showToast('Fehler bei der Gmail-Verbindung', 'error');
+    elements.accountLoadingState.classList.add('hidden');
+    elements.gmailSetup.classList.remove('hidden');
+  }
+}
+
+async function connectOutlook() {
+  elements.outlookSetup.classList.add('hidden');
+  elements.accountLoadingState.classList.remove('hidden');
+
+  try {
+    const result = await ipcRenderer.invoke('outlook:startAuth');
+
+    if (result.success) {
+      showToast('Outlook-Konto verbunden!');
+      await loadAccounts();
+      closeAddAccountModal();
+      loadEmails();
+    } else {
+      showToast('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'), 'error');
+      elements.accountLoadingState.classList.add('hidden');
+      elements.outlookSetup.classList.remove('hidden');
+    }
+  } catch (error) {
+    console.error('Outlook auth error:', error);
+    showToast('Fehler bei der Outlook-Verbindung', 'error');
+    elements.accountLoadingState.classList.add('hidden');
+    elements.outlookSetup.classList.remove('hidden');
+  }
+}
+
+function getImapSettings() {
+  const provider = document.getElementById('imapProvider').value;
+  const preset = IMAP_PRESETS[provider] || {};
+
+  return {
+    provider,
+    host: provider === 'custom' ? document.getElementById('imapServer').value : preset.host,
+    port: provider === 'custom' ? parseInt(document.getElementById('imapPort').value) : preset.port,
+    tls: provider === 'custom' ? document.getElementById('imapTls').checked : preset.tls,
+    user: document.getElementById('imapEmail').value.trim(),
+    password: document.getElementById('imapPassword').value
+  };
+}
+
+async function testImapConnection() {
+  const settings = getImapSettings();
+
+  if (!settings.user || !settings.password) {
+    showToast('Bitte E-Mail und Passwort eingeben', 'warning');
+    return;
+  }
+
+  const testBtn = document.getElementById('testImapBtn');
+  testBtn.textContent = 'Teste...';
+  testBtn.disabled = true;
+
+  try {
+    const result = await ipcRenderer.invoke('imap:test', settings);
+    if (result.success) {
+      showToast('Verbindung erfolgreich!');
+    } else {
+      showToast('Verbindung fehlgeschlagen: ' + (result.error || 'Unbekannter Fehler'), 'error');
+    }
+  } catch (error) {
+    showToast('Fehler: ' + error.message, 'error');
+  } finally {
+    testBtn.textContent = 'Verbindung testen';
+    testBtn.disabled = false;
+  }
+}
+
+async function connectImap() {
+  const settings = getImapSettings();
+
+  if (!settings.user || !settings.password) {
+    showToast('Bitte E-Mail und Passwort eingeben', 'warning');
+    return;
+  }
+
+  elements.imapSetup.classList.add('hidden');
+  elements.accountLoadingState.classList.remove('hidden');
+
+  try {
+    const result = await ipcRenderer.invoke('imap:configure', settings);
+
+    if (result.success) {
+      selectedAccountId = 'imap';
+      showToast('IMAP-Konto verbunden!');
+      closeAddAccountModal();
+      loadImapEmails();
+    } else {
+      showToast('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'), 'error');
+      elements.accountLoadingState.classList.add('hidden');
+      elements.imapSetup.classList.remove('hidden');
+    }
+  } catch (error) {
+    console.error('IMAP config error:', error);
+    showToast('Fehler: ' + error.message, 'error');
+    elements.accountLoadingState.classList.add('hidden');
+    elements.imapSetup.classList.remove('hidden');
+  }
+}
+
+async function syncAccount(accountId) {
+  showToast('Synchronisiere...');
+  await loadEmails();
+  showToast('Synchronisiert!');
+}
+
+async function removeAccount(accountId) {
+  if (!confirm('Konto wirklich entfernen?')) return;
+
+  try {
+    await ipcRenderer.invoke('email:removeAccount', accountId);
+    accounts = accounts.filter(a => a.id !== accountId);
+    updateAccountDropdown();
+    renderAccountCards();
+    showToast('Konto entfernt');
+  } catch (error) {
+    console.error('Error removing account:', error);
+    showToast('Fehler beim Entfernen', 'error');
+  }
+}
+
+function composeNewEmail() {
+  showToast('Neue E-Mail Funktion kommt bald...', 'warning');
+}
+
+// =============================================================================
+// UTILITIES
+// =============================================================================
+
 function formatDate(timestamp) {
   if (!timestamp) return '';
   const date = new Date(parseInt(timestamp));
@@ -1038,6 +1327,20 @@ function formatFullDate(timestamp) {
   });
 }
 
+function formatSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function extractName(from) {
+  if (!from) return 'Unbekannt';
+  const match = from.match(/^"?([^"<]+)"?\s*</);
+  if (match) return match[1].trim();
+  return from.split('@')[0];
+}
+
 function escapeHtml(text) {
   if (!text) return '';
   const div = document.createElement('div');
@@ -1045,9 +1348,21 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Listen for external commands (from main process)
+function showToast(message, type = 'success') {
+  elements.toast.textContent = message;
+  elements.toast.className = 'toast ' + type;
+  elements.toast.classList.add('show');
+
+  setTimeout(() => {
+    elements.toast.classList.remove('show');
+  }, 3000);
+}
+
+// =============================================================================
+// IPC LISTENERS
+// =============================================================================
+
 ipcRenderer.on('email:selectSender', async (_, senderName) => {
-  // Load emails from specific sender
   try {
     const result = await ipcRenderer.invoke('email:getFromSender', senderName);
     if (result.success && result.emails && result.emails.length > 0) {
@@ -1059,14 +1374,12 @@ ipcRenderer.on('email:selectSender', async (_, senderName) => {
 });
 
 ipcRenderer.on('email:readLast', () => {
-  // Select and read the last email
   if (emails.length > 0) {
     selectEmail(emails[0]);
   }
 });
 
 ipcRenderer.on('email:analyzeLast', async () => {
-  // Analyze the last email
   if (emails.length > 0) {
     selectEmail(emails[0]);
     await analyzeCurrentEmail();
@@ -1077,7 +1390,6 @@ ipcRenderer.on('email:showBriefing', () => {
   showBriefing();
 });
 
-// Handle voice commands from main window
 ipcRenderer.on('email-command', (_, command) => {
   console.log('[EMAIL] Received voice command:', command);
 
@@ -1092,7 +1404,7 @@ ipcRenderer.on('email-command', (_, command) => {
       break;
 
     case 'generateReply':
-      if (currentEmail && !replyPanel.classList.contains('hidden')) {
+      if (currentEmail && !elements.replyPanel.classList.contains('hidden')) {
         generateKiReply();
       } else if (currentEmail) {
         openReplyPanel();
@@ -1100,21 +1412,22 @@ ipcRenderer.on('email-command', (_, command) => {
       }
       break;
 
-    case 'setReplyType':
-      currentReplyType = command.type || 'professional';
-      // Update UI
-      document.querySelectorAll('.reply-type-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.type === currentReplyType);
-      });
-      break;
-
     case 'sendReply':
-      if (!replyPanel.classList.contains('hidden') && replyText.value.trim()) {
+      if (!elements.replyPanel.classList.contains('hidden') && elements.replyText.value.trim()) {
         sendReply();
       }
       break;
-
-    default:
-      console.log('Unknown email command:', command);
   }
 });
+
+// Make functions globally accessible for onclick handlers
+window.syncAccount = syncAccount;
+window.removeAccount = removeAccount;
+window.downloadAttachment = async (attachmentId) => {
+  try {
+    await ipcRenderer.invoke('email:downloadAttachment', attachmentId);
+    showToast('Anhang heruntergeladen');
+  } catch (error) {
+    showToast('Fehler beim Download', 'error');
+  }
+};
