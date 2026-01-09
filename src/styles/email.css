@@ -2000,3 +2000,105 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-color);
 }
+
+/* ============================================
+   INTELLIGENTES KLASSIFIZIERUNGSSYSTEM
+   ============================================ */
+
+/* Kategorie Tags */
+.email-tag.kategorie {
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.email-tag.action {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.email-tag.deadline {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.email-tag.money {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.email-tag.auto {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9ca3af;
+}
+
+/* Confidence Indikator */
+.email-confidence {
+  font-size: 8px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* Klassifizierungs-Zusammenfassung in Preview */
+.email-preview {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Essenz-Highlight */
+.email-item[data-kategorie="essenz"] {
+  border-left: 3px solid #ef4444;
+}
+
+.email-item[data-kategorie="wichtig"] {
+  border-left: 3px solid #f97316;
+}
+
+/* Klassifizierungs-Stats im Dashboard */
+.classifier-stats {
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.classifier-stats-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.classifier-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.classifier-stat-row .value {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Lern-Fortschritt */
+.learning-progress {
+  height: 4px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.learning-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #10b981);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}

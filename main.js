@@ -22,6 +22,9 @@ const notesService = require('./src/services/notesService');
 const imapService = require('./src/services/imapService');
 const imapAccountManager = require('./src/services/imapAccountManager');
 
+// Intelligentes E-Mail-Klassifizierungssystem
+const emailClassifier = require('./src/services/email/classifierService');
+
 // Multi-Provider Email
 const EmailProviderManager = require('./src/services/emailProviderManager');
 let emailProviderManager = null;
@@ -3824,26 +3827,84 @@ ipcMain.handle('email:analyze', async (_, emailData) => {
   }
 });
 
-// Email KI-Klassifizierung (via Server)
-ipcMain.handle('email:classify', async (_, emailData) => {
-  try {
-    const response = await fetch('http://188.40.97.126:8080/email-classify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: emailData.from || '',
-        subject: emailData.subject || '',
-        preview: emailData.preview || '',
-        language: 'de'
-      })
-    });
+// =====================================================
+// INTELLIGENTES E-MAIL-KLASSIFIZIERUNGSSYSTEM
+// Mehrstufig, selbstlernend, kostenoptimiert
+// =====================================================
 
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error('[EMAIL] Classify error:', error);
-    return { success: false, error: error.message };
-  }
+// Einzelne E-Mail klassifizieren
+ipcMain.handle('email:classify', async (_, emailData) => {
+  return await emailClassifier.classifyEmail(emailData);
+});
+
+// Mehrere E-Mails klassifizieren (Batch)
+ipcMain.handle('email:classifyBatch', async (_, emails) => {
+  return await emailClassifier.classifyEmails(emails);
+});
+
+// Essenz extrahieren (nur wichtige E-Mails)
+ipcMain.handle('email:getEssenz', async (_, emails) => {
+  return await emailClassifier.getEssenz(emails);
+});
+
+// Kategorie manuell korrigieren (Lernsystem)
+ipcMain.handle('email:correctCategory', (_, email, oldCategory, newCategory) => {
+  return emailClassifier.correctCategory(email, oldCategory, newCategory);
+});
+
+// Tracking: E-Mail geöffnet
+ipcMain.handle('email:trackOpened', (_, email) => {
+  return emailClassifier.trackOpened(email);
+});
+
+// Tracking: E-Mail beantwortet
+ipcMain.handle('email:trackReplied', (_, email) => {
+  return emailClassifier.trackReplied(email);
+});
+
+// Tracking: E-Mail gelöscht ohne lesen
+ipcMain.handle('email:trackDeletedUnread', (_, email) => {
+  return emailClassifier.trackDeletedUnread(email);
+});
+
+// Absender zu Liste hinzufügen (vip, family, customer, whitelist, blacklist)
+ipcMain.handle('email:addSenderToList', (_, email, listType) => {
+  return emailClassifier.addSenderToList(email, listType);
+});
+
+// Classifier-Statistiken abrufen
+ipcMain.handle('email:classifierStats', () => {
+  return emailClassifier.getStats();
+});
+
+// Kategorien und Tags für UI
+ipcMain.handle('email:getCategories', () => {
+  return emailClassifier.getCategories();
+});
+
+// OpenAI API Key für GPT-Klassifizierung setzen
+ipcMain.handle('email:setClassifierApiKey', (_, apiKey) => {
+  return emailClassifier.setOpenAIKey(apiKey);
+});
+
+// Eigene E-Mail-Adressen setzen
+ipcMain.handle('email:setMyEmails', (_, emails) => {
+  return emailClassifier.setMyEmails(emails);
+});
+
+// Lerndaten exportieren
+ipcMain.handle('email:exportLearningData', () => {
+  return emailClassifier.exportLearningData();
+});
+
+// Lerndaten importieren
+ipcMain.handle('email:importLearningData', (_, data) => {
+  return emailClassifier.importLearningData(data);
+});
+
+// Lerndaten zurücksetzen
+ipcMain.handle('email:resetLearning', () => {
+  return emailClassifier.resetLearning();
 });
 
 // Email Briefing (via Server)

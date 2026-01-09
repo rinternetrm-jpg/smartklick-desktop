@@ -1,8 +1,10 @@
 // Email Window App - New Dashboard Design
+// Mit intelligentem Klassifizierungssystem
 const { ipcRenderer } = require('electron');
 
 // State
 let emails = [];
+let emailClassifications = {}; // Klassifizierungen pro E-Mail ID
 let currentEmail = null;
 let currentCategory = 'inbox';
 let currentReplyType = 'professional';
@@ -11,6 +13,17 @@ let accounts = [];
 let selectedAccountId = 'all';
 let autoReplyEnabled = false;
 let autoClassifyEnabled = true;
+let classifierStats = null;
+
+// Kategorie-Mapping für UI
+const KATEGORIE_MAP = {
+  essenz: { name: 'Essenz', icon: '🔴', color: '#ef4444' },
+  wichtig: { name: 'Wichtig', icon: '🟠', color: '#f97316' },
+  normal: { name: 'Normal', icon: '🔵', color: '#3b82f6' },
+  info: { name: 'Info', icon: 'ℹ️', color: '#6b7280' },
+  newsletter: { name: 'Newsletter', icon: '📰', color: '#8b5cf6' },
+  spam: { name: 'Spam', icon: '🗑️', color: '#dc2626' }
+};
 
 // IMAP presets
 const IMAP_PRESETS = {
@@ -383,6 +396,12 @@ async function loadEmails() {
 
     if (result.success) {
       emails = result.emails || [];
+
+      // Automatische Klassifizierung wenn aktiviert
+      if (autoClassifyEnabled && emails.length > 0) {
+        await classifyAllEmails();
+      }
+
       updateStats();
       updateCategoryCounts();
       renderEmailList();
@@ -392,6 +411,57 @@ async function loadEmails() {
   } catch (error) {
     console.error('Error loading emails:', error);
     showError('Verbindungsfehler');
+  }
+}
+
+// Intelligente E-Mail-Klassifizierung
+async function classifyAllEmails() {
+  if (emails.length === 0) return;
+
+  try {
+    // Bereite E-Mails für Klassifizierung vor
+    const emailsForClassification = emails.map(e => ({
+      id: e.id,
+      from: { address: e.from, name: e.fromName },
+      subject: e.subject,
+      text: e.body || e.snippet || '',
+      date: e.date,
+      to: e.to || [],
+      cc: e.cc || [],
+      attachments: e.attachments || []
+    }));
+
+    const result = await ipcRenderer.invoke('email:classifyBatch', emailsForClassification);
+
+    if (result.success && result.classifications) {
+      // Speichere Klassifizierungen
+      result.classifications.forEach((classification, index) => {
+        const email = emails[index];
+        if (email && classification) {
+          emailClassifications[email.id] = classification;
+
+          // Update E-Mail mit Klassifizierung
+          email.kategorie = classification.kategorie;
+          email.confidence = classification.confidence;
+          email.tags = classification.tags || [];
+          email.zusammenfassung = classification.zusammenfassung;
+          email.aktion = classification.aktion;
+
+          // Mapping zu bestehenden Feldern
+          email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
+          email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
+          email.isSpam = classification.kategorie === 'spam';
+          email.isNewsletter = classification.kategorie === 'newsletter';
+          email.canAutoReply = classification.autoAntwortMöglich;
+        }
+      });
+
+      // Aktualisiere Statistiken
+      classifierStats = await ipcRenderer.invoke('email:classifierStats');
+      console.log('[CLASSIFIER] Klassifizierung abgeschlossen:', classifierStats);
+    }
+  } catch (error) {
+    console.error('[CLASSIFIER] Fehler bei Batch-Klassifizierung:', error);
   }
 }
 
@@ -479,17 +549,40 @@ function renderEmailList() {
 function filterByCategory(emailList) {
   switch (currentCategory) {
     case 'important':
-      return emailList.filter(e => e.isImportant || e.isStarred);
+      // Essenz + Wichtig (aus Klassifizierung)
+      return emailList.filter(e =>
+        e.kategorie === 'essenz' ||
+        e.kategorie === 'wichtig' ||
+        e.isStarred
+      );
     case 'action':
-      return emailList.filter(e => e.needsAction);
+      // Aktion nötig (aus Tags)
+      return emailList.filter(e =>
+        e.needsAction ||
+        e.tags?.includes('ANTWORT_NÖTIG') ||
+        e.aktion === 'antworten' ||
+        e.aktion === 'entscheiden'
+      );
     case 'inbox':
-      return emailList.filter(e => !e.isSpam && !e.isNewsletter);
+      // Alles außer Spam und Newsletter
+      return emailList.filter(e =>
+        e.kategorie !== 'spam' &&
+        e.kategorie !== 'newsletter' &&
+        !e.isSpam &&
+        !e.isNewsletter
+      );
     case 'newsletter':
-      return emailList.filter(e => e.isNewsletter);
+      return emailList.filter(e => e.kategorie === 'newsletter' || e.isNewsletter);
     case 'sent':
       return emailList.filter(e => e.isSent);
     case 'spam':
-      return emailList.filter(e => e.isSpam);
+      return emailList.filter(e => e.kategorie === 'spam' || e.isSpam);
+    case 'essenz':
+      // Nur Essenz
+      return emailList.filter(e => e.kategorie === 'essenz');
+    case 'info':
+      // Nur Info
+      return emailList.filter(e => e.kategorie === 'info');
     default:
       return emailList;
   }
@@ -502,23 +595,48 @@ function createEmailItem(email) {
   item.dataset.accountId = email.accountId || '';
 
   if (email.isUnread) item.classList.add('unread');
-  if (email.isImportant || email.needsAction) item.classList.add('urgent');
+  if (email.kategorie === 'essenz' || email.needsAction) item.classList.add('urgent');
   if (currentEmail && currentEmail.id === email.id) item.classList.add('active');
 
-  // Priority dot
+  // Priority dot basierend auf Klassifizierung
   let priorityClass = 'normal';
-  if (email.isImportant) priorityClass = 'high';
-  else if (email.needsAction) priorityClass = 'medium';
-  else if (email.isSpam || email.isNewsletter) priorityClass = 'low';
+  if (email.kategorie === 'essenz') priorityClass = 'high';
+  else if (email.kategorie === 'wichtig') priorityClass = 'medium';
+  else if (email.kategorie === 'spam' || email.kategorie === 'newsletter') priorityClass = 'low';
 
-  // Tags
+  // Tags basierend auf Klassifizierung
   let tagsHtml = '';
   const tags = [];
-  if (email.needsAction) tags.push('<span class="email-tag action">Aktion nötig</span>');
-  if (email.canAutoReply) tags.push('<span class="email-tag auto">Auto-Antwort</span>');
-  if (email.isNewsletter) tags.push('<span class="email-tag info">Newsletter</span>');
+
+  // Kategorie-Tag
+  if (email.kategorie && KATEGORIE_MAP[email.kategorie]) {
+    const kat = KATEGORIE_MAP[email.kategorie];
+    tags.push(`<span class="email-tag kategorie" style="background: ${kat.color}20; color: ${kat.color}">${kat.icon} ${kat.name}</span>`);
+  }
+
+  // Aktions-Tags
+  if (email.tags?.includes('ANTWORT_NÖTIG')) {
+    tags.push('<span class="email-tag action">↩️ Antwort nötig</span>');
+  }
+  if (email.tags?.includes('DEADLINE')) {
+    tags.push('<span class="email-tag deadline">⏰ Deadline</span>');
+  }
+  if (email.tags?.includes('GELD')) {
+    tags.push('<span class="email-tag money">💰 Rechnung</span>');
+  }
+  if (email.canAutoReply) {
+    tags.push('<span class="email-tag auto">🤖 Auto-Antwort</span>');
+  }
+
   if (tags.length > 0) {
     tagsHtml = `<div class="email-tags">${tags.join('')}</div>`;
+  }
+
+  // Confidence-Indikator (nur wenn Klassifizierung vorhanden)
+  let confidenceHtml = '';
+  if (email.confidence) {
+    const confColor = email.confidence >= 80 ? '#10b981' : email.confidence >= 60 ? '#f59e0b' : '#ef4444';
+    confidenceHtml = `<span class="email-confidence" style="color: ${confColor}" title="Konfidenz: ${email.confidence}%">●</span>`;
   }
 
   item.innerHTML = `
@@ -526,10 +644,10 @@ function createEmailItem(email) {
     <div class="email-content">
       <div class="email-header">
         <span class="email-sender">${escapeHtml(email.fromName || email.from)}</span>
-        <span class="email-time">${email.dateFormatted || formatDate(email.date)}</span>
+        <span class="email-time">${confidenceHtml}${email.dateFormatted || formatDate(email.date)}</span>
       </div>
       <div class="email-subject">${escapeHtml(email.subject)}</div>
-      <div class="email-preview">${escapeHtml(email.snippet || '')}</div>
+      <div class="email-preview">${escapeHtml(email.zusammenfassung || email.snippet || '')}</div>
       ${tagsHtml}
     </div>
   `;
@@ -545,6 +663,15 @@ function createEmailItem(email) {
 
 async function selectEmail(email) {
   currentEmail = email;
+
+  // Tracking: E-Mail geöffnet (für Lernsystem)
+  if (autoClassifyEnabled) {
+    ipcRenderer.invoke('email:trackOpened', {
+      id: email.id,
+      from: { address: email.from, name: email.fromName },
+      subject: email.subject
+    }).catch(err => console.warn('Track opened error:', err));
+  }
 
   // Update list selection
   document.querySelectorAll('.email-item').forEach(item => {
@@ -732,9 +859,19 @@ async function deleteCurrentEmail() {
   if (!confirm('E-Mail wirklich löschen?')) return;
 
   try {
+    // Tracking: Gelöscht ohne Lesen (für Spam-Lernen)
+    if (autoClassifyEnabled && currentEmail.isUnread) {
+      ipcRenderer.invoke('email:trackDeletedUnread', {
+        id: currentEmail.id,
+        from: { address: currentEmail.from, name: currentEmail.fromName },
+        subject: currentEmail.subject
+      }).catch(err => console.warn('Track deleted error:', err));
+    }
+
     await ipcRenderer.invoke('email:delete', currentEmail.id);
 
     emails = emails.filter(e => e.id !== currentEmail.id);
+    delete emailClassifications[currentEmail.id];
     currentEmail = null;
 
     renderEmailList();
@@ -856,6 +993,15 @@ async function sendReply() {
       closeReplyPanel();
       showToast('Antwort gesendet!');
 
+      // Tracking: E-Mail beantwortet (für Lernsystem)
+      if (autoClassifyEnabled) {
+        ipcRenderer.invoke('email:trackReplied', {
+          id: currentEmail.id,
+          from: { address: currentEmail.from, name: currentEmail.fromName },
+          subject: currentEmail.subject
+        }).catch(err => console.warn('Track replied error:', err));
+      }
+
       if (currentEmail.isUnread) {
         await ipcRenderer.invoke('email:markAsRead', currentEmail.id);
         currentEmail.isUnread = false;
@@ -892,22 +1038,35 @@ function updateStats() {
 }
 
 function updateCategoryCounts() {
-  // Inbox
-  const inboxCount = emails.filter(e => !e.isSpam && !e.isNewsletter).length;
+  // Inbox (alles außer Spam und Newsletter)
+  const inboxCount = emails.filter(e =>
+    e.kategorie !== 'spam' && e.kategorie !== 'newsletter' &&
+    !e.isSpam && !e.isNewsletter
+  ).length;
   document.getElementById('catInbox').textContent = `${inboxCount} E-Mails`;
 
-  // Important
-  const importantCount = emails.filter(e => e.isImportant || e.isStarred).length;
+  // Important (Essenz + Wichtig)
+  const essenzCount = emails.filter(e => e.kategorie === 'essenz').length;
+  const wichtigCount = emails.filter(e => e.kategorie === 'wichtig').length;
+  const importantCount = essenzCount + wichtigCount + emails.filter(e => e.isStarred && e.kategorie !== 'essenz' && e.kategorie !== 'wichtig').length;
   document.getElementById('catImportant').textContent = `${importantCount} E-Mails`;
-  if (importantCount > 0) {
+  if (essenzCount > 0) {
+    document.getElementById('badgeImportant').textContent = essenzCount;
+    document.getElementById('badgeImportant').classList.remove('hidden');
+  } else if (importantCount > 0) {
     document.getElementById('badgeImportant').textContent = importantCount;
     document.getElementById('badgeImportant').classList.remove('hidden');
   } else {
     document.getElementById('badgeImportant').classList.add('hidden');
   }
 
-  // Action
-  const actionCount = emails.filter(e => e.needsAction).length;
+  // Action (Antwort nötig, Entscheidung)
+  const actionCount = emails.filter(e =>
+    e.needsAction ||
+    e.tags?.includes('ANTWORT_NÖTIG') ||
+    e.aktion === 'antworten' ||
+    e.aktion === 'entscheiden'
+  ).length;
   document.getElementById('catAction').textContent = `${actionCount} E-Mails`;
   if (actionCount > 0) {
     document.getElementById('badgeAction').textContent = actionCount;
@@ -917,17 +1076,21 @@ function updateCategoryCounts() {
   }
 
   // Newsletter
-  const newsletterCount = emails.filter(e => e.isNewsletter).length;
+  const newsletterCount = emails.filter(e => e.kategorie === 'newsletter' || e.isNewsletter).length;
   document.getElementById('catNewsletter').textContent = `${newsletterCount} E-Mails`;
 
   // Spam
-  const spamCount = emails.filter(e => e.isSpam).length;
+  const spamCount = emails.filter(e => e.kategorie === 'spam' || e.isSpam).length;
   document.getElementById('catSpam').textContent = `${spamCount} E-Mails`;
   elements.spamCount.textContent = spamCount;
 
   // Sent
   const sentCount = emails.filter(e => e.isSent).length;
   document.getElementById('catSent').textContent = `${sentCount} E-Mails`;
+
+  // Update Auto-Reply count (E-Mails die automatisch beantwortet werden können)
+  const autoReplyCount = emails.filter(e => e.canAutoReply).length;
+  elements.autoReplyCount.textContent = autoReplyCount;
 }
 
 function updateHeader() {
@@ -1035,25 +1198,58 @@ function renderBriefing(result) {
 
 async function analyzeAllEmails() {
   elements.analysisModal.classList.remove('hidden');
+  elements.analysisProgressFill.style.width = '0%';
+  elements.analysisProgressText.textContent = 'Klassifiziere E-Mails...';
 
-  // Simulate analysis progress
-  let progress = 0;
-  const interval = setInterval(() => {
-    progress += Math.random() * 15;
-    if (progress > 100) progress = 100;
-    elements.analysisProgressFill.style.width = `${progress}%`;
+  try {
+    // Starte Klassifizierung
+    const startTime = Date.now();
 
-    if (progress >= 100) {
-      clearInterval(interval);
-      elements.analysisProgressText.textContent = 'Analyse abgeschlossen!';
+    // Progress-Animation
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress = Math.min(progress + 5, 90);
+      elements.analysisProgressFill.style.width = `${progress}%`;
+    }, 100);
 
-      // Update result numbers (simulated)
-      document.getElementById('resultSpam').textContent = Math.floor(Math.random() * 5);
-      document.getElementById('resultImportant').textContent = Math.floor(Math.random() * 8) + 2;
-      document.getElementById('resultAction').textContent = Math.floor(Math.random() * 4);
-      document.getElementById('resultAuto').textContent = Math.floor(Math.random() * 6);
+    // Klassifiziere alle E-Mails
+    await classifyAllEmails();
+
+    clearInterval(progressInterval);
+    elements.analysisProgressFill.style.width = '100%';
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    elements.analysisProgressText.textContent = `Analyse abgeschlossen in ${duration}s!`;
+
+    // Zähle Ergebnisse basierend auf echten Klassifizierungen
+    const stats = {
+      spam: emails.filter(e => e.kategorie === 'spam').length,
+      important: emails.filter(e => e.kategorie === 'essenz' || e.kategorie === 'wichtig').length,
+      action: emails.filter(e => e.needsAction).length,
+      auto: emails.filter(e => e.canAutoReply).length
+    };
+
+    document.getElementById('resultSpam').textContent = stats.spam;
+    document.getElementById('resultImportant').textContent = stats.important;
+    document.getElementById('resultAction').textContent = stats.action;
+    document.getElementById('resultAuto').textContent = stats.auto;
+
+    // Aktualisiere UI
+    updateCategoryCounts();
+    renderEmailList();
+
+    // Zeige Classifier-Statistiken
+    if (classifierStats?.stats) {
+      console.log('[CLASSIFIER] Stufe 1:', classifierStats.stats.stufe1);
+      console.log('[CLASSIFIER] Stufe 2:', classifierStats.stats.stufe2);
+      console.log('[CLASSIFIER] Stufe 3:', classifierStats.stats.stufe3);
+      console.log('[CLASSIFIER] Kosten:', classifierStats.stats.kostenGesamt);
     }
-  }, 200);
+
+  } catch (error) {
+    console.error('[CLASSIFIER] Analyse-Fehler:', error);
+    elements.analysisProgressText.textContent = 'Analyse fehlgeschlagen: ' + error.message;
+  }
 }
 
 async function emptySpam() {
