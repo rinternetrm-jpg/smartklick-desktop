@@ -2242,3 +2242,45 @@ body {
   display: flex;
   gap: 10px;
 }
+
+/* ============================================
+   DANGER ZONE
+   ============================================ */
+
+.danger-zone {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.danger-zone h3 {
+  color: #ef4444;
+  font-size: 14px;
+  margin-bottom: 15px;
+}
+
+.setting-card.danger {
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.setting-card-avatar.red {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.btn-danger {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}

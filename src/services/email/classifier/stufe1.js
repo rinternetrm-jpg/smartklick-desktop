@@ -231,17 +231,49 @@ class Stufe1Classifier {
 
   isDirectRecipient(email) {
     const myEmails = this.store.get('myEmails', []);
-    const to = email.to || [];
-    return to.some(t => myEmails.some(my => t.address?.toLowerCase().includes(my.toLowerCase())));
+    if (!myEmails || myEmails.length === 0) return true; // Assume direct if no emails configured
+
+    let to = email.to || [];
+    // Handle if to is a string instead of array
+    if (typeof to === 'string') {
+      to = [{ address: to }];
+    }
+    if (!Array.isArray(to)) {
+      return true; // Assume direct if format unknown
+    }
+
+    return to.some(t => {
+      const addr = typeof t === 'string' ? t : t?.address;
+      return myEmails.some(my => addr?.toLowerCase()?.includes(my.toLowerCase()));
+    });
   }
 
   isOnlyCC(email) {
     const myEmails = this.store.get('myEmails', []);
-    const to = email.to || [];
-    const cc = email.cc || [];
+    if (!myEmails || myEmails.length === 0) return false;
 
-    const inTo = to.some(t => myEmails.some(my => t.address?.toLowerCase().includes(my.toLowerCase())));
-    const inCC = cc.some(c => myEmails.some(my => c.address?.toLowerCase().includes(my.toLowerCase())));
+    let to = email.to || [];
+    let cc = email.cc || [];
+
+    // Handle if to/cc are strings instead of arrays
+    if (typeof to === 'string') {
+      to = [{ address: to }];
+    }
+    if (typeof cc === 'string') {
+      cc = [{ address: cc }];
+    }
+    if (!Array.isArray(to)) to = [];
+    if (!Array.isArray(cc)) cc = [];
+
+    const inTo = to.some(t => {
+      const addr = typeof t === 'string' ? t : t?.address;
+      return myEmails.some(my => addr?.toLowerCase()?.includes(my.toLowerCase()));
+    });
+
+    const inCC = cc.some(c => {
+      const addr = typeof c === 'string' ? c : c?.address;
+      return myEmails.some(my => addr?.toLowerCase()?.includes(my.toLowerCase()));
+    });
 
     return !inTo && inCC;
   }

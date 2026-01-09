@@ -3907,6 +3907,35 @@ ipcMain.handle('email:resetLearning', () => {
   return emailClassifier.resetLearning();
 });
 
+// Alle E-Mail-Daten löschen (für sauberen Neustart)
+ipcMain.handle('email:clearAllData', () => {
+  try {
+    const Store = require('electron-store');
+
+    // Clear classifier data
+    const classifierStore = new Store({ name: 'email-classifier-config' });
+    classifierStore.clear();
+
+    // Clear learning data
+    const learningStore = new Store({ name: 'email-learning' });
+    learningStore.clear();
+
+    // Clear email accounts
+    const accountsStore = new Store({ name: 'email-accounts' });
+    accountsStore.clear();
+
+    // Clear IMAP settings
+    const imapStore = new Store({ name: 'imap-accounts' });
+    imapStore.clear();
+
+    console.log('[EMAIL] All email data cleared');
+    return { success: true };
+  } catch (error) {
+    console.error('[EMAIL] Clear data error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Email Briefing (via Server)
 ipcMain.handle('email:briefing', async (_, emails) => {
   try {

@@ -242,6 +242,9 @@ function setupEventListeners() {
     elements.autoReplyToggle.classList.toggle('active', autoReplyEnabled);
   });
 
+  // Clear All Data
+  document.getElementById('clearAllDataBtn')?.addEventListener('click', clearAllData);
+
   // Add Account
   elements.addAccountBtn.addEventListener('click', openAddAccountModal);
   elements.closeAddAccountBtn.addEventListener('click', closeAddAccountModal);
@@ -1525,6 +1528,38 @@ async function removeAccount(accountId) {
   } catch (error) {
     console.error('Error removing account:', error);
     showToast('Fehler beim Entfernen', 'error');
+  }
+}
+
+async function clearAllData() {
+  if (!confirm('ACHTUNG: Alle Daten werden unwiderruflich gelöscht!\n\nDas beinhaltet:\n- Alle E-Mail-Konten\n- Alle Klassifizierungen\n- Alle Lerndaten\n\nFortfahren?')) {
+    return;
+  }
+
+  try {
+    showToast('Lösche alle Daten...');
+    await ipcRenderer.invoke('email:clearAllData');
+
+    // Reset local state
+    emails = [];
+    emailClassifications = {};
+    accounts = [];
+    selectedAccountId = 'all';
+    currentEmail = null;
+
+    // Update UI
+    updateAccountDropdown();
+    renderAccountCards();
+    renderEmails();
+    showEmailDetail(null);
+
+    showToast('Alle Daten gelöscht. Bitte App neu starten.', 'success');
+
+    // Close settings
+    closeSettings();
+  } catch (error) {
+    console.error('Error clearing data:', error);
+    showToast('Fehler beim Löschen', 'error');
   }
 }
 
