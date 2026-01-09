@@ -1559,7 +1559,10 @@ async function clearAllData() {
       updateAccountDropdown();
       renderAccountCards();
       renderEmailList();
-      showEmailDetail(null);
+
+      // Reset detail view
+      elements.detailPlaceholder.classList.remove('hidden');
+      elements.detailContent.classList.add('hidden');
 
       showToast('Alle Daten gelöscht! App wird neu gestartet...', 'success');
 
