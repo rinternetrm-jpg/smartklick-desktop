@@ -15,7 +15,13 @@ let autoReplyEnabled = false;
 let autoClassifyEnabled = true;
 let classifierStats = null;
 let isClassifying = false;  // Flag um doppelte Klassifizierung zu verhindern
+let stopAnalysisRequested = false;  // Flag um Analyse zu stoppen
 let debugLog = [];  // Debug-Log für GPT-Gedanken
+
+// Pagination State
+let currentPage = 1;
+let emailsPerPage = 30;
+let visibleEmails = [];  // Aktuell sichtbare E-Mails (für KI-Analyse)
 
 // Kategorie-Mapping für UI
 const KATEGORIE_MAP = {
@@ -69,6 +75,7 @@ function initializeElements() {
     statReceived: document.getElementById('statReceived'),
     statReplied: document.getElementById('statReplied'),
     analyzeAllBtn: document.getElementById('analyzeAllBtn'),
+    stopAnalysisBtn: document.getElementById('stopAnalysisBtn'),
 
     // Header
     headerTitle: document.getElementById('headerTitle'),
@@ -76,6 +83,12 @@ function initializeElements() {
     refreshBtn: document.getElementById('refreshBtn'),
     filterBtn: document.getElementById('filterBtn'),
     composeBtn: document.getElementById('composeBtn'),
+
+    // Pagination
+    paginationSelect: document.getElementById('paginationSelect'),
+    prevPageBtn: document.getElementById('prevPageBtn'),
+    nextPageBtn: document.getElementById('nextPageBtn'),
+    paginationInfo: document.getElementById('paginationInfo'),
 
     // Email List
     emailList: document.getElementById('emailList'),
@@ -205,6 +218,38 @@ function setupEventListeners() {
 
   // Analyze All Button
   elements.analyzeAllBtn.addEventListener('click', analyzeAllEmails);
+
+  // Stop Analysis Button
+  if (elements.stopAnalysisBtn) {
+    elements.stopAnalysisBtn.addEventListener('click', stopAnalysis);
+  }
+
+  // Pagination
+  if (elements.paginationSelect) {
+    elements.paginationSelect.addEventListener('change', (e) => {
+      emailsPerPage = e.target.value === 'all' ? Infinity : parseInt(e.target.value);
+      currentPage = 1;
+      renderEmailList();
+    });
+  }
+  if (elements.prevPageBtn) {
+    elements.prevPageBtn.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderEmailList();
+      }
+    });
+  }
+  if (elements.nextPageBtn) {
+    elements.nextPageBtn.addEventListener('click', () => {
+      const filteredEmails = filterByCategory(emails);
+      const totalPages = Math.ceil(filteredEmails.length / emailsPerPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderEmailList();
+      }
+    });
+  }
 
   // Header Actions
   elements.refreshBtn.addEventListener('click', loadEmails);
@@ -574,19 +619,27 @@ class EmailAnalysisAnimation {
     this.counts = {
       essenz: 0,
       wichtig: 0,
+      termine: 0,
+      rechnung: 0,
+      normal: 0,
       info: 0,
       werbung: 0,
       newsletter: 0,
-      spam: 0
+      spam: 0,
+      veraltet: 0
     };
     // Mapping: Klassifizierungs-Kategorie → Sidebar-Kategorie
     this.categoryMapping = {
       essenz: 'important',
       wichtig: 'important',
+      termine: 'termine',
+      rechnung: 'rechnung',
+      normal: 'inbox',
       info: 'info',
       werbung: 'werbung',
       newsletter: 'newsletter',
-      spam: 'spam'
+      spam: 'spam',
+      veraltet: 'inbox'
     };
     this.createUIElements();
   }
@@ -1032,15 +1085,54 @@ function renderEmailList() {
 
   if (filteredEmails.length === 0) {
     elements.emptyState.classList.remove('hidden');
+    updatePaginationInfo(0, 0, 0);
+    visibleEmails = [];
     return;
   }
 
   elements.emptyState.classList.add('hidden');
 
-  filteredEmails.forEach(email => {
+  // Pagination anwenden
+  const totalEmails = filteredEmails.length;
+  const totalPages = emailsPerPage === Infinity ? 1 : Math.ceil(totalEmails / emailsPerPage);
+
+  // Sicherstellen dass currentPage im gültigen Bereich ist
+  if (currentPage > totalPages) currentPage = totalPages;
+  if (currentPage < 1) currentPage = 1;
+
+  const startIndex = (currentPage - 1) * emailsPerPage;
+  const endIndex = emailsPerPage === Infinity ? totalEmails : Math.min(startIndex + emailsPerPage, totalEmails);
+
+  // Sichtbare E-Mails für diese Seite
+  const pageEmails = filteredEmails.slice(startIndex, endIndex);
+  visibleEmails = pageEmails;  // Speichern für KI-Analyse
+
+  // Pagination Info aktualisieren
+  updatePaginationInfo(startIndex + 1, endIndex, totalEmails);
+
+  pageEmails.forEach(email => {
     const item = createEmailItem(email);
     elements.emailItems.appendChild(item);
   });
+}
+
+function updatePaginationInfo(start, end, total) {
+  if (elements.paginationInfo) {
+    if (total === 0) {
+      elements.paginationInfo.textContent = '0 E-Mails';
+    } else {
+      elements.paginationInfo.textContent = `${start}-${end} von ${total}`;
+    }
+  }
+
+  // Buttons aktivieren/deaktivieren
+  if (elements.prevPageBtn) {
+    elements.prevPageBtn.disabled = currentPage <= 1;
+  }
+  if (elements.nextPageBtn) {
+    const totalPages = emailsPerPage === Infinity ? 1 : Math.ceil(total / emailsPerPage);
+    elements.nextPageBtn.disabled = currentPage >= totalPages;
+  }
 }
 
 function switchToCategory(categoryName) {
@@ -1077,15 +1169,19 @@ function filterByCategory(emailList) {
         e.aktion === 'entscheiden'
       );
     case 'inbox':
-      // Nur unkategorisierte E-Mails
+      // Nur unkategorisierte E-Mails (oder normal/veraltet)
       return emailList.filter(e =>
         !e.kategorie ||
+        e.kategorie === 'normal' ||
+        e.kategorie === 'veraltet' ||
         (e.kategorie !== 'spam' &&
          e.kategorie !== 'newsletter' &&
          e.kategorie !== 'info' &&
          e.kategorie !== 'werbung' &&
          e.kategorie !== 'essenz' &&
          e.kategorie !== 'wichtig' &&
+         e.kategorie !== 'termine' &&
+         e.kategorie !== 'rechnung' &&
          !e.isSpam &&
          !e.isNewsletter)
       );
@@ -1101,6 +1197,10 @@ function filterByCategory(emailList) {
       return emailList.filter(e => e.kategorie === 'spam' || e.isSpam);
     case 'essenz':
       return emailList.filter(e => e.kategorie === 'essenz');
+    case 'termine':
+      return emailList.filter(e => e.kategorie === 'termine');
+    case 'rechnung':
+      return emailList.filter(e => e.kategorie === 'rechnung');
     default:
       return emailList;
   }
@@ -1580,12 +1680,15 @@ function updateStats() {
 }
 
 function updateCategoryCounts() {
-  // Inbox (nur unkategorisierte E-Mails)
+  // Inbox (nur unkategorisierte E-Mails, normal, veraltet)
   const inboxCount = emails.filter(e =>
     !e.kategorie ||
+    e.kategorie === 'normal' ||
+    e.kategorie === 'veraltet' ||
     (e.kategorie !== 'spam' && e.kategorie !== 'newsletter' &&
      e.kategorie !== 'info' && e.kategorie !== 'werbung' &&
      e.kategorie !== 'essenz' && e.kategorie !== 'wichtig' &&
+     e.kategorie !== 'termine' && e.kategorie !== 'rechnung' &&
      !e.isSpam && !e.isNewsletter)
   ).length;
   document.getElementById('catInbox').textContent = `${inboxCount} E-Mails`;
@@ -1620,6 +1723,25 @@ function updateCategoryCounts() {
     document.getElementById('badgeAction').classList.add('hidden');
   }
 
+  // Termine
+  const termineCount = emails.filter(e => e.kategorie === 'termine').length;
+  const catTermine = document.getElementById('catTermine');
+  if (catTermine) catTermine.textContent = `${termineCount} E-Mails`;
+  const badgeTermine = document.getElementById('badgeTermine');
+  if (badgeTermine) {
+    if (termineCount > 0) {
+      badgeTermine.textContent = termineCount;
+      badgeTermine.classList.remove('hidden');
+    } else {
+      badgeTermine.classList.add('hidden');
+    }
+  }
+
+  // Rechnungen
+  const rechnungCount = emails.filter(e => e.kategorie === 'rechnung').length;
+  const catRechnung = document.getElementById('catRechnung');
+  if (catRechnung) catRechnung.textContent = `${rechnungCount} E-Mails`;
+
   // Info
   const infoCount = emails.filter(e => e.kategorie === 'info').length;
   document.getElementById('catInfo').textContent = `${infoCount} E-Mails`;
@@ -1651,6 +1773,10 @@ function updateHeader() {
     inbox: 'Posteingang',
     important: 'Wichtig',
     action: 'Aktion erforderlich',
+    termine: 'Termine',
+    rechnung: 'Rechnungen',
+    info: 'Info',
+    werbung: 'Werbung',
     newsletter: 'Newsletter',
     sent: 'Gesendet',
     spam: 'Spam'
@@ -1811,10 +1937,19 @@ function renderBriefing(result) {
   `;
 }
 
+// Stop-Analyse Funktion
+function stopAnalysis() {
+  if (isClassifying) {
+    stopAnalysisRequested = true;
+    showToast('Analyse wird gestoppt...', 'info');
+    console.log('[ANALYZE] Stop angefordert');
+  }
+}
+
 async function analyzeAllEmails() {
-  // Prüfe ob E-Mails vorhanden
-  if (emails.length === 0) {
-    showToast('Keine E-Mails zum Analysieren vorhanden', 'warning');
+  // Prüfe ob sichtbare E-Mails vorhanden sind
+  if (visibleEmails.length === 0) {
+    showToast('Keine E-Mails zum Analysieren sichtbar', 'warning');
     return;
   }
 
@@ -1824,14 +1959,19 @@ async function analyzeAllEmails() {
     return;
   }
 
-  // Setze Flag um doppelte Klassifizierung zu verhindern
+  // Setze Flags
   isClassifying = true;
+  stopAnalysisRequested = false;
   emailAnalysisAnimation.isAnalyzing = true;
 
-  // Zeige Loading-Status auf Button
+  // Zeige Loading-Status auf Button und Stop-Button
   const analyzeBtn = document.getElementById('analyzeAllBtn');
+  const stopBtn = document.getElementById('stopAnalysisBtn');
   if (analyzeBtn) {
     analyzeBtn.classList.add('loading');
+  }
+  if (stopBtn) {
+    stopBtn.classList.remove('hidden');
   }
 
   // Progress Indicator anzeigen
@@ -1840,16 +1980,25 @@ async function analyzeAllEmails() {
   if (progressIndicator) progressIndicator.classList.add('visible');
 
   try {
-    console.log('[ANALYZE] Starte SEQUENTIELLE KI-Analyse für', emails.length, 'E-Mails');
+    // Nur die sichtbaren E-Mails analysieren!
+    const emailsToAnalyze = [...visibleEmails];
+    console.log('[ANALYZE] Starte KI-Analyse für', emailsToAnalyze.length, 'sichtbare E-Mails');
     const startTime = Date.now();
-    const totalEmails = emails.length;
+    const totalEmails = emailsToAnalyze.length;
 
     // Reset Zähler
     emailAnalysisAnimation.resetCounts();
 
     // SEQUENTIELLE Verarbeitung: Eine E-Mail nach der anderen
     for (let i = 0; i < totalEmails; i++) {
-      const email = emails[i];
+      // Prüfe ob Stop angefordert wurde
+      if (stopAnalysisRequested) {
+        console.log(`[ANALYZE] Analyse gestoppt bei E-Mail ${i + 1}/${totalEmails}`);
+        showToast(`Analyse gestoppt bei ${i}/${totalEmails} E-Mails`, 'warning');
+        break;
+      }
+
+      const email = emailsToAnalyze[i];
 
       // Update Progress
       if (progressCount) {
@@ -1932,25 +2081,38 @@ async function analyzeAllEmails() {
       console.log('[CLASSIFIER] Kosten:', classifierStats.stats.kostenGesamt);
     }
 
-    // Wechsle zu "Wichtig" Kategorie wenn fertig
-    switchToCategory('important');
-
-    // Zeige Summary
-    emailAnalysisAnimation.showSummary();
+    // Wechsle zu "Wichtig" Kategorie wenn fertig (nur wenn nicht gestoppt)
+    if (!stopAnalysisRequested) {
+      switchToCategory('important');
+      // Zeige Summary
+      emailAnalysisAnimation.showSummary();
+    } else {
+      // Bei Stop: Aktuelle Liste neu rendern
+      renderEmailList();
+    }
 
   } catch (error) {
     console.error('[ANALYZE] Fehler:', error);
     showToast('Analyse-Fehler: ' + error.message, 'error');
   } finally {
-    // Reset Flags und Button
+    // Reset Flags und Buttons
     isClassifying = false;
+    stopAnalysisRequested = false;
     emailAnalysisAnimation.isAnalyzing = false;
+
     const analyzeBtn = document.getElementById('analyzeAllBtn');
     if (analyzeBtn) {
       analyzeBtn.classList.remove('loading');
     }
+
+    const stopBtn = document.getElementById('stopAnalysisBtn');
+    if (stopBtn) {
+      stopBtn.classList.add('hidden');
+    }
+
     const progressIndicator = document.getElementById('analysisProgressIndicator');
     if (progressIndicator) progressIndicator.classList.remove('visible');
+
     renderChart(); // Chart mit echten Daten aktualisieren
   }
 }

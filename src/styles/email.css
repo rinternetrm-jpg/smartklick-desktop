@@ -326,6 +326,8 @@ body {
 .category-icon.yellow { background: rgba(245, 158, 11, 0.2); }
 .category-icon.purple { background: rgba(168, 85, 247, 0.2); }
 .category-icon.teal { background: rgba(20, 184, 166, 0.2); }
+.category-icon.cyan { background: rgba(14, 165, 233, 0.2); }
+.category-icon.green { background: rgba(16, 185, 129, 0.2); }
 
 .category-info {
   flex: 1;
@@ -351,7 +353,14 @@ body {
   border-radius: 10px;
 }
 
-/* Analyze Button */
+/* Analyze Button Container */
+.analyze-btn-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+
 .analyze-btn {
   background: linear-gradient(135deg, #14b8a6, #0d9488);
   border: none;
@@ -365,13 +374,34 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-top: 20px;
   transition: all 0.2s;
 }
 
 .analyze-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(20, 184, 166, 0.3);
+}
+
+/* Stop Button */
+.stop-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border: none;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.stop-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
 }
 
 /* ===== Main Content ===== */
@@ -441,6 +471,76 @@ body {
 
 .header-btn.primary:hover {
   box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+}
+
+/* Header Center - Pagination */
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pagination-select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+}
+
+.pagination-select:hover {
+  background: var(--bg-hover);
+}
+
+.pagination-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.pagination-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  color: var(--text-muted);
+  font-size: 13px;
+  min-width: 100px;
+  text-align: center;
 }
 
 /* Email List Container */

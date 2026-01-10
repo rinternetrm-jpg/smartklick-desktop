@@ -89,6 +89,23 @@
           <div class="category-badge hidden" id="badgeAction">0</div>
         </div>
 
+        <div class="category-item" data-category="termine">
+          <div class="category-icon cyan">📅</div>
+          <div class="category-info">
+            <div class="category-name">Termine</div>
+            <div class="category-count" id="catTermine">0 E-Mails</div>
+          </div>
+          <div class="category-badge hidden" id="badgeTermine">0</div>
+        </div>
+
+        <div class="category-item" data-category="rechnung">
+          <div class="category-icon green">📄</div>
+          <div class="category-info">
+            <div class="category-name">Rechnungen</div>
+            <div class="category-count" id="catRechnung">0 E-Mails</div>
+          </div>
+        </div>
+
         <div class="category-item active" data-category="inbox">
           <div class="category-icon blue">✉️</div>
           <div class="category-info">
@@ -139,10 +156,15 @@
       </div>
 
       <!-- Analyze Button -->
-      <button class="analyze-btn" id="analyzeAllBtn">
-        <div class="spinner"></div>
-        <span class="btn-text"><span>🤖</span> KI-Analyse starten</span>
-      </button>
+      <div class="analyze-btn-container">
+        <button class="analyze-btn" id="analyzeAllBtn">
+          <div class="spinner"></div>
+          <span class="btn-text"><span>🤖</span> KI-Analyse starten</span>
+        </button>
+        <button class="stop-btn hidden" id="stopAnalysisBtn">
+          <span>⏹️</span> Stoppen
+        </button>
+      </div>
     </aside>
 
     <!-- Main Content -->
@@ -153,6 +175,21 @@
         <div class="header-left">
           <h1 id="headerTitle">Posteingang</h1>
           <p id="headerSubtitle">Lade E-Mails...</p>
+        </div>
+        <div class="header-center">
+          <div class="pagination-controls">
+            <select class="pagination-select" id="paginationSelect">
+              <option value="30">30 E-Mails</option>
+              <option value="50">50 E-Mails</option>
+              <option value="100">100 E-Mails</option>
+              <option value="all">Alle</option>
+            </select>
+            <div class="pagination-nav">
+              <button class="pagination-btn" id="prevPageBtn" disabled>◀</button>
+              <span class="pagination-info" id="paginationInfo">1-30 von 100</span>
+              <button class="pagination-btn" id="nextPageBtn">▶</button>
+            </div>
+          </div>
         </div>
         <div class="header-actions">
           <button class="header-btn" id="refreshBtn">
