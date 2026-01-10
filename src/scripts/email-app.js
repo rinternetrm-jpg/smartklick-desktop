@@ -21,10 +21,14 @@ let debugLog = [];  // Debug-Log für GPT-Gedanken
 const KATEGORIE_MAP = {
   essenz: { name: 'Essenz', icon: '🔴', color: '#ef4444' },
   wichtig: { name: 'Wichtig', icon: '🟠', color: '#f97316' },
+  termine: { name: 'Termine', icon: '📅', color: '#0ea5e9' },
+  rechnung: { name: 'Rechnung', icon: '📄', color: '#10b981' },
+  normal: { name: 'Normal', icon: '🔵', color: '#3b82f6' },
   info: { name: 'Info', icon: 'ℹ️', color: '#6b7280' },
-  werbung: { name: 'Werbung', icon: '📢', color: '#f59e0b' },
   newsletter: { name: 'Newsletter', icon: '📰', color: '#8b5cf6' },
-  spam: { name: 'Spam', icon: '🗑️', color: '#dc2626' }
+  werbung: { name: 'Werbung', icon: '📢', color: '#f59e0b' },
+  spam: { name: 'Spam', icon: '🗑️', color: '#71717a' },
+  veraltet: { name: 'Veraltet', icon: '⏰', color: '#a1a1aa' }
 };
 
 // IMAP presets
@@ -1661,15 +1665,18 @@ function renderChart() {
   const dayOfWeek = today.getDay(); // 0 = Sonntag
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
-  // Initialisiere Daten für jeden Wochentag
+  // Initialisiere Daten für jeden Wochentag (alle Kategorien)
   const data = days.map(() => ({
     essenz: 0,
     wichtig: 0,
+    termine: 0,
+    rechnung: 0,
     normal: 0,
     info: 0,
     newsletter: 0,
     werbung: 0,
-    spam: 0
+    spam: 0,
+    veraltet: 0
   }));
 
   // Berechne Wochengrenzen
@@ -1717,13 +1724,13 @@ function renderChart() {
     console.log(`[CHART] Übersprungene E-Mails (außerhalb dieser Woche):`, skippedEmails);
   }
 
-  // Berechne Maximum für Skalierung
+  // Berechne Maximum für Skalierung (alle Kategorien)
   const maxTotal = Math.max(1, ...data.map(d =>
-    d.essenz + d.wichtig + d.normal + d.info + d.newsletter + d.werbung + d.spam
+    d.essenz + d.wichtig + d.termine + d.rechnung + d.normal + d.info + d.newsletter + d.werbung + d.spam + d.veraltet
   ));
 
   elements.chartBars.innerHTML = data.map((d, i) => {
-    const total = d.essenz + d.wichtig + d.normal + d.info + d.newsletter + d.werbung + d.spam;
+    const total = d.essenz + d.wichtig + d.termine + d.rechnung + d.normal + d.info + d.newsletter + d.werbung + d.spam + d.veraltet;
     const scale = 100 / maxTotal;
 
     return `
@@ -1732,11 +1739,14 @@ function renderChart() {
         <div class="chart-bar-container">
           <div class="chart-bar essenz" style="width: ${d.essenz * scale}%" title="Essenz: ${d.essenz}"></div>
           <div class="chart-bar wichtig" style="width: ${d.wichtig * scale}%" title="Wichtig: ${d.wichtig}"></div>
+          <div class="chart-bar termine" style="width: ${d.termine * scale}%" title="Termine: ${d.termine}"></div>
+          <div class="chart-bar rechnung" style="width: ${d.rechnung * scale}%" title="Rechnung: ${d.rechnung}"></div>
           <div class="chart-bar normal" style="width: ${d.normal * scale}%" title="Normal: ${d.normal}"></div>
           <div class="chart-bar info" style="width: ${d.info * scale}%" title="Info: ${d.info}"></div>
           <div class="chart-bar newsletter" style="width: ${d.newsletter * scale}%" title="Newsletter: ${d.newsletter}"></div>
           <div class="chart-bar werbung" style="width: ${d.werbung * scale}%" title="Werbung: ${d.werbung}"></div>
           <div class="chart-bar spam" style="width: ${d.spam * scale}%" title="Spam: ${d.spam}"></div>
+          <div class="chart-bar veraltet" style="width: ${d.veraltet * scale}%" title="Veraltet: ${d.veraltet}"></div>
         </div>
         <span class="chart-total">${total}</span>
       </div>

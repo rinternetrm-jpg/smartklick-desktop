@@ -105,6 +105,11 @@ class Stufe3Classifier {
     const body = this.truncateText(email.text || email.body || '', 300);
     const attachmentInfo = this.getAttachmentInfo(email.attachments);
 
+    // E-Mail Alter berechnen
+    const emailDate = email.date ? new Date(email.date) : new Date();
+    const ageInDays = Math.floor((new Date() - emailDate) / (1000 * 60 * 60 * 24));
+    const dateStr = emailDate.toLocaleDateString('de-DE');
+
     // Lade vorheriges Feedback und Regeln
     const feedbackContext = this.getFeedbackContext();
     const regelnContext = this.getRegelnContext();
@@ -116,6 +121,15 @@ ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
 INHALT (erste 300 Zeichen): ${body}
 ${attachmentInfo}
+E-MAIL ALTER: ${ageInDays} Tage alt (vom ${dateStr})
+
+WICHTIG - ALTER DER E-MAIL BEACHTEN:
+- E-Mail ist ${ageInDays} Tage alt!
+- Wenn > 14 Tage: Wahrscheinlich schon erledigt oder eskaliert
+- Wenn > 30 Tage: Definitiv nicht mehr "dringend" oder "essenz"
+- "Vollstreckung" von vor 3 Wochen ist NICHT mehr ESSENZ!
+- "Meeting Roland" von vor 2 Wochen - das Meeting ist vorbei!
+- Rechnungen bleiben IMMER "rechnung" unabhängig vom Alter
 
 WICHTIG - ABSENDER-REGELN:
 1. E-Mails von "Roland Müller" an mich selbst sind MEIST Tests
@@ -125,16 +139,19 @@ ${regelnContext}${feedbackContext}
 Frage: Ist das ein echter Mensch der auf MEINE Antwort wartet?
 
 KATEGORIEN:
-- essenz = Echter Mensch wartet definitiv auf Antwort
-- wichtig = Könnte Antwort brauchen
+- essenz = Sofortige Aktion nötig (NUR wenn < 7 Tage alt!)
+- wichtig = Sollte heute gelesen werden (NUR wenn < 14 Tage alt!)
+- termine = Zoom/Teams/Kalender Einladungen
+- rechnung = Rechnungen und Zahlungsbestätigungen (ignoriert Alter)
+- normal = Kann gelesen werden
 - info = System-Mails, Bestätigungen, automatisch
 - werbung = Shops, Social Media, Marketing
 - newsletter = Abonnierte Updates
 - spam = Phishing, Betrug, Tests
 
-DENKE LAUT: Erkläre ausführlich warum du so entscheidest.
+DENKE LAUT: Erkläre ausführlich warum du so entscheidest (inkl. Alter-Bewertung).
 
-JSON: {"kategorie":"...","gedanken":"Ausführliche Begründung...","sicherheit":0-100}`;
+JSON: {"kategorie":"...","gedanken":"Ausführliche Begründung inkl. Alter...","sicherheit":0-100}`;
 
     try {
       const response = await this.openai.chat.completions.create({

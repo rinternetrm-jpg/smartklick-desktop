@@ -1023,12 +1023,15 @@ body {
 /* Alle Kategorien */
 .chart-bar.essenz { background: #ef4444; }     /* Rot */
 .chart-bar.wichtig { background: #f97316; }    /* Orange */
+.chart-bar.termine { background: #0ea5e9; }    /* Hellblau */
+.chart-bar.rechnung { background: #10b981; }   /* Gruen */
 .chart-bar.normal { background: #3b82f6; }     /* Blau */
 .chart-bar.info { background: #6b7280; }       /* Grau */
 .chart-bar.newsletter { background: #8b5cf6; } /* Lila */
 .chart-bar.werbung { background: #ec4899; }    /* Pink */
 .chart-bar.spam { background: #71717a; }       /* Dunkelgrau */
-/* Alte Namen für Kompatibilität */
+.chart-bar.veraltet { background: #a1a1aa; }   /* Hellgrau */
+/* Alte Namen fuer Kompatibilitaet */
 .chart-bar.news { background: #8b5cf6; }
 .chart-bar.important { background: #14b8a6; }
 .chart-bar.action { background: #ef4444; }

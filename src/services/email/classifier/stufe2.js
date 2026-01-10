@@ -99,34 +99,54 @@ class Stufe2Classifier {
     const absenderEmail = from.address || '';
     const subject = email.subject || '';
 
+    // E-Mail Alter berechnen
+    const emailDate = email.date ? new Date(email.date) : new Date();
+    const ageInDays = Math.floor((new Date() - emailDate) / (1000 * 60 * 60 * 24));
+    const dateStr = emailDate.toLocaleDateString('de-DE');
+
     // Lade vorheriges Feedback und Regeln
     const feedbackContext = this.getFeedbackContext();
     const regelnContext = this.getRegelnContext();
 
-    // STUFE 1: Nur Absender + Betreff (günstig)
+    // STUFE 1: Nur Absender + Betreff + ALTER (günstig)
     const prompt = `Du bist Roland Müller, ein Schweizer Unternehmer. Analysiere diese E-Mail:
 
 ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
+E-MAIL ALTER: ${ageInDays} Tage alt (vom ${dateStr})
 
-WICHTIG - ABSENDER-REGELN:
+WICHTIG - ALTER DER E-MAIL BEACHTEN:
+- E-Mail ist ${ageInDays} Tage alt!
+- Wenn > 14 Tage: Wahrscheinlich schon erledigt oder eskaliert
+- Wenn > 30 Tage: Definitiv nicht mehr "dringend"
+- "Vollstreckung" von vor 3 Wochen ist NICHT mehr ESSENZ!
+- "Meeting Roland" von vor 2 Wochen - das Meeting ist vorbei!
+
+DRINGENDE SIGNALE (nur wenn E-Mail < 7 Tage alt!):
+- "Mahnung", "Vollstreckung", "Inkasso" = ESSENZ
+- "fehlgeschlagen", "abgelehnt" = WICHTIG
+- "Meeting Roland", "bitte anrufen" = ESSENZ
+
+ABSENDER-REGELN:
 1. E-Mails von "Roland Müller" an mich selbst sind MEIST Tests
-2. ABER: Wenn Betreff/Inhalt "rückruf", "anrufen", "dringend", "erreichen", "bitte" enthält = WICHTIG!
-3. Der INHALT überschreibt die Absender-Regel! Jemand der um Rückruf bittet wartet auf mich!
+2. ABER: Wenn Betreff "rückruf", "anrufen", "dringend" enthält = WICHTIG!
 ${regelnContext}${feedbackContext}
 Frage: Ist das ein echter Mensch der auf MEINE Antwort wartet?
 
 KATEGORIEN:
-- essenz = Echter Mensch wartet definitiv auf Antwort
-- wichtig = Könnte Antwort brauchen
+- essenz = Sofortige Aktion nötig (NUR wenn < 7 Tage alt!)
+- wichtig = Sollte heute gelesen werden (NUR wenn < 14 Tage alt!)
+- termine = Zoom/Teams/Kalender Einladungen
+- rechnung = Rechnungen und Zahlungsbestätigungen
+- normal = Kann gelesen werden
 - info = System-Mails, Bestätigungen, automatisch
 - werbung = Shops, Social Media, Marketing
 - newsletter = Abonnierte Updates
 - spam = Phishing, Betrug, Tests
 
-DENKE LAUT: Erkläre kurz warum du so entscheidest.
+DENKE LAUT: Erkläre kurz warum (inkl. Alter-Bewertung).
 
-JSON: {"kategorie":"...","gedanken":"Kurze Begründung warum...","sicherheit":0-100}`;
+JSON: {"kategorie":"...","gedanken":"Kurze Begründung inkl. Alter...","sicherheit":0-100}`;
 
     try {
       const response = await this.openai.chat.completions.create({

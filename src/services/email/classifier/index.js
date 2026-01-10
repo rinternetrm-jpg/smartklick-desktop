@@ -1,25 +1,30 @@
 /**
- * Intelligentes E-Mail-Klassifizierungssystem v3
+ * Intelligentes E-Mail-Klassifizierungssystem v4
  *
- * 3-Stufen-System für maximale Kosteneffizienz:
+ * VERBESSERTES System mit Alters-Klassifizierung:
  *
- * STUFE 0: Domain-Check (KEIN GPT, sofort)
- *   - Bekannte Spam-Domains → sofort weg
- *   - Eigene E-Mails (Tests) → sofort weg
- *   - Newsletter-Domains → sofort sortiert
+ * STUFE 0: ALTER + DRINGLICHKEIT + DOMAIN (KEIN GPT, sofort)
+ *   - E-Mail > 3 Monate → Archiv/Ignorieren
+ *   - Dringlichkeits-Keywords (Vollstreckung, Mahnung) → sofort klassifizieren
+ *   - Termine (Zoom, Teams) → eigene Kategorie
+ *   - Rechnungen → eigene Kategorie
+ *   - Bekannte Spam/Newsletter Domains → sofort weg
  *
- * STUFE 1: GPT nur Absender + Betreff (~0.0001€)
+ * STUFE 1: GPT mit Alter-Info (~0.0001€)
+ *   - GPT bekommt E-Mail-Alter mit
  *   - Bei Sicherheit >= 80% → fertig
  *
- * STUFE 2: GPT mit Inhalt (300 Zeichen, ~0.001€)
+ * STUFE 2: GPT mit Inhalt + Alter (~0.001€)
  *   - Nur bei Unsicherheit
+ *   - Ergebnis wird durch Alters-Limit begrenzt
  */
 
 const Stufe0Classifier = require('./stufe0');
 const Stufe1Classifier = require('./stufe2'); // Stufe 1 = alte stufe2.js
 const Stufe2Classifier = require('./stufe3'); // Stufe 2 = alte stufe3.js
+const { ImprovedClassifier, applyAgeLimit, getAgeInDays } = require('./improvedClassifier');
 
-// Kategorie-Definitionen
+// Kategorie-Definitionen (erweitert)
 const KATEGORIEN = {
   ESSENZ: {
     id: 'essenz',
@@ -27,7 +32,7 @@ const KATEGORIEN = {
     icon: '🔴',
     color: '#ef4444',
     sichtbar: true,
-    beschreibung: 'Echter Mensch will etwas von dir'
+    beschreibung: 'Sofortige Aktion erforderlich (< 7 Tage alt)'
   },
   WICHTIG: {
     id: 'wichtig',
@@ -35,7 +40,31 @@ const KATEGORIEN = {
     icon: '🟠',
     color: '#f97316',
     sichtbar: true,
-    beschreibung: 'Sollte angeschaut werden'
+    beschreibung: 'Sollte heute gelesen werden (< 14 Tage alt)'
+  },
+  TERMINE: {
+    id: 'termine',
+    name: 'Termine',
+    icon: '📅',
+    color: '#0ea5e9',
+    sichtbar: true,
+    beschreibung: 'Zoom, Teams, Kalendereinladungen'
+  },
+  RECHNUNG: {
+    id: 'rechnung',
+    name: 'Rechnung',
+    icon: '📄',
+    color: '#10b981',
+    sichtbar: true,
+    beschreibung: 'Alle Rechnungen'
+  },
+  NORMAL: {
+    id: 'normal',
+    name: 'Normal',
+    icon: '🔵',
+    color: '#3b82f6',
+    sichtbar: true,
+    beschreibung: 'Kann gelesen werden'
   },
   INFO: {
     id: 'info',
@@ -45,14 +74,6 @@ const KATEGORIEN = {
     sichtbar: true,
     beschreibung: 'Automatische Benachrichtigungen'
   },
-  WERBUNG: {
-    id: 'werbung',
-    name: 'Werbung',
-    icon: '📢',
-    color: '#f59e0b',
-    sichtbar: false,
-    beschreibung: 'Social Media, Shops, Marketing'
-  },
   NEWSLETTER: {
     id: 'newsletter',
     name: 'Newsletter',
@@ -61,13 +82,29 @@ const KATEGORIEN = {
     sichtbar: false,
     beschreibung: 'Abonnierte Updates'
   },
+  WERBUNG: {
+    id: 'werbung',
+    name: 'Werbung',
+    icon: '📢',
+    color: '#f59e0b',
+    sichtbar: false,
+    beschreibung: 'Social Media, Shops, Marketing'
+  },
   SPAM: {
     id: 'spam',
     name: 'Spam',
     icon: '🗑️',
-    color: '#dc2626',
+    color: '#71717a',
     sichtbar: false,
     beschreibung: 'Werbung, unerwünscht'
+  },
+  VERALTET: {
+    id: 'veraltet',
+    name: 'Veraltet',
+    icon: '⏰',
+    color: '#a1a1aa',
+    sichtbar: true,
+    beschreibung: 'War wichtig, aber älter als 4 Wochen'
   }
 };
 
@@ -81,6 +118,7 @@ const TAGS = {
 
 class IntelligentEmailClassifier {
   constructor(options = {}) {
+    this.improvedClassifier = new ImprovedClassifier();
     this.stufe0 = new Stufe0Classifier();
     this.stufe1 = new Stufe1Classifier();
     this.stufe2 = new Stufe2Classifier();
@@ -92,10 +130,16 @@ class IntelligentEmailClassifier {
 
     this.stats = {
       stufe0: 0,
+      stufe0Improved: 0,
       stufe1: 0,
       stufe2: 0,
       total: 0,
-      gptKosten: 0
+      gptKosten: 0,
+      byAge: {
+        archiv: 0,
+        veraltet: 0,
+        herabgestuft: 0
+      }
     };
   }
 
@@ -109,7 +153,25 @@ class IntelligentEmailClassifier {
   async klassifiziere(email) {
     this.stats.total++;
 
-    // ========== STUFE 0: Domain-Check (KEIN GPT!) ==========
+    // ========== STUFE 0 (NEU): Verbesserter Classifier ==========
+    // Prüft: Alter, Dringlichkeits-Keywords, Termine, Rechnungen, Domains
+    const improved = this.improvedClassifier.klassifiziere(email);
+    if (improved) {
+      this.stats.stufe0Improved++;
+
+      // Absender-Historie aktualisieren
+      const fromAddress = email.from?.address || email.from || '';
+      this.improvedClassifier.updateSenderHistory(fromAddress, email.subject || '', improved.kategorie);
+
+      // Statistiken für Alters-Klassifizierung
+      if (improved.ageInfo?.wasArchived) this.stats.byAge.archiv++;
+      if (improved.kategorie === 'veraltet') this.stats.byAge.veraltet++;
+      if (improved.ageInfo?.wasLimited) this.stats.byAge.herabgestuft++;
+
+      return this.finalize(email, improved);
+    }
+
+    // ========== STUFE 0 (ALT): Domain-Check als Fallback ==========
     const stufe0 = this.stufe0.klassifiziere(email);
     if (stufe0) {
       this.stats.stufe0++;
@@ -131,8 +193,15 @@ class IntelligentEmailClassifier {
     this.stats.stufe1++;
     this.stats.gptKosten += 0.0001;
 
-    // Wenn sicher genug, fertig
+    // Wenn sicher genug, Alters-Limit anwenden und fertig
     if (!stufe1.needsMoreText) {
+      const ageLimited = applyAgeLimit(stufe1.kategorie, email.date);
+      if (ageLimited.wasLimited) {
+        this.stats.byAge.herabgestuft++;
+        stufe1.kategorie = ageLimited.kategorie;
+        stufe1.originalKategorie = ageLimited.originalKategorie;
+        stufe1.gedanken += ` (Wegen Alter herabgestuft von ${ageLimited.originalKategorie} auf ${ageLimited.kategorie})`;
+      }
       return this.finalize(email, stufe1);
     }
 
@@ -141,6 +210,15 @@ class IntelligentEmailClassifier {
     this.stats.stufe2++;
     this.stats.gptKosten += 0.001;
 
+    // Alters-Limit auf GPT-Ergebnis anwenden
+    const ageLimited = applyAgeLimit(stufe2.kategorie, email.date);
+    if (ageLimited.wasLimited) {
+      this.stats.byAge.herabgestuft++;
+      stufe2.kategorie = ageLimited.kategorie;
+      stufe2.originalKategorie = ageLimited.originalKategorie;
+      stufe2.gedanken += ` (Wegen Alter herabgestuft von ${ageLimited.originalKategorie} auf ${ageLimited.kategorie})`;
+    }
+
     return this.finalize(email, stufe2);
   }
 
@@ -148,11 +226,26 @@ class IntelligentEmailClassifier {
   async klassifiziereBatch(emails) {
     const results = [];
 
-    // Bei Batch: Sequentiell mit Stufe 0 vorfiltern
+    // Bei Batch: Sequentiell klassifizieren
     for (let i = 0; i < emails.length; i++) {
       const email = emails[i];
+      const fromAddress = email.from?.address || email.from || '';
 
-      // Stufe 0: Domain-Check (KEIN GPT)
+      // STUFE 0 (NEU): Verbesserter Classifier zuerst
+      const improved = this.improvedClassifier.klassifiziere(email);
+      if (improved) {
+        this.stats.stufe0Improved++;
+        this.improvedClassifier.updateSenderHistory(fromAddress, email.subject || '', improved.kategorie);
+
+        if (improved.ageInfo?.wasArchived) this.stats.byAge.archiv++;
+        if (improved.kategorie === 'veraltet') this.stats.byAge.veraltet++;
+        if (improved.ageInfo?.wasLimited) this.stats.byAge.herabgestuft++;
+
+        results.push(this.finalize(email, improved));
+        continue;
+      }
+
+      // Stufe 0 (ALT): Domain-Check als Fallback
       const stufe0 = this.stufe0.klassifiziere(email);
       if (stufe0) {
         this.stats.stufe0++;
@@ -176,6 +269,13 @@ class IntelligentEmailClassifier {
       this.stats.gptKosten += 0.0001;
 
       if (!stufe1.needsMoreText) {
+        // Alters-Limit anwenden
+        const ageLimited = applyAgeLimit(stufe1.kategorie, email.date);
+        if (ageLimited.wasLimited) {
+          this.stats.byAge.herabgestuft++;
+          stufe1.kategorie = ageLimited.kategorie;
+          stufe1.originalKategorie = ageLimited.originalKategorie;
+        }
         results.push(this.finalize(email, stufe1));
         continue;
       }
@@ -184,6 +284,14 @@ class IntelligentEmailClassifier {
       const stufe2 = await this.stufe2.klassifiziere(email, stufe1);
       this.stats.stufe2++;
       this.stats.gptKosten += 0.001;
+
+      // Alters-Limit anwenden
+      const ageLimited = applyAgeLimit(stufe2.kategorie, email.date);
+      if (ageLimited.wasLimited) {
+        this.stats.byAge.herabgestuft++;
+        stufe2.kategorie = ageLimited.kategorie;
+        stufe2.originalKategorie = ageLimited.originalKategorie;
+      }
 
       results.push(this.finalize(email, stufe2));
     }
