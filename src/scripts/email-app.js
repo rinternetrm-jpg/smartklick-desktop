@@ -1667,16 +1667,24 @@ function renderChart() {
     spam: 0
   }));
 
+  // Berechne Wochengrenzen
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  console.log(`[CHART] Woche: ${monday.toLocaleDateString()} - ${sunday.toLocaleDateString()}`);
+  console.log(`[CHART] Geladene E-Mails: ${emails.length}`);
+
+  let countedEmails = 0;
+  let skippedEmails = [];
+
   // Zähle E-Mails pro Tag und Kategorie
   emails.forEach(email => {
     const emailDate = new Date(email.date);
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset);
-    monday.setHours(0, 0, 0, 0);
-
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
 
     // Nur E-Mails dieser Woche
     if (emailDate >= monday && emailDate <= sunday) {
@@ -1689,8 +1697,20 @@ function renderChart() {
       } else {
         data[dayIndex].normal++;
       }
+      countedEmails++;
+    } else {
+      skippedEmails.push({
+        subject: email.subject?.substring(0, 30),
+        date: emailDate.toLocaleDateString(),
+        kategorie: email.kategorie
+      });
     }
   });
+
+  console.log(`[CHART] Gezählt: ${countedEmails}, Übersprungen: ${skippedEmails.length}`);
+  if (skippedEmails.length > 0) {
+    console.log(`[CHART] Übersprungene E-Mails (außerhalb dieser Woche):`, skippedEmails);
+  }
 
   // Berechne Maximum für Skalierung
   const maxTotal = Math.max(1, ...data.map(d =>
