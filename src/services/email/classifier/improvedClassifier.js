@@ -1,20 +1,21 @@
 /**
- * E-Mail-Klassifizierungssystem v3.1
+ * E-Mail-Klassifizierungssystem v3.2
  *
- * KRITISCHER FIX: DRINGLICHKEITS-SIGNALE jetzt VOR Domain-Check!
- * "Vollstreckung" von info@firma.de = ESSENZ, nicht INFO!
+ * NEU: WERBUNG-KEYWORDS und PAPIERKORB-KEYWORDS VOR Domain-Check!
+ * "10% Rabatt" = WERBUNG, "Spambericht" = PAPIERKORB
  *
- * REIHENFOLGE (KORRIGIERT):
+ * REIHENFOLGE (v3.2):
  * 1. RECHNUNG (inkl. Monatsauszug, zum Abruf)
  * 2. TERMIN (eigene Datum-Logik)
  * 3. DRINGLICHKEITS-SIGNALE (VOR Domains!) → GPT mit Inhalt
- * 4. EIGENE EMAIL → PAPIERKORB
- * 5. ALTER > 90 Tage = PAPIERKORB
- * 6. BEKANNTE DOMAINS (WERBUNG, NEWSLETTER)
- * 7. INFO-Domains (nur wenn < 7 Tage alt!)
- * 8. ABSENDER-HISTORIE
- * 9. GPT
- * 10. ALTERS-LIMIT
+ * 4. PAPIERKORB-KEYWORDS (Spambericht, etc.)
+ * 5. WERBUNG-KEYWORDS (Rabatt, Bonuspunkte, Angebot, etc.)
+ * 6. EIGENE EMAIL → PAPIERKORB
+ * 7. ALTER > 90 Tage = PAPIERKORB
+ * 8. BEKANNTE DOMAINS (WERBUNG, NEWSLETTER, INFO)
+ * 9. ABSENDER-HISTORIE
+ * 10. GPT
+ * 11. ALTERS-LIMIT
  */
 
 const Store = require('electron-store');
@@ -166,15 +167,50 @@ const WERBUNG_DOMAINS = [
   // Social (Werbung)
   'mail.facebook.com', 'facebookmail.com',
   'pinterest.com', 'tiktok.com',
-  // Reise
+  // Reise & Hotels
   'booking.com', 'expedia.', 'trivago.',
   'holidaycheck.', 'tui.com', 'lastminute.',
+  'radisson.', 'rewards.radisson', 'hilton.', 'marriott.',
+  'opodo.', 'opodoprime.',
+  // Sport/Entertainment
+  'wow.', 'dazn.', 'sky.',
+  // Hosting-Werbung (nicht Service-Mails!)
+  'ionos-info', 'info.ionos',
+  // Kostüme/Party
+  'maskworld.', 'funidelia.', 'kostüm',
   // Sonstige
   'groupon.', 'mydealz.', 'sparwelt.',
-  'check24.', 'verivox.',
-  // NEU: Häufige Werbe-Absender
+  'check24.', 'verivox.', 'contabo.',
+  // Spendenorganisationen (Marketing)
   'funzone', 'elegance', 'unicef', 'wwf',
-  'greenpeace', 'amnesty', 'caritas'
+  'greenpeace', 'amnesty', 'caritas',
+  // Labelbox, Product Updates (Marketing)
+  'labelbox.'
+];
+
+// WERBUNG-Keywords im Betreff - überschreibt alles außer RECHNUNG/TERMIN!
+const WERBUNG_KEYWORDS = [
+  /\d+%\s*rabatt/i,              // "10% Rabatt"
+  /rabatt/i,                      // Rabatt allgemein
+  /bonuspunkte/i,                 // "3.000 Bonuspunkte"
+  /aktionscode/i,                 // "8 neue Aktionscodes"
+  /gutschein/i,                   // Gutschein
+  /angebot/i,                     // "Top-Angebote"
+  /sparen\s*sie/i,                // "Sparen Sie"
+  /gratis/i,                      // Gratis
+  /kostenlos/i,                   // Kostenlos (Marketing)
+  /wir\s*haben\s*sie.*vermisst/i, // "wir haben Sie vermisst"
+  /vermisst.*sie/i,               // "vermisst"
+  /kennen\s*sie\s*den/i,          // "Kennen Sie den..."
+  /exklusiv\s*für\s*sie/i,        // "Exklusiv für Sie"
+  /nur\s*heute/i,                 // "Nur heute"
+  /letzte\s*chance/i,             // "Letzte Chance" (Marketing!)
+  /jetzt\s*sichern/i,             // "Jetzt sichern"
+  /kostümideen/i,                 // "Kostümideen für dich"
+  /bundesliga.*zurück/i,          // Sport-Werbung
+  /derby.*fieber/i,               // Sport-Werbung
+  /beeil\s*dich/i,                // "Beeil dich!"
+  /product\s*release\s*notes/i    // Product Updates (Marketing)
 ];
 
 // NEWSLETTER-Domains
@@ -200,8 +236,16 @@ const INFO_DOMAINS = [
 
 // PAPIERKORB-Domains - Direkt in den Papierkorb
 const PAPIERKORB_DOMAINS = [
-  'funzone', 'elegance', 'sina.',
-  'spam.', 'junk.', 'bulk.'
+  'sina.', 'spam.', 'junk.', 'bulk.'
+];
+
+// PAPIERKORB-Keywords im Betreff
+const PAPIERKORB_KEYWORDS = [
+  /spambericht/i,                 // "Täglicher Spambericht"
+  /spam\s*report/i,               // Spam Report
+  /junk\s*mail/i,                 // Junk Mail
+  /undelivered/i,                 // Undelivered (wenn alt)
+  /delivery\s*failed/i            // Delivery failed (wenn alt)
 ];
 
 // MIXED-Domains - GPT muss entscheiden
@@ -256,6 +300,18 @@ function matchesDomain(emailAddress, domains) {
   const addr = emailAddress.toLowerCase();
   const domain = extractDomain(emailAddress);
   return domains.some(d => addr.includes(d) || domain.includes(d));
+}
+
+// =============================================================================
+// WERBUNG & PAPIERKORB KEYWORD CHECKS
+// =============================================================================
+
+function isWerbungKeyword(subject) {
+  return matchesPatterns(subject, WERBUNG_KEYWORDS);
+}
+
+function isPapierkorbKeyword(subject) {
+  return matchesPatterns(subject, PAPIERKORB_KEYWORDS);
 }
 
 // =============================================================================
@@ -697,27 +753,53 @@ class ImprovedClassifier {
       };
     }
 
-    // ========== STUFE 4: EIGENE EMAIL ==========
-    if (isMyOwnEmail(fromAddress)) {
-      console.log(`[CLASSIFY] → PAPIERKORB (eigene Test-Mail)`);
+    // ========== STUFE 4: PAPIERKORB-KEYWORDS (Spambericht etc.) ==========
+    if (isPapierkorbKeyword(subject)) {
+      console.log(`[CLASSIFY] → PAPIERKORB (Keyword: Spambericht o.ä.)`);
       return {
         kategorie: 'papierkorb',
-        confidence: 100,
-        gedanken: 'Eigene Test-Mail.',
+        confidence: 95,
+        gedanken: 'Spambericht oder ähnliches - direkt in den Papierkorb.',
         stufe: 4,
         schnell: true,
         final: true
       };
     }
 
-    // ========== STUFE 5: ALTER > 90 Tage ==========
+    // ========== STUFE 5: WERBUNG-KEYWORDS (Rabatt, Bonuspunkte etc.) ==========
+    if (isWerbungKeyword(subject)) {
+      console.log(`[CLASSIFY] → WERBUNG (Keyword: Marketing-Sprache erkannt)`);
+      return {
+        kategorie: 'werbung',
+        confidence: 92,
+        gedanken: 'Marketing-Sprache im Betreff erkannt (Rabatt, Angebot, etc.).',
+        stufe: 5,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // ========== STUFE 6: EIGENE EMAIL ==========
+    if (isMyOwnEmail(fromAddress)) {
+      console.log(`[CLASSIFY] → PAPIERKORB (eigene Test-Mail)`);
+      return {
+        kategorie: 'papierkorb',
+        confidence: 100,
+        gedanken: 'Eigene Test-Mail.',
+        stufe: 6,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // ========== STUFE 7: ALTER > 90 Tage ==========
     if (age > AGE_LIMITS.ARCHIV) {
       console.log(`[CLASSIFY] → PAPIERKORB (${age} Tage alt)`);
       return {
         kategorie: 'papierkorb',
         confidence: 100,
         gedanken: `E-Mail ist ${age} Tage alt.`,
-        stufe: 5,
+        stufe: 7,
         schnell: true,
         final: true
       };
