@@ -4852,7 +4852,7 @@ ipcMain.handle('email:getUnreadCounts', async () => {
   }
 });
 
-ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 20) => {
+ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 500) => {
   if (!emailProviderManager) {
     return { success: false, error: 'Provider manager not initialized' };
   }
@@ -4864,7 +4864,7 @@ ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 2
   }
 });
 
-ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 20) => {
+ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 500) => {
   if (!emailProviderManager) {
     return { success: false, error: 'Provider manager not initialized' };
   }
@@ -5080,7 +5080,7 @@ ipcMain.handle('imap:test', async (_, settings) => {
   return imapAccountManager.testConnection(settings);
 });
 
-ipcMain.handle('imap:getEmails', async (_, count = 20) => {
+ipcMain.handle('imap:getEmails', async (_, count = 500) => {
   try {
     const accounts = imapAccountManager.getAccounts();
     if (accounts.length === 0) {

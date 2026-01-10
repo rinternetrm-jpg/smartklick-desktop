@@ -366,7 +366,7 @@ class ImapAccountManager {
   }
 
   // Get emails from account
-  async getEmails(accountId, folder = 'INBOX', count = 30) {
+  async getEmails(accountId, folder = 'INBOX', count = 500) {
     try {
       const imap = await this.getConnection(accountId);
       const account = this.accounts.get(accountId);
