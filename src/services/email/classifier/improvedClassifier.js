@@ -1,19 +1,20 @@
 /**
- * E-Mail-Klassifizierungssystem v3
+ * E-Mail-Klassifizierungssystem v3.1
  *
- * GRUNDPRINZIP: DENKEN statt REGELN
- * Keywords sind SIGNALE, keine Entscheidungen!
+ * KRITISCHER FIX: DRINGLICHKEITS-SIGNALE jetzt VOR Domain-Check!
+ * "Vollstreckung" von info@firma.de = ESSENZ, nicht INFO!
  *
- * REIHENFOLGE:
- * 1. RECHNUNG (Alter egal)
+ * REIHENFOLGE (KORRIGIERT):
+ * 1. RECHNUNG (inkl. Monatsauszug, zum Abruf)
  * 2. TERMIN (eigene Datum-Logik)
- * 3. BEKANNTE DOMAINS (VOR Keywords!)
- * 4. ALTER > 90 Tage = ARCHIV
- * 5. ABSENDER-HISTORIE
- * 6. DRINGLICHKEITS-SIGNALE erkennen
- * 7. GPT MIT INHALT (bei Signalen)
- * 8. GPT NUR HEADER (ohne Signal)
- * 9. ALTERS-LIMIT anwenden
+ * 3. DRINGLICHKEITS-SIGNALE (VOR Domains!) → GPT mit Inhalt
+ * 4. EIGENE EMAIL → PAPIERKORB
+ * 5. ALTER > 90 Tage = PAPIERKORB
+ * 6. BEKANNTE DOMAINS (WERBUNG, NEWSLETTER)
+ * 7. INFO-Domains (nur wenn < 7 Tage alt!)
+ * 8. ABSENDER-HISTORIE
+ * 9. GPT
+ * 10. ALTERS-LIMIT
  */
 
 const Store = require('electron-store');
@@ -23,14 +24,15 @@ const Store = require('electron-store');
 // =============================================================================
 
 const AGE_LIMITS = {
-  ARCHIV: 90,      // > 90 Tage: Ignorieren
+  ARCHIV: 90,      // > 90 Tage: PAPIERKORB
   VERALTET: 30,    // > 30 Tage: Max. VERALTET
+  INFO_MAX: 7,     // > 7 Tage: INFO → PAPIERKORB
   ALT: 14,         // > 14 Tage: Max. NORMAL
   AKTUELL: 7       // > 7 Tage: Max. WICHTIG
 };
 
 // =============================================================================
-// STUFE 1: RECHNUNG PATTERNS
+// STUFE 1: RECHNUNG PATTERNS (erweitert)
 // =============================================================================
 
 const RECHNUNG_PATTERNS = [
@@ -45,7 +47,16 @@ const RECHNUNG_PATTERNS = [
   /1&1.*rechnung/i,
   /ionos.*rechnung/i,
   /ihre.*1&1.*rechnung/i,
-  /ihre.*ionos.*rechnung/i
+  /ihre.*ionos.*rechnung/i,
+  // NEU: Kontoauszüge und Downloads
+  /monatsauszug/i,
+  /kontoauszug/i,
+  /zum\s*abruf\s*bereit/i,
+  /auszug.*bereit/i,
+  /dokument.*abruf/i,
+  /download.*bereit/i,
+  /ihr.*auszug/i,
+  /monatliche.*abrechnung/i
 ];
 
 // =============================================================================
@@ -53,24 +64,17 @@ const RECHNUNG_PATTERNS = [
 // =============================================================================
 
 const TERMIN_PATTERNS = [
-  // Zoom
   /zoom.*meeting/i,
   /zoom.*einladung/i,
   /join.*zoom/i,
   /zoom-meeting/i,
-
-  // Teams
   /teams.*meeting/i,
   /teams.*einladung/i,
   /teams.*besprechung/i,
   /microsoft\s*teams/i,
-
-  // Google
   /calendar.*invite/i,
   /google.*calendar/i,
   /einladung.*kalender/i,
-
-  // Allgemein
   /einladung.*besprechung/i,
   /termin.*einladung/i,
   /meeting.*einladung/i,
@@ -88,88 +92,7 @@ const TERMIN_DOMAINS = [
 ];
 
 // =============================================================================
-// STUFE 3: DOMAIN-LISTEN (KRITISCH: VOR KEYWORDS!)
-// =============================================================================
-
-// WERBUNG-Domains - IMMER Werbung, egal welche Keywords!
-const WERBUNG_DOMAINS = [
-  // Shops
-  'mediamarkt.de', 'saturn.de', 'amazon.', 'ebay.',
-  'zalando.', 'otto.de', 'lidl.', 'aldi.',
-  'nespresso.com', 'ch.nespresso.com',
-  'aboutyou.', 'hm.com', 'zara.com',
-  'ikea.', 'hornbach.', 'obi.', 'bauhaus.',
-
-  // Marketing
-  'marketing.', 'promo.', 'deals.', 'offers.', 'shop.',
-  'newsletter.mediamarkt', 'newsletter.saturn',
-  'mail.mediamarkt', 'mail.saturn',
-
-  // Social (Werbung)
-  'mail.facebook.com', 'facebookmail.com',
-  'pinterest.com', 'tiktok.com',
-
-  // Reise-Werbung
-  'booking.com', 'expedia.', 'trivago.',
-  'holidaycheck.', 'tui.com', 'lastminute.',
-
-  // Sonstige Werbung
-  'groupon.', 'mydealz.', 'sparwelt.',
-  'check24.', 'verivox.'
-];
-
-// NEWSLETTER-Domains
-const NEWSLETTER_DOMAINS = [
-  'newsletter.', 'news.', 'update.', 'digest.',
-  'eventim.', 'ticketmaster.', 'eventbrite.',
-  'substack.com', 'mailchimp.com', 'sendinblue.',
-  'finanzen.net', 'traderfox.',
-  'kadewe.', 'breuninger.'
-];
-
-// INFO-Domains - Automatische Benachrichtigungen
-const INFO_DOMAINS = [
-  // Notifications
-  'noreply.', 'no-reply.', 'notification.',
-  'mailer.', 'postmaster.', 'daemon.', 'system.',
-  'notify.', 'alerts.',
-
-  // Tech
-  'github.com', 'gitlab.com', 'wordpress.',
-  'accounts.google.com',
-
-  // Versand
-  'dhl.', 'dpd.', 'ups.', 'fedex.', 'post.ch',
-  'hermes.', 'gls.', 'dhl-news.'
-];
-
-// MIXED-Domains - GPT muss entscheiden!
-const MIXED_DOMAINS = [
-  // Hosting - können wichtige E-Mails haben!
-  'ionos.de', '1und1.de', '1and1.', 'hosteurope.de',
-  'strato.', 'hetzner.',
-
-  // Finanzen - können wichtig sein!
-  'wise.com', 'paypal.com', 'stripe.com',
-  'sparkasse.', 'volksbank.', 'commerzbank.',
-  'postbank.', 'ing.', 'dkb.',
-
-  // Social (kann wichtig sein)
-  'linkedin.com', 'xing.com',
-
-  // Google (mixed)
-  'google.com'
-];
-
-// Eigene E-Mail-Adressen (werden als SPAM/TEST markiert)
-const MY_EMAILS = [
-  'r.internet.rm@gmail.com',
-  'roland@romuswiss.ch',
-  'r.mueller@siteschrift.de'
-];
-
-// =============================================================================
-// STUFE 6: DRINGLICHKEITS-SIGNALE (NUR erkennen, NICHT entscheiden!)
+// STUFE 3: DRINGLICHKEITS-SIGNALE (JETZT VOR DOMAINS!)
 // =============================================================================
 
 const DRINGLICHKEIT_SIGNALE = {
@@ -183,7 +106,9 @@ const DRINGLICHKEIT_SIGNALE = {
     /klage/i,
     /pfändung/i,
     /mahnbescheid/i,
-    /zwangsvollstreckung/i
+    /zwangsvollstreckung/i,
+    /forderung/i,
+    /zahlungsaufforderung/i
   ],
 
   PERSOENLICH: [
@@ -193,7 +118,9 @@ const DRINGLICHKEIT_SIGNALE = {
     /melde\s*dich/i,
     /kann\s*dich\s*nicht\s*erreichen/i,
     /dringend/i,
-    /urgent/i
+    /urgent/i,
+    /wichtig.*antwort/i,
+    /antwort.*erforderlich/i
   ],
 
   FINANZIELL: [
@@ -204,17 +131,96 @@ const DRINGLICHKEIT_SIGNALE = {
     /kreditkarte.*fehl/i,
     /einzug.*fehl/i,
     /zahlung.*fehl/i,
-    /konto.*gesperrt/i
+    /konto.*gesperrt/i,
+    /lastschrift.*fehl/i
   ],
 
   FRISTEN: [
-    /letzte\s*chance/i,
     /frist/i,
     /deadline/i,
     /läuft\s*ab/i,
-    /endet\s*(heute|morgen)/i
+    /endet\s*(heute|morgen)/i,
+    /ablauf/i
   ]
 };
+
+// WICHTIG: "letzte chance" ist KEIN Dringlichkeits-Signal!
+// Das ist fast immer Marketing-Sprache
+
+// =============================================================================
+// STUFE 6: DOMAIN-LISTEN
+// =============================================================================
+
+// WERBUNG-Domains - IMMER Werbung
+const WERBUNG_DOMAINS = [
+  // Shops
+  'mediamarkt.de', 'saturn.de', 'amazon.', 'ebay.',
+  'zalando.', 'otto.de', 'lidl.', 'aldi.',
+  'nespresso.com', 'ch.nespresso.com',
+  'aboutyou.', 'hm.com', 'zara.com',
+  'ikea.', 'hornbach.', 'obi.', 'bauhaus.',
+  // Marketing
+  'marketing.', 'promo.', 'deals.', 'offers.', 'shop.',
+  'newsletter.mediamarkt', 'newsletter.saturn',
+  'mail.mediamarkt', 'mail.saturn',
+  // Social (Werbung)
+  'mail.facebook.com', 'facebookmail.com',
+  'pinterest.com', 'tiktok.com',
+  // Reise
+  'booking.com', 'expedia.', 'trivago.',
+  'holidaycheck.', 'tui.com', 'lastminute.',
+  // Sonstige
+  'groupon.', 'mydealz.', 'sparwelt.',
+  'check24.', 'verivox.',
+  // NEU: Häufige Werbe-Absender
+  'funzone', 'elegance', 'unicef', 'wwf',
+  'greenpeace', 'amnesty', 'caritas'
+];
+
+// NEWSLETTER-Domains
+const NEWSLETTER_DOMAINS = [
+  'newsletter.', 'news.', 'update.', 'digest.',
+  'eventim.', 'ticketmaster.', 'eventbrite.',
+  'substack.com', 'mailchimp.com', 'sendinblue.',
+  'finanzen.net', 'traderfox.',
+  'kadewe.', 'breuninger.'
+];
+
+// INFO-Domains - NUR echte System-Benachrichtigungen!
+// STRENGER: Nur DHL-Tracking, GitHub, etc.
+const INFO_DOMAINS = [
+  // Versand-Tracking (echte Info!)
+  'dhl.de', 'dpd.de', 'ups.com', 'fedex.com',
+  'hermes.de', 'gls-group.',
+  // Tech-Notifications
+  'github.com', 'gitlab.com',
+  // Automatische System-Mails
+  'daemon.', 'postmaster.', 'mailer-daemon.'
+];
+
+// PAPIERKORB-Domains - Direkt in den Papierkorb
+const PAPIERKORB_DOMAINS = [
+  'funzone', 'elegance', 'sina.',
+  'spam.', 'junk.', 'bulk.'
+];
+
+// MIXED-Domains - GPT muss entscheiden
+const MIXED_DOMAINS = [
+  'ionos.de', '1und1.de', '1and1.', 'hosteurope.de',
+  'strato.', 'hetzner.',
+  'wise.com', 'paypal.com', 'stripe.com',
+  'sparkasse.', 'volksbank.', 'commerzbank.',
+  'postbank.', 'ing.', 'dkb.',
+  'linkedin.com', 'xing.com',
+  'google.com'
+];
+
+// Eigene E-Mail-Adressen
+const MY_EMAILS = [
+  'r.internet.rm@gmail.com',
+  'roland@romuswiss.ch',
+  'r.mueller@siteschrift.de'
+];
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -265,25 +271,21 @@ function isRechnung(subject) {
 // =============================================================================
 
 function isTermin(email, fromDomain, subject) {
-  // Termin-Domain?
   if (TERMIN_DOMAINS.some(d => fromDomain.includes(d))) {
     return true;
   }
-  // Termin-Keywords im Betreff?
   return matchesPatterns(subject, TERMIN_PATTERNS);
 }
 
 function extractTerminDate(subject, body) {
   const text = `${subject} ${body || ''}`;
 
-  // Pattern: 15.01.2026 oder 15.1.2026
   const germanDate = text.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
   if (germanDate) {
     const [, day, month, year] = germanDate;
     return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
   }
 
-  // Pattern: 2026-01-15
   const isoDate = text.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (isoDate) {
     const [, year, month, day] = isoDate;
@@ -306,11 +308,10 @@ function handleTermin(email) {
     const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
     if (diffDays >= 0) {
-      // Termin liegt in der Zukunft
       return {
         kategorie: 'termine',
         confidence: 95,
-        gedanken: `Termin-Einladung erkannt. Der Termin ist am ${terminDatum.toLocaleDateString('de-DE')}.`,
+        gedanken: `Termin-Einladung. Der Termin ist am ${terminDatum.toLocaleDateString('de-DE')}.`,
         stufe: 2,
         terminDatum: terminDatum,
         final: true
@@ -318,11 +319,10 @@ function handleTermin(email) {
     }
 
     if (diffDays >= -1) {
-      // Termin war gestern - vielleicht verpasst!
       return {
         kategorie: 'termine',
         confidence: 92,
-        gedanken: `Termin-Einladung erkannt. ACHTUNG: Der Termin war gestern! Möglicherweise verpasst.`,
+        gedanken: `ACHTUNG: Der Termin war gestern! Möglicherweise verpasst.`,
         stufe: 2,
         terminDatum: terminDatum,
         warnung: 'Dieser Termin war gestern!',
@@ -330,144 +330,39 @@ function handleTermin(email) {
       };
     }
 
-    if (diffDays < -14) {
-      // Termin ist > 14 Tage vorbei → Papierkorb
-      return {
-        kategorie: 'papierkorb',
-        confidence: 90,
-        gedanken: `Termin-Einladung, aber der Termin (${terminDatum.toLocaleDateString('de-DE')}) ist über 14 Tage vorbei.`,
-        stufe: 2,
-        terminDatum: terminDatum,
-        final: true
-      };
-    }
-
-    // Termin ist 1-14 Tage vorbei → Info
+    // Termin vorbei → PAPIERKORB
     return {
-      kategorie: 'info',
-      confidence: 88,
-      gedanken: `Termin-Einladung, aber der Termin (${terminDatum.toLocaleDateString('de-DE')}) ist bereits vorbei.`,
+      kategorie: 'papierkorb',
+      confidence: 90,
+      gedanken: `Termin (${terminDatum.toLocaleDateString('de-DE')}) ist vorbei.`,
       stufe: 2,
-      terminDatum: terminDatum,
       final: true
     };
   }
 
-  // Kein Datum gefunden - nach E-Mail-Alter gehen
+  // Kein Datum gefunden
   if (emailAge <= 7) {
     return {
       kategorie: 'termine',
       confidence: 85,
-      gedanken: `Termin-Einladung erkannt. E-Mail ist ${emailAge} Tage alt, Termin könnte noch relevant sein.`,
+      gedanken: `Termin-Einladung, ${emailAge} Tage alt.`,
       stufe: 2,
       final: true
     };
   }
 
-  if (emailAge > 14) {
-    return {
-      kategorie: 'papierkorb',
-      confidence: 80,
-      gedanken: `Alte Termin-Mail (${emailAge} Tage) ohne erkennbares Datum. Termin ist wahrscheinlich vorbei.`,
-      stufe: 2,
-      final: true
-    };
-  }
-
-  // 7-14 Tage alt
+  // > 7 Tage alt ohne Datum → PAPIERKORB
   return {
-    kategorie: 'info',
-    confidence: 78,
-    gedanken: `Termin-Mail ist ${emailAge} Tage alt. Der Termin ist wahrscheinlich vorbei.`,
+    kategorie: 'papierkorb',
+    confidence: 80,
+    gedanken: `Alte Termin-Mail (${emailAge} Tage) ohne Datum.`,
     stufe: 2,
     final: true
   };
 }
 
 // =============================================================================
-// STUFE 3: DOMAIN CHECK (KRITISCH: VOR KEYWORDS!)
-// =============================================================================
-
-function checkDomain(from) {
-  const domain = extractDomain(from).toLowerCase();
-  const email = extractEmail(from).toLowerCase();
-
-  // WERBUNG - Bekannte Werbe-Domains
-  if (matchesDomain(from, WERBUNG_DOMAINS)) {
-    return {
-      kategorie: 'werbung',
-      confidence: 92,
-      gedanken: `"${domain}" ist eine bekannte Werbe-Domain. Keywords wie "letzte Chance" sind Marketing-Tricks.`,
-      stufe: 3,
-      final: true
-    };
-  }
-
-  // NEWSLETTER
-  if (matchesDomain(from, NEWSLETTER_DOMAINS)) {
-    return {
-      kategorie: 'newsletter',
-      confidence: 90,
-      gedanken: `"${domain}" ist ein Newsletter-Absender. Das sind abonnierte Updates.`,
-      stufe: 3,
-      final: true
-    };
-  }
-
-  // INFO
-  if (matchesDomain(from, INFO_DOMAINS)) {
-    return {
-      kategorie: 'info',
-      confidence: 88,
-      gedanken: `"${domain}" ist eine automatische System-Adresse. Das sind Benachrichtigungen.`,
-      stufe: 3,
-      final: true
-    };
-  }
-
-  // Prefix-Check (noreply, service, etc.)
-  const localPart = email.split('@')[0];
-  const infoPrefixes = ['noreply', 'no-reply', 'notification', 'mailer', 'postmaster', 'daemon', 'system', 'notify', 'alerts', 'info'];
-  if (infoPrefixes.some(p => localPart.includes(p))) {
-    return {
-      kategorie: 'info',
-      confidence: 85,
-      gedanken: `Die E-Mail-Adresse enthält "${localPart}" - das ist typisch für automatische System-Mails.`,
-      stufe: 3,
-      final: true
-    };
-  }
-
-  // MIXED - GPT muss entscheiden
-  if (matchesDomain(from, MIXED_DOMAINS)) {
-    return {
-      kategorie: null,
-      needsGPT: true,
-      reason: 'MIXED_DOMAIN',
-      stufe: 3
-    };
-  }
-
-  // Unbekannt - GPT muss entscheiden
-  return {
-    kategorie: null,
-    needsGPT: true,
-    reason: 'UNKNOWN_DOMAIN',
-    stufe: 3
-  };
-}
-
-// =============================================================================
-// EIGENE E-MAIL CHECK
-// =============================================================================
-
-function isMyOwnEmail(from) {
-  const email = extractEmail(from).toLowerCase();
-  return MY_EMAILS.some(my => email.includes(my.toLowerCase()));
-}
-
-// =============================================================================
-// STUFE 6: DRINGLICHKEITS-SIGNALE ERKENNEN
+// STUFE 3: DRINGLICHKEITS-SIGNALE (KRITISCH: VOR DOMAINS!)
 // =============================================================================
 
 function hasDringlichkeitsSignal(subject) {
@@ -482,15 +377,137 @@ function hasDringlichkeitsSignal(subject) {
 }
 
 // =============================================================================
-// STUFE 9: ALTERS-LIMIT ANWENDEN
+// STUFE 6/7: DOMAIN CHECK
+// =============================================================================
+
+function checkDomain(from, age) {
+  const domain = extractDomain(from).toLowerCase();
+  const email = extractEmail(from).toLowerCase();
+
+  // PAPIERKORB-Domains
+  if (matchesDomain(from, PAPIERKORB_DOMAINS)) {
+    return {
+      kategorie: 'papierkorb',
+      confidence: 95,
+      gedanken: `"${domain}" gehört in den Papierkorb.`,
+      stufe: 6,
+      final: true
+    };
+  }
+
+  // WERBUNG
+  if (matchesDomain(from, WERBUNG_DOMAINS)) {
+    return {
+      kategorie: 'werbung',
+      confidence: 92,
+      gedanken: `"${domain}" ist Werbung.`,
+      stufe: 6,
+      final: true
+    };
+  }
+
+  // NEWSLETTER
+  if (matchesDomain(from, NEWSLETTER_DOMAINS)) {
+    return {
+      kategorie: 'newsletter',
+      confidence: 90,
+      gedanken: `"${domain}" ist ein Newsletter.`,
+      stufe: 6,
+      final: true
+    };
+  }
+
+  // INFO - NUR wenn < 7 Tage alt!
+  if (matchesDomain(from, INFO_DOMAINS)) {
+    if (age > AGE_LIMITS.INFO_MAX) {
+      return {
+        kategorie: 'papierkorb',
+        confidence: 88,
+        gedanken: `Info von "${domain}" ist ${age} Tage alt → Papierkorb.`,
+        stufe: 7,
+        final: true
+      };
+    }
+    return {
+      kategorie: 'info',
+      confidence: 88,
+      gedanken: `Aktuelle System-Benachrichtigung von "${domain}".`,
+      stufe: 7,
+      final: true
+    };
+  }
+
+  // Prefix-Check - STRENGER!
+  // NUR echte System-Prefixe, NICHT "info@"!
+  const localPart = email.split('@')[0];
+  const systemPrefixes = ['noreply', 'no-reply', 'mailer-daemon', 'postmaster', 'daemon'];
+  if (systemPrefixes.some(p => localPart === p || localPart.startsWith(p + '.'))) {
+    if (age > AGE_LIMITS.INFO_MAX) {
+      return {
+        kategorie: 'papierkorb',
+        confidence: 85,
+        gedanken: `System-Mail "${localPart}@..." ist ${age} Tage alt → Papierkorb.`,
+        stufe: 7,
+        final: true
+      };
+    }
+    return {
+      kategorie: 'info',
+      confidence: 85,
+      gedanken: `System-Mail von "${localPart}@...".`,
+      stufe: 7,
+      final: true
+    };
+  }
+
+  // MIXED - GPT entscheidet
+  if (matchesDomain(from, MIXED_DOMAINS)) {
+    return {
+      kategorie: null,
+      needsGPT: true,
+      reason: 'MIXED_DOMAIN',
+      stufe: 6
+    };
+  }
+
+  // Unbekannt - GPT entscheidet
+  return {
+    kategorie: null,
+    needsGPT: true,
+    reason: 'UNKNOWN_DOMAIN',
+    stufe: 6
+  };
+}
+
+// =============================================================================
+// EIGENE E-MAIL CHECK
+// =============================================================================
+
+function isMyOwnEmail(from) {
+  const email = extractEmail(from).toLowerCase();
+  return MY_EMAILS.some(my => email.includes(my.toLowerCase()));
+}
+
+// =============================================================================
+// STUFE 10: ALTERS-LIMIT ANWENDEN
 // =============================================================================
 
 function applyAgeLimit(kategorie, emailDate) {
   const age = getAgeInDays(emailDate);
 
   // Diese Kategorien ignorieren das Alter
-  if (['rechnung', 'info', 'newsletter', 'werbung', 'spam', 'termine', 'papierkorb'].includes(kategorie)) {
+  if (['rechnung', 'werbung', 'newsletter', 'termine', 'papierkorb'].includes(kategorie)) {
     return { kategorie, wasLimited: false, ageInDays: age };
+  }
+
+  // INFO älter als 7 Tage → PAPIERKORB
+  if (kategorie === 'info' && age > AGE_LIMITS.INFO_MAX) {
+    return {
+      kategorie: 'papierkorb',
+      wasLimited: true,
+      originalKategorie: 'info',
+      ageInDays: age
+    };
   }
 
   let newKategorie = kategorie;
@@ -530,7 +547,7 @@ function applyAgeLimit(kategorie, emailDate) {
   }
 
   if (wasLimited) {
-    console.log(`[AGE-LIMIT] ${kategorie} → ${newKategorie} (E-Mail ist ${age} Tage alt)`);
+    console.log(`[AGE-LIMIT] ${kategorie} → ${newKategorie} (${age} Tage alt)`);
   }
 
   return {
@@ -546,8 +563,7 @@ function applyAgeLimit(kategorie, emailDate) {
 // =============================================================================
 
 const GPT_PROMPT_MIT_INHALT = `
-Ein Dringlichkeits-Signal wurde im Betreff erkannt: "{signal}"
-ABER: Das bedeutet NICHT automatisch dass es wichtig ist!
+DRINGLICHKEITS-SIGNAL IM BETREFF: "{signal}"
 
 ABSENDER: {from}
 BETREFF: {subject}
@@ -555,73 +571,62 @@ ALTER: {age} Tage
 INHALT (erste 300 Zeichen):
 {content}
 
-Prüfe GENAU:
+PRÜFE GENAU - WER schreibt wirklich?
 
-1. WER schreibt?
-   - Echter Mensch (vorname.nachname@firma.de) → Könnte wichtig sein
-   - Service/Marketing (service@firma.de, noreply@...) → Wahrscheinlich automatisch
-   - Bekannte Werbe-Firma → WERBUNG
+1. Echter Mensch (vorname.nachname@firma.de)?
+   - "Hey, ich erreiche dich nicht..." → ESSENZ
+   - Wartet auf meine Antwort? → ESSENZ
 
-2. WAS steht im INHALT?
-   Lies den Inhalt und entscheide:
-   - "Hey Roland, ich erreiche dich nicht..." → Echter Mensch wartet = ESSENZ
-   - "Rufen Sie unsere Hotline an..." → Marketing = WERBUNG
-   - "Letzte Mahnung vor Vollstreckung... 37.500€" → Rechtlich = ESSENZ
-   - "Letzte Chance auf 20% Rabatt..." → Marketing = WERBUNG
-   - "Ihre Kreditkarte wurde abgelehnt" von Bank → WICHTIG
-   - "Ihre Kreditkarte wurde abgelehnt" von Shop → INFO
+2. Rechtlich/Finanziell ernst?
+   - Echte Mahnung mit Betrag? → ESSENZ
+   - Inkasso/Anwalt? → ESSENZ
+   - Bank meldet Problem? → WICHTIG
 
-3. Wartet ein ECHTER MENSCH auf meine Antwort?
-   - JA, echter Mensch wartet → ESSENZ
-   - JA, aber nur Info/Benachrichtigung → WICHTIG oder INFO
-   - NEIN, ist Werbung/Marketing → WERBUNG
-
-DENKE WIE EIN MENSCH! Nicht jedes "bitte anrufen" ist wichtig!
+3. Oder doch nur Marketing?
+   - "Letzte Chance auf Rabatt" → WERBUNG
+   - "Rufen Sie unsere Hotline an" → WERBUNG/INFO
+   - Automatische Benachrichtigung → INFO
 
 Kategorien:
-- essenz: Sofortige Aktion nötig (echter Mensch wartet, Rechtliches, Geld)
+- essenz: Echter Mensch wartet, Rechtliches, echte Geldprobleme
 - wichtig: Sollte heute gelesen werden
 - normal: Kann gelesen werden
-- info: Automatische Benachrichtigungen
+- info: Echte System-Benachrichtigung (max 7 Tage relevant!)
 - newsletter: Abonnierte Updates
-- werbung: Marketing, Promotions, Angebote
-- spam: Unerwünschte Werbung
+- werbung: Marketing
+- papierkorb: Irrelevant, alt, Müll
 
-Antworte NUR mit JSON:
-{
-  "kategorie": "...",
-  "sicherheit": 0-100,
-  "gedanken": "Wer schreibt und was will er wirklich?",
-  "echterMenschWartet": true/false
-}
-`;
-
-const GPT_PROMPT_NUR_HEADER = `
-Klassifiziere diese E-Mail:
-
-ABSENDER: {from}
-BETREFF: {subject}
-ALTER: {age} Tage
-
-Denke wie ein Mensch:
-- Ist der Absender eine Firma die mir etwas verkaufen will?
-- Oder eine echte Person/Institution?
-- Klingt der Betreff nach Marketing oder nach echtem Anliegen?
-
-Kategorien:
-- essenz: Sofortige Aktion nötig (echter Mensch wartet, Rechtliches, Geld)
-- wichtig: Sollte heute gelesen werden
-- normal: Kann gelesen werden
-- info: Automatische Benachrichtigungen
-- newsletter: Abonnierte Updates
-- werbung: Marketing, Promotions
-- spam: Unerwünschte Werbung
-
-Antworte NUR mit JSON:
+JSON Antwort:
 {
   "kategorie": "...",
   "sicherheit": 0-100,
   "gedanken": "Kurze Begründung"
+}
+`;
+
+const GPT_PROMPT_NUR_HEADER = `
+ABSENDER: {from}
+BETREFF: {subject}
+ALTER: {age} Tage
+
+Wer schreibt - Mensch oder Maschine?
+- Echter Mensch mit echtem Anliegen?
+- Oder Marketing/Automatik?
+
+Kategorien:
+- essenz: Echter Mensch wartet, dringend
+- wichtig: Sollte heute gelesen werden
+- normal: Kann gelesen werden
+- info: System-Benachrichtigung (nur wenn aktuell!)
+- newsletter: Abonnierte Updates
+- werbung: Marketing
+- papierkorb: Irrelevant
+
+JSON:
+{
+  "kategorie": "...",
+  "sicherheit": 0-100,
+  "gedanken": "Begründung"
 }
 `;
 
@@ -635,109 +640,48 @@ class ImprovedClassifier {
   }
 
   /**
-   * Haupt-Klassifizierungsfunktion v3
-   * REIHENFOLGE: Rechnung → Termin → Domain → Alter → Historie → Signal → GPT → Alters-Limit
+   * Haupt-Klassifizierungsfunktion v3.1
+   *
+   * KRITISCHER FIX: Signal-Check jetzt VOR Domain-Check!
+   * "Vollstreckung" = IMMER wichtig, egal von welcher Domain!
    */
   klassifiziere(email) {
     const subject = email.subject || '';
     const fromAddress = email.from?.address || email.from || '';
-    const fromName = email.from?.name || '';
     const emailDate = email.date;
     const fromDomain = extractDomain(fromAddress);
     const age = getAgeInDays(emailDate);
     const content = (email.text || email.html || '').substring(0, 300);
 
-    console.log(`[CLASSIFY] === E-Mail: ${subject.substring(0, 50)}... ===`);
-    console.log(`[CLASSIFY] Absender: ${fromAddress}`);
-    console.log(`[CLASSIFY] Alter: ${age} Tage`);
+    console.log(`[CLASSIFY] === ${subject.substring(0, 50)}... ===`);
+    console.log(`[CLASSIFY] Von: ${fromAddress}, Alter: ${age} Tage`);
 
-    // ========== STUFE 1: RECHNUNG (VOR Alter-Check!) ==========
-    console.log(`[CLASSIFY] Stufe 1 (Rechnung): ${isRechnung(subject)}`);
+    // ========== STUFE 1: RECHNUNG ==========
     if (isRechnung(subject)) {
       console.log(`[CLASSIFY] → RECHNUNG (Stufe 1)`);
       return {
         kategorie: 'rechnung',
         confidence: 95,
-        gedanken: `Rechnung erkannt im Betreff. Rechnungen werden unabhängig vom Alter gespeichert.`,
+        gedanken: `Rechnung/Auszug erkannt.`,
         stufe: 1,
         schnell: true,
         final: true
       };
     }
 
-    // ========== STUFE 2: TERMIN (eigene Datum-Logik!) ==========
-    const terminCheck = isTermin(email, fromDomain, subject);
-    console.log(`[CLASSIFY] Stufe 2 (Termin): ${terminCheck}`);
-    if (terminCheck) {
-      const terminResult = handleTermin(email);
-      console.log(`[CLASSIFY] → ${terminResult.kategorie} (Stufe 2 - Termin)`);
-      return terminResult;
+    // ========== STUFE 2: TERMIN ==========
+    if (isTermin(email, fromDomain, subject)) {
+      const result = handleTermin(email);
+      console.log(`[CLASSIFY] → ${result.kategorie} (Stufe 2 - Termin)`);
+      return result;
     }
 
-    // ========== STUFE 3: BEKANNTE DOMAINS (VOR Keywords!) ==========
-    const domainResult = checkDomain(fromAddress);
-    console.log(`[CLASSIFY] Stufe 3 (Domain): ${JSON.stringify(domainResult)}`);
-    if (domainResult.final) {
-      console.log(`[CLASSIFY] → ${domainResult.kategorie} (Stufe 3 - Domain)`);
-      return domainResult;
-    }
-
-    // ========== EIGENE E-MAIL CHECK ==========
-    if (isMyOwnEmail(fromAddress)) {
-      console.log(`[CLASSIFY] → SPAM (Eigene Test-Mail)`);
-      return {
-        kategorie: 'spam',
-        confidence: 100,
-        gedanken: 'Eigene Test-Mail erkannt.',
-        stufe: 3,
-        schnell: true,
-        final: true
-      };
-    }
-
-    // ========== STUFE 4: ALTER > 90 Tage = ARCHIV ==========
-    if (age > AGE_LIMITS.ARCHIV) {
-      console.log(`[CLASSIFY] → INFO/ARCHIV (> 90 Tage alt)`);
-      return {
-        kategorie: 'info',
-        confidence: 100,
-        gedanken: `Diese E-Mail ist ${age} Tage alt (über 3 Monate). Wenn sie wichtig gewesen wäre, hätte sich das längst geklärt.`,
-        stufe: 4,
-        schnell: true,
-        wasArchived: true
-      };
-    }
-
-    // ========== STUFE 5: ABSENDER-HISTORIE ==========
-    const senderHistory = this.getSenderHistory(fromAddress);
-    if (senderHistory) {
-      // Wenn Absender immer Werbung/Newsletter ist
-      if (senderHistory.categories?.werbung > 5 && senderHistory.urgencyScore < 30) {
-        console.log(`[CLASSIFY] → WERBUNG (Stufe 5 - Historie: bekannte Werbung)`);
-        return {
-          kategorie: 'werbung',
-          confidence: 88,
-          gedanken: `Absender "${fromAddress}" hat in der Vergangenheit hauptsächlich Werbung gesendet.`,
-          stufe: 5,
-          schnell: true
-        };
-      }
-
-      // Wenn Absender oft wichtig ist → genauer prüfen mit GPT
-      if (senderHistory.urgencyScore > 75) {
-        console.log(`[CLASSIFY] Absender ${fromAddress} hat hohen Urgency-Score: ${senderHistory.urgencyScore} → GPT`);
-      }
-    }
-
-    // ========== STUFE 6: DRINGLICHKEITS-SIGNALE ERKENNEN ==========
+    // ========== STUFE 3: DRINGLICHKEITS-SIGNALE (VOR DOMAINS!) ==========
     const signalResult = hasDringlichkeitsSignal(subject);
-    console.log(`[CLASSIFY] Stufe 6 (Signal): ${JSON.stringify(signalResult)}`);
-
-    // ========== STUFE 7/8: GPT ENTSCHEIDUNG ==========
-    // Hier geben wir die Info zurück, dass GPT gebraucht wird
     if (signalResult.hasSignal) {
-      // Signal gefunden → GPT mit Inhalt
-      console.log(`[CLASSIFY] Signal gefunden: ${signalResult.typ} → GPT muss mit Inhalt entscheiden`);
+      console.log(`[CLASSIFY] ⚠️ SIGNAL: ${signalResult.typ} → GPT mit Inhalt!`);
+      // Bei Dringlichkeits-Signalen IMMER GPT mit Inhalt fragen!
+      // Domain-Check wird ÜBERSPRUNGEN!
       return {
         kategorie: null,
         needsGPT: true,
@@ -749,12 +693,71 @@ class ImprovedClassifier {
           .replace('{subject}', subject)
           .replace('{age}', age)
           .replace('{content}', content),
-        stufe: 7
+        stufe: 3
       };
     }
 
-    // Kein Signal → GPT nur mit Header
-    console.log(`[CLASSIFY] Kein Signal → GPT muss nur mit Header entscheiden`);
+    // ========== STUFE 4: EIGENE EMAIL ==========
+    if (isMyOwnEmail(fromAddress)) {
+      console.log(`[CLASSIFY] → PAPIERKORB (eigene Test-Mail)`);
+      return {
+        kategorie: 'papierkorb',
+        confidence: 100,
+        gedanken: 'Eigene Test-Mail.',
+        stufe: 4,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // ========== STUFE 5: ALTER > 90 Tage ==========
+    if (age > AGE_LIMITS.ARCHIV) {
+      console.log(`[CLASSIFY] → PAPIERKORB (${age} Tage alt)`);
+      return {
+        kategorie: 'papierkorb',
+        confidence: 100,
+        gedanken: `E-Mail ist ${age} Tage alt.`,
+        stufe: 5,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // ========== STUFE 6/7: DOMAIN CHECK ==========
+    const domainResult = checkDomain(fromAddress, age);
+    if (domainResult.final) {
+      console.log(`[CLASSIFY] → ${domainResult.kategorie} (Stufe ${domainResult.stufe} - Domain)`);
+      return domainResult;
+    }
+
+    // ========== STUFE 8: ABSENDER-HISTORIE ==========
+    const senderHistory = this.getSenderHistory(fromAddress);
+    if (senderHistory) {
+      if (senderHistory.categories?.werbung > 5 && senderHistory.urgencyScore < 30) {
+        console.log(`[CLASSIFY] → WERBUNG (Historie)`);
+        return {
+          kategorie: 'werbung',
+          confidence: 88,
+          gedanken: `Absender sendet meist Werbung.`,
+          stufe: 8,
+          schnell: true
+        };
+      }
+
+      if (senderHistory.categories?.papierkorb > 3) {
+        console.log(`[CLASSIFY] → PAPIERKORB (Historie)`);
+        return {
+          kategorie: 'papierkorb',
+          confidence: 85,
+          gedanken: `Absender landet meist im Papierkorb.`,
+          stufe: 8,
+          schnell: true
+        };
+      }
+    }
+
+    // ========== STUFE 9: GPT NUR HEADER ==========
+    console.log(`[CLASSIFY] → GPT (nur Header)`);
     return {
       kategorie: null,
       needsGPT: true,
@@ -763,18 +766,18 @@ class ImprovedClassifier {
         .replace('{from}', fromAddress)
         .replace('{subject}', subject)
         .replace('{age}', age),
-      stufe: 8
+      stufe: 9
     };
   }
 
   /**
-   * Wendet Alters-Limit auf GPT-Ergebnis an (STUFE 9)
+   * STUFE 10: Alters-Limit auf GPT-Ergebnis anwenden
    */
   applyAgeLimitToResult(result, emailDate) {
     const ageResult = applyAgeLimit(result.kategorie, emailDate);
 
     if (ageResult.wasLimited) {
-      console.log(`[CLASSIFY] Stufe 9: Alters-Limit angewendet: ${result.kategorie} → ${ageResult.kategorie}`);
+      console.log(`[CLASSIFY] Stufe 10: ${result.kategorie} → ${ageResult.kategorie}`);
     }
 
     return {
@@ -786,9 +789,6 @@ class ImprovedClassifier {
     };
   }
 
-  /**
-   * Absender-Historie laden
-   */
   getSenderHistory(email) {
     try {
       return this.senderHistoryStore.get(`senders.${email.replace(/\./g, '_')}`);
@@ -797,9 +797,6 @@ class ImprovedClassifier {
     }
   }
 
-  /**
-   * Absender-Historie aktualisieren
-   */
   updateSenderHistory(email, subject, kategorie) {
     try {
       const key = `senders.${email.replace(/\./g, '_')}`;
@@ -810,13 +807,11 @@ class ImprovedClassifier {
         recentSubjects: []
       };
 
-      // Update counts
       sender.totalEmails++;
       sender.categories[kategorie] = (sender.categories[kategorie] || 0) + 1;
       sender.lastEmailDate = new Date().toISOString();
       sender.lastCategory = kategorie;
 
-      // Add to recent subjects (keep last 10)
       sender.recentSubjects.unshift({
         subject: subject.substring(0, 100),
         date: new Date().toISOString(),
@@ -824,24 +819,19 @@ class ImprovedClassifier {
       });
       sender.recentSubjects = sender.recentSubjects.slice(0, 10);
 
-      // Recalculate urgency score
       sender.urgencyScore = this.calculateUrgencyScore(sender);
 
       this.senderHistoryStore.set(key, sender);
       return sender;
     } catch (e) {
-      console.error('[SENDER-HISTORY] Update error:', e);
+      console.error('[SENDER-HISTORY] Error:', e);
       return null;
     }
   }
 
-  /**
-   * Urgency Score berechnen
-   */
   calculateUrgencyScore(sender) {
     let score = 50;
 
-    // Wiederholte Betreffs
     const subjectCounts = {};
     sender.recentSubjects.forEach(s => {
       const key = s.subject.toLowerCase().substring(0, 50);
@@ -852,12 +842,10 @@ class ImprovedClassifier {
     else if (maxRepeats >= 3) score += 25;
     else if (maxRepeats >= 2) score += 15;
 
-    // Historisch wichtige E-Mails
     const wichtig = (sender.categories.essenz || 0) + (sender.categories.wichtig || 0);
     const ratio = wichtig / Math.max(sender.totalEmails, 1);
     score += ratio * 30;
 
-    // Aktivität in letzter Woche
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const recentCount = sender.recentSubjects.filter(s => new Date(s.date) > oneWeekAgo).length;
     if (recentCount >= 4) score += 20;
@@ -866,16 +854,10 @@ class ImprovedClassifier {
     return Math.min(Math.round(score), 100);
   }
 
-  /**
-   * GPT Prompt für Klassifizierung mit Inhalt
-   */
   getGPTPromptWithContent() {
     return GPT_PROMPT_MIT_INHALT;
   }
 
-  /**
-   * GPT Prompt für Klassifizierung nur mit Header
-   */
   getGPTPromptHeaderOnly() {
     return GPT_PROMPT_NUR_HEADER;
   }
@@ -892,6 +874,7 @@ module.exports = {
   WERBUNG_DOMAINS,
   NEWSLETTER_DOMAINS,
   INFO_DOMAINS,
+  PAPIERKORB_DOMAINS,
   MIXED_DOMAINS,
   MY_EMAILS,
   DRINGLICHKEIT_SIGNALE,

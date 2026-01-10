@@ -1129,7 +1129,7 @@ body {
 .chart-bar.info { background: #6b7280; }       /* Grau */
 .chart-bar.newsletter { background: #8b5cf6; } /* Lila */
 .chart-bar.werbung { background: #ec4899; }    /* Pink */
-.chart-bar.spam { background: #71717a; }       /* Dunkelgrau */
+.chart-bar.papierkorb { background: #71717a; }       /* Dunkelgrau */
 .chart-bar.veraltet { background: #a1a1aa; }   /* Hellgrau */
 /* Alte Namen fuer Kompatibilitaet */
 .chart-bar.news { background: #8b5cf6; }
@@ -1985,7 +1985,7 @@ body {
   font-weight: 700;
 }
 
-.analysis-result-number.spam { color: #71717a; }
+.analysis-result-number.papierkorb { color: #71717a; }
 .analysis-result-number.important { color: #14b8a6; }
 .analysis-result-number.action { color: #ef4444; }
 .analysis-result-number.auto { color: #a855f7; }
@@ -2467,7 +2467,7 @@ body {
   border-left: 3px solid #8b5cf6;
 }
 
-.email-item[data-kategorie="spam"] {
+.email-item[data-kategorie="papierkorb"] {
   border-left: 3px solid #dc2626;
   opacity: 0.7;
 }
@@ -2572,7 +2572,7 @@ body {
 .email-trail.normal { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
 .email-trail.info { background: #6b7280; box-shadow: 0 0 10px #6b7280; }
 .email-trail.newsletter { background: #8b5cf6; box-shadow: 0 0 10px #8b5cf6; }
-.email-trail.spam { background: #71717a; box-shadow: 0 0 10px #71717a; }
+.email-trail.papierkorb { background: #71717a; box-shadow: 0 0 10px #71717a; }
 
 /* === Phase 4: Kategorie in Sidebar leuchtet auf === */
 @keyframes categoryPulse {
@@ -2602,7 +2602,7 @@ body {
 .category-item.receiving[data-category="important"] {
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.1)) !important;
 }
-.category-item.receiving[data-category="spam"] {
+.category-item.receiving[data-category="papierkorb"] {
   background: linear-gradient(135deg, rgba(113, 113, 122, 0.3), rgba(113, 113, 122, 0.1)) !important;
 }
 .category-item.receiving[data-category="newsletter"] {
@@ -2685,7 +2685,7 @@ body {
 .summary-stat-number.normal { color: #3b82f6; }
 .summary-stat-number.info { color: #6b7280; }
 .summary-stat-number.newsletter { color: #8b5cf6; }
-.summary-stat-number.spam { color: #71717a; }
+.summary-stat-number.papierkorb { color: #71717a; }
 
 .summary-stat-label {
   font-size: 12px;
@@ -2961,7 +2961,7 @@ body {
   color: #8b5cf6;
 }
 
-.debug-entry-kategorie.spam {
+.debug-entry-kategorie.papierkorb {
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
 }
@@ -3625,7 +3625,7 @@ body {
 .ki-regel-kategorie-badge.info { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
 .ki-regel-kategorie-badge.newsletter { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
 .ki-regel-kategorie-badge.werbung { background: rgba(236, 72, 153, 0.2); color: #ec4899; }
-.ki-regel-kategorie-badge.spam { background: rgba(75, 85, 99, 0.2); color: #4b5563; }
+.ki-regel-kategorie-badge.papierkorb { background: rgba(75, 85, 99, 0.2); color: #4b5563; }
 
 .ki-regel-meta {
   font-size: 11px;

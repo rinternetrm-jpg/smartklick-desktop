@@ -136,7 +136,7 @@ function initializeElements() {
     autoReplyCount: document.getElementById('autoReplyCount'),
     briefingBtn: document.getElementById('briefingBtn'),
     emptySpamBtn: document.getElementById('emptySpamBtn'),
-    spamCount: document.getElementById('spamCount'),
+    papierkorbCount: document.getElementById('papierkorbCount'),
     archiveNewsletterBtn: document.getElementById('archiveNewsletterBtn'),
     markAllReadBtn: document.getElementById('markAllReadBtn'),
 
@@ -583,7 +583,7 @@ async function classifyAllEmails() {
           email.aktion = classification.aktion;
           email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
           email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
-          email.isSpam = classification.kategorie === 'spam';
+          email.isPapierkorb = classification.kategorie === 'papierkorb';
           email.isNewsletter = classification.kategorie === 'newsletter';
           email.canAutoReply = classification.autoAntwortMöglich;
         }
@@ -644,7 +644,7 @@ class EmailAnalysisAnimation {
       info: 'info',
       werbung: 'werbung',
       newsletter: 'newsletter',
-      spam: 'spam',
+      spam: 'papierkorb',
       veraltet: 'inbox'
     };
     this.createUIElements();
@@ -755,7 +755,7 @@ class EmailAnalysisAnimation {
         email.aktion = classification.aktion;
         email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
         email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
-        email.isSpam = classification.kategorie === 'spam';
+        email.isPapierkorb = classification.kategorie === 'papierkorb';
         email.isNewsletter = classification.kategorie === 'newsletter';
         email.canAutoReply = classification.autoAntwortMöglich;
 
@@ -1203,7 +1203,7 @@ function filterByCategory(emailList) {
         !e.kategorie ||
         e.kategorie === 'normal' ||
         e.kategorie === 'veraltet' ||
-        (e.kategorie !== 'spam' &&
+        (e.kategorie !== 'papierkorb' &&
          e.kategorie !== 'newsletter' &&
          e.kategorie !== 'info' &&
          e.kategorie !== 'werbung' &&
@@ -1211,7 +1211,7 @@ function filterByCategory(emailList) {
          e.kategorie !== 'wichtig' &&
          e.kategorie !== 'termine' &&
          e.kategorie !== 'rechnung' &&
-         !e.isSpam &&
+         !e.isPapierkorb &&
          !e.isNewsletter)
       );
     case 'info':
@@ -1222,8 +1222,8 @@ function filterByCategory(emailList) {
       return emailList.filter(e => e.kategorie === 'newsletter' || e.isNewsletter);
     case 'sent':
       return emailList.filter(e => e.isSent);
-    case 'spam':
-      return emailList.filter(e => e.kategorie === 'spam' || e.isSpam);
+    case 'papierkorb':
+      return emailList.filter(e => e.kategorie === 'papierkorb' || e.isPapierkorb);
     case 'essenz':
       return emailList.filter(e => e.kategorie === 'essenz');
     case 'termine':
@@ -1249,7 +1249,7 @@ function createEmailItem(email) {
   let priorityClass = 'normal';
   if (email.kategorie === 'essenz') priorityClass = 'high';
   else if (email.kategorie === 'wichtig') priorityClass = 'medium';
-  else if (email.kategorie === 'spam' || email.kategorie === 'newsletter') priorityClass = 'low';
+  else if (email.kategorie === 'papierkorb' || email.kategorie === 'newsletter') priorityClass = 'low';
 
   // Tags basierend auf Klassifizierung
   let tagsHtml = '';
@@ -1714,11 +1714,11 @@ function updateCategoryCounts() {
     !e.kategorie ||
     e.kategorie === 'normal' ||
     e.kategorie === 'veraltet' ||
-    (e.kategorie !== 'spam' && e.kategorie !== 'newsletter' &&
+    (e.kategorie !== 'papierkorb' && e.kategorie !== 'newsletter' &&
      e.kategorie !== 'info' && e.kategorie !== 'werbung' &&
      e.kategorie !== 'essenz' && e.kategorie !== 'wichtig' &&
      e.kategorie !== 'termine' && e.kategorie !== 'rechnung' &&
-     !e.isSpam && !e.isNewsletter)
+     !e.isPapierkorb && !e.isNewsletter)
   ).length;
   document.getElementById('catInbox').textContent = `${inboxCount} E-Mails`;
 
@@ -1784,9 +1784,9 @@ function updateCategoryCounts() {
   document.getElementById('catNewsletter').textContent = `${newsletterCount} E-Mails`;
 
   // Spam
-  const spamCount = emails.filter(e => e.kategorie === 'spam' || e.isSpam).length;
-  document.getElementById('catSpam').textContent = `${spamCount} E-Mails`;
-  elements.spamCount.textContent = spamCount;
+  const papierkorbCount = emails.filter(e => e.kategorie === 'papierkorb' || e.isPapierkorb).length;
+  document.getElementById('catSpam').textContent = `${papierkorbCount} E-Mails`;
+  elements.papierkorbCount.textContent = papierkorbCount;
 
   // Sent
   const sentCount = emails.filter(e => e.isSent).length;
@@ -2063,7 +2063,7 @@ async function analyzeAllEmails() {
         email.aktion = classification.aktion;
         email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
         email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
-        email.isSpam = classification.kategorie === 'spam';
+        email.isPapierkorb = classification.kategorie === 'papierkorb';
         email.isNewsletter = classification.kategorie === 'newsletter';
         email.canAutoReply = classification.autoAntwortMöglich;
 
@@ -2151,7 +2151,7 @@ async function emptySpam() {
 
   try {
     await ipcRenderer.invoke('email:emptySpam');
-    emails = emails.filter(e => !e.isSpam);
+    emails = emails.filter(e => !e.isPapierkorb);
     updateCategoryCounts();
     renderEmailList();
     showToast('Spam geleert');
