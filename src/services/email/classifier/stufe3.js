@@ -97,7 +97,10 @@ BETREFF: ${subject}
 INHALT (erste 300 Zeichen): ${body}
 ${attachmentInfo}
 
-WICHTIG: Mein Name ist "Roland Müller". E-Mails von mir selbst sind IMMER Tests!
+WICHTIG - ABSENDER-REGELN:
+1. E-Mails von "Roland Müller" an mich selbst sind MEIST Tests
+2. ABER: Wenn Inhalt "rückruf", "anrufen", "dringend", "erreichen", "bitte", "nicht erreichen" enthält = WICHTIG!
+3. Der INHALT überschreibt die Absender-Regel! Jemand der um Rückruf bittet wartet auf mich!
 ${feedbackContext}
 Frage: Ist das ein echter Mensch der auf MEINE Antwort wartet?
 
