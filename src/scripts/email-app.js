@@ -958,6 +958,8 @@ async function loadImapEmails() {
       emails = (result.emails || []).map(email => ({
         id: email.uid.toString(),
         uid: email.uid,
+        accountId: email.accountId,
+        folder: email.folder || 'INBOX',
         from: email.from,
         fromName: extractName(email.from),
         subject: email.subject,
