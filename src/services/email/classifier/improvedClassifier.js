@@ -1,24 +1,29 @@
 /**
- * E-Mail-Klassifizierungssystem v3.3
+ * E-Mail-Klassifizierungssystem v3.4
+ *
+ * MASSIVE ERWEITERUNG DER WERBUNGS-ERKENNUNG:
+ * - 50+ WERBUNG-Keywords (Cyber Monday, Black Friday, Deal, Giveaway, etc.)
+ * - 40+ WERBUNG-Domains (Netflix, Elegant Themes, Pinegrow, SIXT, etc.)
+ * - Emoji-Spam-Erkennung (2+ Emojis = Marketing)
+ * - WordPress Spam-Kommentare → PAPIERKORB
  *
  * KRITISCHE FIXES:
- * - DRINGLICHKEITS-SIGNALE jetzt DIREKT klassifiziert (nicht mehr GPT)
+ * - DRINGLICHKEITS-SIGNALE jetzt DIREKT klassifiziert
  * - "Meeting Roland" → TERMIN
  * - "incasso@" im Absender → ESSENZ
- * - "Kündigung" → WICHTIG
- * - ALTER > 30 Tage → PAPIERKORB (außer Buchungen)
- * - Buchungen: GPT prüft ob Flugdatum noch aktuell
+ * - ALTER > 30 Tage → PAPIERKORB
  *
- * REIHENFOLGE (v3.3):
+ * REIHENFOLGE (v3.4):
  * 1. RECHNUNG
- * 2. TERMIN (inkl. "Meeting Roland")
+ * 2. TERMIN
  * 3. DRINGLICHKEITS-SIGNALE → DIREKT ESSENZ/WICHTIG
- * 4. PAPIERKORB-KEYWORDS
- * 5. WERBUNG-KEYWORDS
+ * 4. PAPIERKORB-KEYWORDS (inkl. WordPress Spam)
+ * 5. WERBUNG-KEYWORDS (massiv erweitert)
+ * 5b. EMOJI-SPAM (2+ Emojis = Marketing)
  * 6. EIGENE EMAIL → PAPIERKORB
- * 7. ALTER > 90 Tage → PAPIERKORB (Archiv)
- * 7b. BUCHUNG > 30 Tage → GPT prüft Datum
- * 7c. ALTER > 30 Tage → PAPIERKORB (Veraltet)
+ * 7. ALTER > 90 Tage → PAPIERKORB
+ * 7b. BUCHUNG > 30 Tage → GPT
+ * 7c. ALTER > 30 Tage → PAPIERKORB
  * 8. BEKANNTE DOMAINS
  * 9. ABSENDER-HISTORIE
  * 10. GPT
@@ -201,46 +206,90 @@ const WERBUNG_DOMAINS = [
   'booking.com', 'expedia.', 'trivago.',
   'holidaycheck.', 'tui.com', 'lastminute.',
   'radisson.', 'rewards.radisson', 'hilton.', 'marriott.',
-  'opodo.', 'opodoprime.',
-  // Sport/Entertainment
-  'wow.', 'dazn.', 'sky.',
+  'opodo.', 'opodoprime.', 'satama.',
+  // Sport/Entertainment/Streaming
+  'wow.', 'dazn.', 'sky.', 'netflix.', 'waipu.',
+  // Software/Tech Marketing
+  'elegantthemes.', 'pinegrow.', 'unmeshdinda.',
+  'prezi.', 'emclient.', 'neuroflash.', 'mindverse.',
+  'vibeventure.', 'jtl-software.', 'shopware.',
+  'vuetify.', 'seobility.', 'wpovernight.',
   // Hosting-Werbung (nicht Service-Mails!)
   'ionos-info', 'info.ionos',
   // Kostüme/Party
   'maskworld.', 'funidelia.', 'kostüm',
-  // Sonstige
+  // Auto/Reise
+  'sixt.', 'miles-and-more.', 'lufthansa.',
+  // Sonstige Werbung
   'groupon.', 'mydealz.', 'sparwelt.',
   'check24.', 'verivox.', 'contabo.',
+  'tfbank.', 'stage-entertainment.', 'huk24.',
   // Spendenorganisationen (Marketing)
   'funzone', 'elegance', 'unicef', 'wwf',
   'greenpeace', 'amnesty', 'caritas',
   // Labelbox, Product Updates (Marketing)
-  'labelbox.'
+  'labelbox.', 'giata.'
 ];
 
 // WERBUNG-Keywords im Betreff - überschreibt alles außer RECHNUNG/TERMIN!
 const WERBUNG_KEYWORDS = [
-  /\d+%\s*rabatt/i,              // "10% Rabatt"
+  // Rabatte & Deals
+  /\d+%\s*(rabatt|off|sparen)/i,  // "10% Rabatt", "50% off"
   /rabatt/i,                      // Rabatt allgemein
+  /\d+\s*€\s*(sparen|rabatt)/i,   // "200 € sparen"
   /bonuspunkte/i,                 // "3.000 Bonuspunkte"
   /aktionscode/i,                 // "8 neue Aktionscodes"
   /gutschein/i,                   // Gutschein
   /angebot/i,                     // "Top-Angebote"
   /sparen\s*sie/i,                // "Sparen Sie"
   /gratis/i,                      // Gratis
-  /kostenlos/i,                   // Kostenlos (Marketing)
+  // Sales Events
+  /cyber\s*monday/i,              // Cyber Monday
+  /black\s*friday/i,              // Black Friday
+  /sale\s*(ends|endet)/i,         // "Sale ends"
+  /deal/i,                        // "Deal", "Winterdeal"
+  /giveaway/i,                    // Giveaway
+  /gewinnen/i,                    // "gewinnen", "2x AirPods gewinnen"
+  // Dringlichkeit (Marketing-Fake)
+  /nur\s*noch\s*\d+\s*stunden/i,  // "Nur noch wenige Stunden"
+  /nur\s*heute/i,                 // "Nur heute"
+  /letzte\s*chance/i,             // "Letzte Chance" (Marketing!)
+  /last\s*chance/i,               // English version
+  /ends\s*(today|soon|in)/i,      // "Ends today", "Ends soon"
+  /endet\s*(heute|morgen|bald)/i, // "Endet heute"
+  /läuft\s*ab/i,                  // "läuft ab" (wenn Marketing-Kontext)
+  /jetzt\s*sichern/i,             // "Jetzt sichern"
+  /beeil\s*dich/i,                // "Beeil dich!"
+  // Personalisierung (Marketing)
   /wir\s*haben\s*sie.*vermisst/i, // "wir haben Sie vermisst"
   /vermisst.*sie/i,               // "vermisst"
   /kennen\s*sie\s*den/i,          // "Kennen Sie den..."
   /exklusiv\s*für\s*sie/i,        // "Exklusiv für Sie"
-  /nur\s*heute/i,                 // "Nur heute"
-  /letzte\s*chance/i,             // "Letzte Chance" (Marketing!)
-  /jetzt\s*sichern/i,             // "Jetzt sichern"
+  /nur\s*für\s*member/i,          // "Nur für Member"
+  /ihr.*geschenk/i,               // "Ihr Geschenk wartet"
+  /warten?\s*auf\s*(sie|dich)/i,  // "wartet auf Sie"
+  // Weihnachts-/Advents-Marketing
+  /adventszeit/i,                 // "Adventszeit"
+  /weihnachts/i,                  // "Weihnachts-Deal"
+  /türchen\s*nr/i,                // "Türchen Nr. 11"
+  /adventskalender/i,             // Adventskalender
+  // Streaming/Entertainment Werbung
+  /staffel\s*\d+/i,               // "Staffel 8" (TV-Werbung)
+  /kommt\s*snart/i,               // "kommer snart" (Netflix)
+  /coming\s*soon/i,               // "coming soon"
+  /bundesliga/i,                  // Sport-Werbung
+  /derby/i,                       // Sport-Werbung
+  // Newsletter/Marketing Sprache
+  /introducing/i,                 // "Introducing..."
+  /sneak\s*peek/i,                // "Sneak Peek"
+  /first\s*look/i,                // "First Look"
+  /new\s*features/i,              // "New Features"
+  /product\s*release/i,           // Product Updates (Marketing)
+  /best\s*\w+\s*in\s*\d{4}/i,     // "Best Themes in 2026"
+  // Sonstiges
   /kostümideen/i,                 // "Kostümideen für dich"
-  /bundesliga.*zurück/i,          // Sport-Werbung
-  /derby.*fieber/i,               // Sport-Werbung
-  /beeil\s*dich/i,                // "Beeil dich!"
-  /product\s*release\s*notes/i    // Product Updates (Marketing)
+  /rhythm/i,                      // "Find your winter rhythm"
+  /highlights\s*\d{4}/i           // "Highlights 2026"
 ];
 
 // NEWSLETTER-Domains
@@ -271,11 +320,17 @@ const PAPIERKORB_DOMAINS = [
 
 // PAPIERKORB-Keywords im Betreff
 const PAPIERKORB_KEYWORDS = [
+  // Spam Reports
   /spambericht/i,                 // "Täglicher Spambericht"
   /spam\s*report/i,               // Spam Report
   /junk\s*mail/i,                 // Junk Mail
-  /undelivered/i,                 // Undelivered (wenn alt)
-  /delivery\s*failed/i            // Delivery failed (wenn alt)
+  /undelivered/i,                 // Undelivered
+  /delivery\s*failed/i,           // Delivery failed
+  // WordPress Spam-Kommentare
+  /bitte\s*moderiere.*hello\s*world/i,  // "[site] Bitte moderiere: „Hello world!""
+  /please\s*moderate.*hello\s*world/i,  // English version
+  /\[.*\]\s*bitte\s*moderiere/i,  // "[sitename] Bitte moderiere: ..."
+  /hello\s*world/i                // "Hello world!" allgemein (fast immer Spam)
 ];
 
 // MIXED-Domains - GPT muss entscheiden
@@ -342,6 +397,19 @@ function isWerbungKeyword(subject) {
 
 function isPapierkorbKeyword(subject) {
   return matchesPatterns(subject, PAPIERKORB_KEYWORDS);
+}
+
+/**
+ * Erkennt Emoji-Spam in Betreffzeilen
+ * Viele Emojis = Marketing-Mail
+ */
+function hasExcessiveEmojis(subject) {
+  if (!subject) return false;
+  // Emoji-Regex für die meisten Unicode-Emojis
+  const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu;
+  const emojis = subject.match(emojiRegex) || [];
+  // 2+ Emojis = Marketing
+  return emojis.length >= 2;
 }
 
 // =============================================================================
@@ -828,6 +896,19 @@ class ImprovedClassifier {
         kategorie: 'werbung',
         confidence: 92,
         gedanken: 'Marketing-Sprache im Betreff erkannt (Rabatt, Angebot, etc.).',
+        stufe: 5,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // ========== STUFE 5b: EMOJI-SPAM (2+ Emojis = Marketing) ==========
+    if (hasExcessiveEmojis(subject)) {
+      console.log(`[CLASSIFY] → WERBUNG (Emoji-Spam erkannt)`);
+      return {
+        kategorie: 'werbung',
+        confidence: 88,
+        gedanken: 'Mehrere Emojis im Betreff = typische Marketing-Mail.',
         stufe: 5,
         schnell: true,
         final: true
