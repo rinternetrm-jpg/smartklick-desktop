@@ -101,15 +101,19 @@ const WICHTIG_PATTERNS = [
   /deaktiviert/i
 ];
 
-// RECHNUNG - Alter egal
+// RECHNUNG - Alter egal (ZUERST prüfen!)
 const RECHNUNG_PATTERNS = [
   /ihre.*rechnung/i,
-  /rechnung\s*nr/i,
+  /rechnung\s*(nr|nummer)/i,
   /rechnungsnummer/i,
   /invoice/i,
   /zahlungseingang/i,
   /zahlungsbestätigung/i,
-  /ihre\s*\d+&?\d*\s*rechnung/i  // "Ihre 1&1 Rechnung"
+  /zahlungsbeleg/i,
+  /ihre\s*\d+&?\d*\s*rechnung/i,  // "Ihre 1&1 Rechnung"
+  /rechnung\s*im\s*anhang/i,
+  /1&1.*rechnung/i,
+  /ionos.*rechnung/i
 ];
 
 // TERMINE - Zoom, Teams, Kalender
@@ -272,14 +276,38 @@ class ImprovedClassifier {
 
     console.log(`[IMPROVED] Klassifiziere: "${subject.substring(0, 50)}..." von ${fromAddress}`);
 
-    // ========== STUFE 0: ALTER PRÜFEN ==========
+    // Alter berechnen (für spätere Verwendung)
     const { maxCategory, ageGroup, ageInDays } = getMaxCategoryByAge(emailDate);
 
+    // ========== STUFE 1: RECHNUNG (VOR Alter-Check!) ==========
+    // Rechnungen sind IMMER relevant, egal wie alt!
+    if (matchesPatterns(subject, RECHNUNG_PATTERNS)) {
+      console.log(`[IMPROVED] RECHNUNG erkannt: "${subject.substring(0, 50)}..."`);
+      return {
+        kategorie: 'rechnung',
+        confidence: 95,
+        gedanken: `Rechnung erkannt im Betreff. Rechnungen werden unabhängig vom Alter im Rechnungs-Ordner gespeichert.`,
+        stufe: 0,
+        schnell: true,
+        ageInfo: { ageInDays, ageGroup, wasLimited: false }
+      };
+    }
+
+    // ========== STUFE 2: TERMIN (VOR Alter-Check!) ==========
+    // Termine haben eigene Datum-Logik
+    if (this.isTermin(email, fromDomain, subject)) {
+      const terminResult = this.classifyTermin(email);
+      if (terminResult) {
+        return terminResult;
+      }
+    }
+
+    // ========== STUFE 3: ALTER PRÜFEN ==========
     // E-Mail > 3 Monate? → Ignorieren
     if (ageGroup === 'ARCHIV') {
       console.log(`[IMPROVED] E-Mail ist ${ageInDays} Tage alt → ARCHIV/Ignorieren`);
       return {
-        kategorie: 'info',  // oder 'archiv' wenn gewünscht
+        kategorie: 'info',
         confidence: 100,
         gedanken: `Diese E-Mail ist ${ageInDays} Tage alt (über 3 Monate). Wenn sie wichtig gewesen wäre, hätte sich das längst geklärt.`,
         stufe: 0,
@@ -288,15 +316,7 @@ class ImprovedClassifier {
       };
     }
 
-    // ========== STUFE 1: TERMIN-CHECK ==========
-    if (this.isTermin(email, fromDomain, subject)) {
-      const terminResult = this.classifyTermin(email);
-      if (terminResult) {
-        return terminResult;
-      }
-    }
-
-    // ========== STUFE 2: DRINGLICHKEITS-CHECK (VOR Domain!) ==========
+    // ========== STUFE 4: DRINGLICHKEITS-CHECK (VOR Domain!) ==========
 
     // ESSENZ Keywords (nur wenn E-Mail < 7 Tage alt)
     if (matchesPatterns(subject, ESSENZ_PATTERNS)) {
@@ -327,18 +347,6 @@ class ImprovedClassifier {
         schnell: true,
         ageInfo: ageResult,
         originalKategorie: ageResult.wasLimited ? 'wichtig' : null
-      };
-    }
-
-    // RECHNUNG Keywords (Alter egal!)
-    if (matchesPatterns(subject, RECHNUNG_PATTERNS)) {
-      return {
-        kategorie: 'rechnung',
-        confidence: 92,
-        gedanken: `Rechnung erkannt im Betreff. Rechnungen werden unabhängig vom Alter gespeichert.`,
-        stufe: 0,
-        schnell: true,
-        ageInfo: { ageInDays, ageGroup, wasLimited: false }
       };
     }
 
