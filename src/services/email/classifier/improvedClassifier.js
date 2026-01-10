@@ -910,45 +910,47 @@ class ImprovedClassifier {
     // Keine Regeln mehr - GPT analysiert den Betreff und Absender intelligent
     console.log(`[CLASSIFY] → GPT analysiert mit Logik`);
 
-    const intelligentPrompt = `Du bist ein E-Mail-Klassifizierungssystem. Analysiere diese E-Mail mit LOGIK und VERSTAND.
+    const intelligentPrompt = `KLASSIFIZIERE DIESE E-MAIL:
 
-E-MAIL:
 Von: ${fromAddress}
 Betreff: ${subject}
-Alter: ${age} Tage
 
-DEINE AUFGABE: Entscheide welche Kategorie passt. DENKE LOGISCH:
+REGELN (STRIKT BEFOLGEN!):
 
-1. WERBUNG erkennen (häufigste Kategorie!):
-   - Rabatte, Deals, Angebote, % off, sparen
-   - Newsletter von Firmen (Elegant Themes, Netflix, Pinegrow, etc.)
-   - Marketing-Sprache: "Letzte Chance", "Nur heute", "Jetzt sichern"
-   - Viele Emojis im Betreff = typische Werbung
-   - Produkt-Updates, Feature-Ankündigungen
-   - Streaming-Werbung (neue Staffel, kommt bald)
-   - Weihnachts-/Advents-Marketing
+PAPIERKORB wenn:
+- "Spambericht" oder "Spam Report" im Betreff
+- "Bitte moderiere" (WordPress Spam)
+- "Hello world" im Betreff
 
-2. PAPIERKORB erkennen:
-   - WordPress Spam-Kommentare ("Bitte moderiere: Hello world")
-   - Spam-Reports, Junk-Mail
-   - Offensichtlicher Spam
+WERBUNG wenn IRGENDEINES davon zutrifft:
+- Prozent-Zeichen (%, Rabatt, off)
+- "Sale", "Deal", "Angebot", "sparen"
+- "Letzte Chance", "Jetzt sichern", "Beeil dich"
+- Emojis im Betreff (🎟️, ⏰, 🎁, ❀, etc.)
+- "vermisst", "wir haben Sie"
+- Firmen-Newsletter (IONOS, Netflix, Zalando, etc.)
+- "Product Release", "New Features"
+- Konzert/Event-Werbung
+- "Top-Angebote", "Knaller-Deals"
 
-3. INFO ist NUR für ECHTE System-Benachrichtigungen:
-   - Sicherheitswarnungen von Google
-   - Versand-Tracking (DHL, DPD)
-   - Echte Schulbenachrichtigungen
-   - Domain-Registrierungen (wenn aktuell und relevant)
-   - NICHT: Marketing, Newsletter, Produkt-Updates!
+INFO nur wenn:
+- Google Sicherheitswarnung
+- Schul-Benachrichtigung (Unterricht, aflyst)
+- DHL/DPD Tracking
 
-4. NORMAL nur wenn es persönliche Kommunikation ist
+BEISPIELE:
+"10% Rabatt" → werbung
+"Täglicher Spambericht" → papierkorb
+"[comtopoint] Bitte moderiere" → papierkorb
+"Knaller-Deals" → werbung
+"⏰ 3 Tage" → werbung (Emoji!)
+"Sicherheitswarnung" von Google → info
+"Undervisningen er aflyst" → info (Schule)
 
-5. NEWSLETTER nur für echte abonnierte Newsletter (nicht Marketing)
+DEFAULT: Wenn unsicher → werbung
 
-WICHTIG: Wenn du unsicher bist zwischen INFO und WERBUNG, wähle WERBUNG!
-Die meisten E-Mails von Firmen sind Werbung, nicht Info.
-
-Antworte NUR mit JSON:
-{"kategorie":"werbung|papierkorb|info|normal|newsletter","gedanken":"Kurze Begründung"}`;
+Antwort NUR als JSON:
+{"kategorie":"werbung|papierkorb|info","gedanken":"..."}`;
 
     return {
       kategorie: null,
