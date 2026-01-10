@@ -1,33 +1,24 @@
 /**
- * E-Mail-Klassifizierungssystem v3.4
+ * E-Mail-Klassifizierungssystem v4.0 - LOGIK STATT REGELN
  *
- * MASSIVE ERWEITERUNG DER WERBUNGS-ERKENNUNG:
- * - 50+ WERBUNG-Keywords (Cyber Monday, Black Friday, Deal, Giveaway, etc.)
- * - 40+ WERBUNG-Domains (Netflix, Elegant Themes, Pinegrow, SIXT, etc.)
- * - Emoji-Spam-Erkennung (2+ Emojis = Marketing)
- * - WordPress Spam-Kommentare → PAPIERKORB
+ * PHILOSOPHIE: GPT entscheidet mit VERSTAND, nicht mit Keyword-Listen!
  *
- * KRITISCHE FIXES:
- * - DRINGLICHKEITS-SIGNALE jetzt DIREKT klassifiziert
- * - "Meeting Roland" → TERMIN
- * - "incasso@" im Absender → ESSENZ
- * - ALTER > 30 Tage → PAPIERKORB
+ * NUR DIESE REGELN BLEIBEN (weil zu kritisch):
+ * 1. RECHNUNG → direkt (Rechnungen sind immer wichtig)
+ * 2. TERMIN → direkt (Kalender-Logik)
+ * 3. DRINGLICHKEIT → direkt ESSENZ/WICHTIG (Vollstreckung, Mahnung, Inkasso)
+ * 4. EIGENE EMAIL → PAPIERKORB
+ * 5. ALTER > 90 Tage → PAPIERKORB
+ * 6. ALTER > 30 Tage → PAPIERKORB
  *
- * REIHENFOLGE (v3.4):
- * 1. RECHNUNG
- * 2. TERMIN
- * 3. DRINGLICHKEITS-SIGNALE → DIREKT ESSENZ/WICHTIG
- * 4. PAPIERKORB-KEYWORDS (inkl. WordPress Spam)
- * 5. WERBUNG-KEYWORDS (massiv erweitert)
- * 5b. EMOJI-SPAM (2+ Emojis = Marketing)
- * 6. EIGENE EMAIL → PAPIERKORB
- * 7. ALTER > 90 Tage → PAPIERKORB
- * 7b. BUCHUNG > 30 Tage → GPT
- * 7c. ALTER > 30 Tage → PAPIERKORB
- * 8. BEKANNTE DOMAINS
- * 9. ABSENDER-HISTORIE
- * 10. GPT
- * 11. ALTERS-LIMIT
+ * ALLES ANDERE → GPT analysiert mit Logik:
+ * - GPT erkennt Marketing-Sprache, Emojis, Newsletter
+ * - GPT unterscheidet echte INFO von Werbung
+ * - GPT braucht keine Domain/Keyword-Listen
+ * - GPT denkt: "Ist das Werbung oder echte Info?"
+ *
+ * WICHTIGE REGEL FÜR GPT:
+ * Im Zweifel = WERBUNG (die meisten Firmen-Mails sind Marketing)
  */
 
 const Store = require('electron-store');
@@ -876,94 +867,33 @@ class ImprovedClassifier {
       }
     }
 
-    // ========== STUFE 4: PAPIERKORB-KEYWORDS (Spambericht etc.) ==========
-    if (isPapierkorbKeyword(subject)) {
-      console.log(`[CLASSIFY] → PAPIERKORB (Keyword: Spambericht o.ä.)`);
-      return {
-        kategorie: 'papierkorb',
-        confidence: 95,
-        gedanken: 'Spambericht oder ähnliches - direkt in den Papierkorb.',
-        stufe: 4,
-        schnell: true,
-        final: true
-      };
-    }
-
-    // ========== STUFE 5: WERBUNG-KEYWORDS (Rabatt, Bonuspunkte etc.) ==========
-    if (isWerbungKeyword(subject)) {
-      console.log(`[CLASSIFY] → WERBUNG (Keyword: Marketing-Sprache erkannt)`);
-      return {
-        kategorie: 'werbung',
-        confidence: 92,
-        gedanken: 'Marketing-Sprache im Betreff erkannt (Rabatt, Angebot, etc.).',
-        stufe: 5,
-        schnell: true,
-        final: true
-      };
-    }
-
-    // ========== STUFE 5b: EMOJI-SPAM (2+ Emojis = Marketing) ==========
-    if (hasExcessiveEmojis(subject)) {
-      console.log(`[CLASSIFY] → WERBUNG (Emoji-Spam erkannt)`);
-      return {
-        kategorie: 'werbung',
-        confidence: 88,
-        gedanken: 'Mehrere Emojis im Betreff = typische Marketing-Mail.',
-        stufe: 5,
-        schnell: true,
-        final: true
-      };
-    }
-
-    // ========== STUFE 6: EIGENE EMAIL ==========
+    // ========== STUFE 4: EIGENE EMAIL ==========
     if (isMyOwnEmail(fromAddress)) {
       console.log(`[CLASSIFY] → PAPIERKORB (eigene Test-Mail)`);
       return {
         kategorie: 'papierkorb',
         confidence: 100,
         gedanken: 'Eigene Test-Mail.',
-        stufe: 6,
+        stufe: 4,
         schnell: true,
         final: true
       };
     }
 
-    // ========== STUFE 7: ALTER > 90 Tage ==========
+    // ========== STUFE 5: ALTER > 90 Tage ==========
     if (age > AGE_LIMITS.ARCHIV) {
       console.log(`[CLASSIFY] → PAPIERKORB (${age} Tage alt - ARCHIV)`);
       return {
         kategorie: 'papierkorb',
         confidence: 100,
         gedanken: `E-Mail ist ${age} Tage alt - Archiv.`,
-        stufe: 7,
+        stufe: 5,
         schnell: true,
         final: true
       };
     }
 
-    // ========== STUFE 7b: BUCHUNG > 30 Tage → GPT prüft ob aktuell ==========
-    const isBuchung = /buchung|booking|flug|flight|reise|hotel|reservation/i.test(subject);
-    if (isBuchung && age > AGE_LIMITS.VERALTET) {
-      console.log(`[CLASSIFY] → GPT prüft alte Buchung (${age} Tage)`);
-      return {
-        kategorie: null,
-        needsGPT: true,
-        gptMode: 'WITH_CONTENT',
-        prompt: `ALTE BUCHUNG (${age} Tage alt): Prüfe ob das Reise-/Flugdatum noch in der Zukunft liegt.
-Betreff: ${subject}
-Von: ${fromAddress}
-Inhalt: ${content}
-
-Wenn das Reisedatum IN DER ZUKUNFT liegt → "termine"
-Wenn das Reisedatum VORBEI ist → "papierkorb"
-Wenn unklar → "papierkorb"
-
-Antwort als JSON: {"kategorie":"...","gedanken":"..."}`,
-        stufe: 7
-      };
-    }
-
-    // ========== STUFE 7c: ALTER > 30 Tage (ohne Signale) → PAPIERKORB ==========
+    // ========== STUFE 6: ALTER > 30 Tage → PAPIERKORB ==========
     if (age > AGE_LIMITS.VERALTET) {
       console.log(`[CLASSIFY] → PAPIERKORB (${age} Tage alt - VERALTET)`);
       return {
@@ -976,50 +906,56 @@ Antwort als JSON: {"kategorie":"...","gedanken":"..."}`,
       };
     }
 
-    // ========== STUFE 8: DOMAIN CHECK ==========
-    const domainResult = checkDomain(fromAddress, age);
-    if (domainResult.final) {
-      console.log(`[CLASSIFY] → ${domainResult.kategorie} (Stufe ${domainResult.stufe} - Domain)`);
-      return domainResult;
-    }
+    // ========== STUFE 7: GPT ENTSCHEIDET MIT LOGIK ==========
+    // Keine Regeln mehr - GPT analysiert den Betreff und Absender intelligent
+    console.log(`[CLASSIFY] → GPT analysiert mit Logik`);
 
-    // ========== STUFE 8: ABSENDER-HISTORIE ==========
-    const senderHistory = this.getSenderHistory(fromAddress);
-    if (senderHistory) {
-      if (senderHistory.categories?.werbung > 5 && senderHistory.urgencyScore < 30) {
-        console.log(`[CLASSIFY] → WERBUNG (Historie)`);
-        return {
-          kategorie: 'werbung',
-          confidence: 88,
-          gedanken: `Absender sendet meist Werbung.`,
-          stufe: 8,
-          schnell: true
-        };
-      }
+    const intelligentPrompt = `Du bist ein E-Mail-Klassifizierungssystem. Analysiere diese E-Mail mit LOGIK und VERSTAND.
 
-      if (senderHistory.categories?.papierkorb > 3) {
-        console.log(`[CLASSIFY] → PAPIERKORB (Historie)`);
-        return {
-          kategorie: 'papierkorb',
-          confidence: 85,
-          gedanken: `Absender landet meist im Papierkorb.`,
-          stufe: 8,
-          schnell: true
-        };
-      }
-    }
+E-MAIL:
+Von: ${fromAddress}
+Betreff: ${subject}
+Alter: ${age} Tage
 
-    // ========== STUFE 9: GPT NUR HEADER ==========
-    console.log(`[CLASSIFY] → GPT (nur Header)`);
+DEINE AUFGABE: Entscheide welche Kategorie passt. DENKE LOGISCH:
+
+1. WERBUNG erkennen (häufigste Kategorie!):
+   - Rabatte, Deals, Angebote, % off, sparen
+   - Newsletter von Firmen (Elegant Themes, Netflix, Pinegrow, etc.)
+   - Marketing-Sprache: "Letzte Chance", "Nur heute", "Jetzt sichern"
+   - Viele Emojis im Betreff = typische Werbung
+   - Produkt-Updates, Feature-Ankündigungen
+   - Streaming-Werbung (neue Staffel, kommt bald)
+   - Weihnachts-/Advents-Marketing
+
+2. PAPIERKORB erkennen:
+   - WordPress Spam-Kommentare ("Bitte moderiere: Hello world")
+   - Spam-Reports, Junk-Mail
+   - Offensichtlicher Spam
+
+3. INFO ist NUR für ECHTE System-Benachrichtigungen:
+   - Sicherheitswarnungen von Google
+   - Versand-Tracking (DHL, DPD)
+   - Echte Schulbenachrichtigungen
+   - Domain-Registrierungen (wenn aktuell und relevant)
+   - NICHT: Marketing, Newsletter, Produkt-Updates!
+
+4. NORMAL nur wenn es persönliche Kommunikation ist
+
+5. NEWSLETTER nur für echte abonnierte Newsletter (nicht Marketing)
+
+WICHTIG: Wenn du unsicher bist zwischen INFO und WERBUNG, wähle WERBUNG!
+Die meisten E-Mails von Firmen sind Werbung, nicht Info.
+
+Antworte NUR mit JSON:
+{"kategorie":"werbung|papierkorb|info|normal|newsletter","gedanken":"Kurze Begründung"}`;
+
     return {
       kategorie: null,
       needsGPT: true,
       gptMode: 'HEADER_ONLY',
-      prompt: GPT_PROMPT_NUR_HEADER
-        .replace('{from}', fromAddress)
-        .replace('{subject}', subject)
-        .replace('{age}', age),
-      stufe: 9
+      prompt: intelligentPrompt,
+      stufe: 7
     };
   }
 
