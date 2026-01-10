@@ -1214,6 +1214,11 @@ async function selectEmail(email) {
         email.body = content.text || '';
         email.html = content.html || '';
 
+        // Debug: Zeige was geladen wurde
+        console.log(`[EMAIL] Geladen: text=${email.body?.length || 0} chars, html=${email.html?.length || 0} chars`);
+        console.log(`[EMAIL] Text preview:`, email.body?.substring(0, 200));
+        console.log(`[EMAIL] HTML preview:`, email.html?.substring(0, 500));
+
         // Zeige HTML wenn vorhanden, sonst Text
         if (email.html) {
           elements.detailBody.innerHTML = email.html;
