@@ -12,8 +12,34 @@ const Store = require('electron-store');
 class Stufe2Classifier {
   constructor() {
     this.store = new Store({ name: 'email-classifier-config' });
+    this.feedbackStore = new Store({ name: 'ki-feedback' });
     this.openai = null;
     this.initOpenAI();
+  }
+
+  // Lade Feedback für GPT-Prompt
+  getFeedbackContext() {
+    try {
+      const allFeedback = this.feedbackStore.get('feedbackList', []);
+
+      // Nur negative Feedbacks mit Erklärung
+      const relevantFeedback = allFeedback
+        .filter(f => f.feedbackType === 'negative' && f.userErklärung)
+        .slice(-15) // Letzte 15
+        .map(f => {
+          if (f.absenderName) {
+            return `- "${f.absenderName}" (${f.absenderDomain}): ${f.userErklärung}`;
+          } else {
+            return `- E-Mails von "${f.absenderDomain}": ${f.userErklärung}`;
+          }
+        });
+
+      if (relevantFeedback.length === 0) return '';
+
+      return `\nWICHTIG - Das habe ich aus vorherigem Feedback gelernt:\n${relevantFeedback.join('\n')}\n`;
+    } catch (e) {
+      return '';
+    }
   }
 
   initOpenAI() {
@@ -54,6 +80,9 @@ class Stufe2Classifier {
     const absenderEmail = from.address || '';
     const subject = email.subject || '';
 
+    // Lade vorheriges Feedback
+    const feedbackContext = this.getFeedbackContext();
+
     // STUFE 1: Nur Absender + Betreff (günstig)
     const prompt = `Du bist Roland Müller, ein Schweizer Unternehmer. Analysiere diese E-Mail:
 
@@ -61,7 +90,7 @@ ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
 
 WICHTIG: Mein Name ist "Roland Müller". E-Mails von mir selbst an mich selbst sind IMMER Tests!
-
+${feedbackContext}
 Frage: Ist das ein echter Mensch der auf MEINE Antwort wartet?
 
 KATEGORIEN:

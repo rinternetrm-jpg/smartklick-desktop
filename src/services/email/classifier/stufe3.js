@@ -11,8 +11,34 @@ const Store = require('electron-store');
 class Stufe3Classifier {
   constructor() {
     this.store = new Store({ name: 'email-classifier-config' });
+    this.feedbackStore = new Store({ name: 'ki-feedback' });
     this.openai = null;
     this.initOpenAI();
+  }
+
+  // Lade Feedback für GPT-Prompt
+  getFeedbackContext() {
+    try {
+      const allFeedback = this.feedbackStore.get('feedbackList', []);
+
+      // Nur negative Feedbacks mit Erklärung
+      const relevantFeedback = allFeedback
+        .filter(f => f.feedbackType === 'negative' && f.userErklärung)
+        .slice(-15) // Letzte 15
+        .map(f => {
+          if (f.absenderName) {
+            return `- "${f.absenderName}" (${f.absenderDomain}): ${f.userErklärung}`;
+          } else {
+            return `- E-Mails von "${f.absenderDomain}": ${f.userErklärung}`;
+          }
+        });
+
+      if (relevantFeedback.length === 0) return '';
+
+      return `\nWICHTIG - Das habe ich aus vorherigem Feedback gelernt:\n${relevantFeedback.join('\n')}\n`;
+    } catch (e) {
+      return '';
+    }
   }
 
   initOpenAI() {
@@ -60,6 +86,9 @@ class Stufe3Classifier {
     const body = this.truncateText(email.text || email.body || '', 300);
     const attachmentInfo = this.getAttachmentInfo(email.attachments);
 
+    // Lade vorheriges Feedback
+    const feedbackContext = this.getFeedbackContext();
+
     // STUFE 2: Mit Inhalt (nur wenn Stufe 1 unsicher war)
     const prompt = `Du bist Roland Müller, ein Schweizer Unternehmer. Stufe 1 war UNSICHER - jetzt mit Inhalt analysieren:
 
@@ -69,7 +98,7 @@ INHALT (erste 300 Zeichen): ${body}
 ${attachmentInfo}
 
 WICHTIG: Mein Name ist "Roland Müller". E-Mails von mir selbst sind IMMER Tests!
-
+${feedbackContext}
 Frage: Ist das ein echter Mensch der auf MEINE Antwort wartet?
 
 KATEGORIEN:

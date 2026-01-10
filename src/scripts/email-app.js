@@ -45,6 +45,8 @@ let elements = {};
 document.addEventListener('DOMContentLoaded', () => {
   initializeElements();
   setupEventListeners();
+  initKIFeedback();
+  setupKIFeedbackListeners();
   loadAccounts();
   loadEmails();
   renderChart();
@@ -1245,6 +1247,9 @@ async function selectEmail(email) {
   } else {
     elements.attachmentsSection.classList.add('hidden');
   }
+
+  // Zeige KI-Gedanken Box wenn aktiviert (nur bei essenz/wichtig)
+  showKIGedankenBox(email);
 }
 
 // =============================================================================
@@ -2336,6 +2341,245 @@ function renderDebugLog() {
       </div>
     `;
   }).join('');
+}
+
+// =============================================================================
+// KI-GEDANKEN BOX (FEEDBACK FEATURE)
+// =============================================================================
+
+let showKIGedankenEnabled = true;
+let kiFeedbackStore = null;
+
+function initKIFeedback() {
+  // Lade Einstellung
+  const Store = require('electron-store');
+  kiFeedbackStore = new Store({ name: 'ki-feedback' });
+  showKIGedankenEnabled = kiFeedbackStore.get('settings.showKIGedanken', true);
+}
+
+function showKIGedankenBox(email) {
+  // Prüfe ob in Einstellungen deaktiviert
+  if (!showKIGedankenEnabled) {
+    hideKIGedankenBox();
+    return;
+  }
+
+  // Nur bei Essenz und Wichtig anzeigen
+  const kategorie = email.kategorie || emailClassifications[email.id]?.kategorie;
+  if (!['essenz', 'wichtig'].includes(kategorie)) {
+    hideKIGedankenBox();
+    return;
+  }
+
+  // Hole Gedanken aus Klassifizierung
+  const classification = emailClassifications[email.id];
+  const gedanken = classification?.gedanken || email.gedanken;
+
+  if (!gedanken) {
+    hideKIGedankenBox();
+    return;
+  }
+
+  // Box anzeigen
+  const box = document.getElementById('kiGedankenBox');
+  if (!box) return;
+
+  box.classList.remove('hidden', 'hiding');
+  box.dataset.emailId = email.id;
+
+  // Gedanken einfügen
+  document.getElementById('kiGedankenText').textContent = gedanken;
+
+  // Reset Feedback UI
+  resetKIFeedbackUI();
+}
+
+function hideKIGedankenBox() {
+  const box = document.getElementById('kiGedankenBox');
+  if (!box || box.classList.contains('hidden')) return;
+
+  box.classList.add('hiding');
+  setTimeout(() => {
+    box.classList.add('hidden');
+    box.classList.remove('hiding');
+  }, 300);
+}
+
+function resetKIFeedbackUI() {
+  // Buttons zurücksetzen
+  document.querySelectorAll('#kiFeedbackButtons .feedback-btn').forEach(btn => {
+    btn.classList.remove('selected');
+  });
+
+  // Textfeld verstecken
+  const feedbackInput = document.getElementById('feedbackInput');
+  if (feedbackInput) {
+    feedbackInput.classList.add('hidden');
+    feedbackInput.classList.remove('visible');
+  }
+
+  // Textarea leeren
+  const textarea = document.getElementById('feedbackTextarea');
+  if (textarea) textarea.value = '';
+
+  // Success verstecken
+  const success = document.getElementById('feedbackSuccess');
+  if (success) success.classList.add('hidden');
+
+  // Buttons wieder anzeigen
+  const buttons = document.getElementById('kiFeedbackButtons');
+  if (buttons) buttons.style.display = 'flex';
+}
+
+function feedbackPositive() {
+  const box = document.getElementById('kiGedankenBox');
+  const emailId = box?.dataset.emailId;
+  if (!emailId) return;
+
+  saveFeedback(emailId, { type: 'positive', message: null });
+  showFeedbackSuccess();
+}
+
+function feedbackNegative() {
+  document.querySelector('#feedbackNegativeBtn')?.classList.add('selected');
+  showFeedbackInput();
+}
+
+function showFeedbackInput() {
+  const feedbackInput = document.getElementById('feedbackInput');
+  if (feedbackInput) {
+    feedbackInput.classList.remove('hidden');
+    feedbackInput.classList.add('visible');
+  }
+  document.getElementById('feedbackTextarea')?.focus();
+}
+
+function submitFeedback() {
+  const box = document.getElementById('kiGedankenBox');
+  const emailId = box?.dataset.emailId;
+  const message = document.getElementById('feedbackTextarea')?.value.trim();
+
+  if (!emailId) return;
+
+  if (!message) {
+    document.getElementById('feedbackTextarea')?.focus();
+    showToast('Bitte erkläre der KI warum', 'warning');
+    return;
+  }
+
+  saveFeedback(emailId, { type: 'negative', message: message });
+  showFeedbackSuccess();
+}
+
+function saveFeedback(emailId, feedback) {
+  if (!kiFeedbackStore) initKIFeedback();
+
+  const email = emails.find(e => e.id === emailId) || currentEmail;
+  const classification = emailClassifications[emailId];
+
+  const feedbackData = {
+    emailId: emailId,
+    absender: email?.from || '',
+    absenderName: email?.fromName || '',
+    absenderDomain: extractDomain(email?.from || ''),
+    betreff: email?.subject || '',
+    kiKategorie: classification?.kategorie || email?.kategorie || '',
+    kiGedanken: classification?.gedanken || '',
+    feedbackType: feedback.type,
+    userErklärung: feedback.message,
+    timestamp: new Date().toISOString()
+  };
+
+  // Speichern
+  const allFeedback = kiFeedbackStore.get('feedbackList', []);
+  allFeedback.push(feedbackData);
+
+  // Max 100 Feedbacks behalten
+  if (allFeedback.length > 100) {
+    allFeedback.splice(0, allFeedback.length - 100);
+  }
+
+  kiFeedbackStore.set('feedbackList', allFeedback);
+
+  console.log('[FEEDBACK] Gespeichert:', feedbackData);
+}
+
+function showFeedbackSuccess() {
+  // Buttons verstecken
+  const buttons = document.getElementById('kiFeedbackButtons');
+  if (buttons) buttons.style.display = 'none';
+
+  // Textarea verstecken
+  const feedbackInput = document.getElementById('feedbackInput');
+  if (feedbackInput) feedbackInput.classList.add('hidden');
+
+  // Success anzeigen
+  const success = document.getElementById('feedbackSuccess');
+  if (success) success.classList.remove('hidden');
+
+  // Nach 1.5s Box ausblenden
+  setTimeout(() => {
+    hideKIGedankenBox();
+  }, 1500);
+}
+
+function extractDomain(email) {
+  if (!email) return '';
+  const match = email.match(/@([^>]+)/);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function toggleKIGedanken(enabled) {
+  showKIGedankenEnabled = enabled;
+  if (!kiFeedbackStore) initKIFeedback();
+  kiFeedbackStore.set('settings.showKIGedanken', enabled);
+
+  if (!enabled) {
+    hideKIGedankenBox();
+  }
+}
+
+function getFeedbackForPrompt() {
+  if (!kiFeedbackStore) initKIFeedback();
+
+  const allFeedback = kiFeedbackStore.get('feedbackList', []);
+
+  // Nur negative Feedbacks mit Erklärung für GPT
+  const relevantFeedback = allFeedback
+    .filter(f => f.feedbackType === 'negative' && f.userErklärung)
+    .slice(-20) // Letzte 20
+    .map(f => {
+      if (f.absenderName) {
+        return `- "${f.absenderName}" (${f.absenderDomain}): ${f.userErklärung}`;
+      } else {
+        return `- E-Mails von "${f.absenderDomain}": ${f.userErklärung}`;
+      }
+    });
+
+  if (relevantFeedback.length === 0) return '';
+
+  return `\nWICHTIG - Das habe ich aus vorherigem Feedback gelernt:\n${relevantFeedback.join('\n')}\n\nBerücksichtige dieses Feedback bei der Klassifizierung.\n`;
+}
+
+// Event Listeners für KI-Feedback
+function setupKIFeedbackListeners() {
+  document.getElementById('feedbackPositiveBtn')?.addEventListener('click', feedbackPositive);
+  document.getElementById('feedbackNegativeBtn')?.addEventListener('click', feedbackNegative);
+  document.getElementById('feedbackExplainBtn')?.addEventListener('click', showFeedbackInput);
+  document.getElementById('feedbackSubmitBtn')?.addEventListener('click', submitFeedback);
+
+  // Bei Antworten/Archivieren Box ausblenden
+  document.getElementById('replyBtn')?.addEventListener('click', hideKIGedankenBox);
+  document.getElementById('archiveBtn')?.addEventListener('click', hideKIGedankenBox);
+
+  // Settings Toggle
+  const toggle = document.getElementById('showKIGedankenToggle');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      toggle.classList.toggle('active');
+      toggleKIGedanken(toggle.classList.contains('active'));
+    });
+  }
 }
 
 async function sendNewEmail() {

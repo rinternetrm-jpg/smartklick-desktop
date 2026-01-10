@@ -222,6 +222,48 @@
               <div class="attachments-header">📎 Anhänge</div>
               <div class="attachments-list" id="attachmentsList"></div>
             </div>
+
+            <!-- KI-Gedanken Box - Feedback Feature -->
+            <div class="ki-gedanken-box hidden" id="kiGedankenBox" data-email-id="">
+              <div class="ki-gedanken-header">
+                <div class="ki-logo">S</div>
+                <span class="ki-gedanken-title">Warum ist das wichtig?</span>
+              </div>
+
+              <div class="ki-gedanken-text" id="kiGedankenText">
+                <!-- GPT Erklärung hier -->
+              </div>
+
+              <div class="ki-feedback">
+                <div class="ki-feedback-question">Stimmt diese Einschätzung?</div>
+
+                <div class="ki-feedback-buttons" id="kiFeedbackButtons">
+                  <button class="feedback-btn positive" id="feedbackPositiveBtn">
+                    👍 Ja, richtig
+                  </button>
+                  <button class="feedback-btn negative" id="feedbackNegativeBtn">
+                    👎 Nein, falsch
+                  </button>
+                  <button class="feedback-btn explain" id="feedbackExplainBtn">
+                    ✏️ Erklären warum
+                  </button>
+                </div>
+
+                <div class="ki-feedback-input hidden" id="feedbackInput">
+                  <textarea
+                    class="feedback-textarea"
+                    id="feedbackTextarea"
+                    placeholder="Erkläre der KI warum diese Einschätzung falsch ist. Z.B.: 'Das ist ein Vertriebler, ignorieren.' oder 'IONOS ist Marketing, nicht wichtig.'"></textarea>
+                  <button class="feedback-submit" id="feedbackSubmitBtn">
+                    💾 Feedback speichern
+                  </button>
+                </div>
+
+                <div class="feedback-success hidden" id="feedbackSuccess">
+                  ✅ Danke! Die KI wird das beim nächsten Mal berücksichtigen.
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Analysis Panel -->
@@ -414,6 +456,17 @@
             </div>
           </div>
           <div class="setting-toggle active" id="autoClassifyToggle"></div>
+        </div>
+
+        <div class="setting-card">
+          <div class="setting-card-header">
+            <div class="setting-card-avatar teal">🧠</div>
+            <div class="setting-card-info">
+              <h4>KI-Erklärungen anzeigen</h4>
+              <p>Zeigt bei wichtigen E-Mails warum die KI sie als wichtig eingestuft hat</p>
+            </div>
+          </div>
+          <div class="setting-toggle active" id="showKIGedankenToggle"></div>
         </div>
 
         <div class="setting-card">
