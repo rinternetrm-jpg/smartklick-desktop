@@ -33,7 +33,7 @@ const KATEGORIE_MAP = {
   info: { name: 'Info', icon: 'ℹ️', color: '#6b7280' },
   newsletter: { name: 'Newsletter', icon: '📰', color: '#8b5cf6' },
   werbung: { name: 'Werbung', icon: '📢', color: '#f59e0b' },
-  spam: { name: 'Spam', icon: '🗑️', color: '#71717a' },
+  papierkorb: { name: 'Papierkorb', icon: '🗑️', color: '#71717a' },
   veraltet: { name: 'Veraltet', icon: '⏰', color: '#a1a1aa' }
 };
 
@@ -285,7 +285,7 @@ function setupEventListeners() {
 
   // Dashboard Quick Actions
   elements.briefingBtn.addEventListener('click', showBriefing);
-  elements.emptySpamBtn.addEventListener('click', emptySpam);
+  elements.emptySpamBtn.addEventListener('click', emptyPapierkorb);
   elements.archiveNewsletterBtn.addEventListener('click', archiveNewsletters);
   elements.markAllReadBtn.addEventListener('click', markAllAsRead);
 
@@ -631,7 +631,7 @@ class EmailAnalysisAnimation {
       info: 0,
       werbung: 0,
       newsletter: 0,
-      spam: 0,
+      papierkorb: 0,
       veraltet: 0
     };
     // Mapping: Klassifizierungs-Kategorie → Sidebar-Kategorie
@@ -644,7 +644,7 @@ class EmailAnalysisAnimation {
       info: 'info',
       werbung: 'werbung',
       newsletter: 'newsletter',
-      spam: 'papierkorb',
+      papierkorb: 'papierkorb',
       veraltet: 'inbox'
     };
     this.createUIElements();
@@ -688,8 +688,8 @@ class EmailAnalysisAnimation {
             <div class="summary-stat-label">Newsletter</div>
           </div>
           <div class="summary-stat-item">
-            <div class="summary-stat-number spam" id="summarySpam">0</div>
-            <div class="summary-stat-label">Spam</div>
+            <div class="summary-stat-number papierkorb" id="summaryPapierkorb">0</div>
+            <div class="summary-stat-label">Papierkorb</div>
           </div>
           <div class="summary-stat-item">
             <div class="summary-stat-number normal" id="summaryNormal">0</div>
@@ -815,7 +815,7 @@ class EmailAnalysisAnimation {
       action: 'Aktion erforderlich',
       newsletter: 'Newsletter',
       sent: 'Gesendet',
-      spam: 'Spam'
+      papierkorb: 'Papierkorb'
     };
 
     if (elements.headerTitle) {
@@ -982,7 +982,7 @@ class EmailAnalysisAnimation {
     document.getElementById('summaryNormal').textContent = this.counts.normal || 0;
     document.getElementById('summaryInfo').textContent = this.counts.info || 0;
     document.getElementById('summaryNewsletter').textContent = this.counts.newsletter || 0;
-    document.getElementById('summarySpam').textContent = this.counts.spam || 0;
+    document.getElementById('summaryPapierkorb').textContent = this.counts.papierkorb || 0;
 
     // Message
     const wichtigeAnzahl = (this.counts.essenz || 0) + (this.counts.wichtig || 0);
@@ -1783,9 +1783,9 @@ function updateCategoryCounts() {
   const newsletterCount = emails.filter(e => e.kategorie === 'newsletter' || e.isNewsletter).length;
   document.getElementById('catNewsletter').textContent = `${newsletterCount} E-Mails`;
 
-  // Spam
+  // Papierkorb
   const papierkorbCount = emails.filter(e => e.kategorie === 'papierkorb' || e.isPapierkorb).length;
-  document.getElementById('catSpam').textContent = `${papierkorbCount} E-Mails`;
+  document.getElementById('catPapierkorb').textContent = `${papierkorbCount} E-Mails`;
   elements.papierkorbCount.textContent = papierkorbCount;
 
   // Sent
@@ -1808,7 +1808,7 @@ function updateHeader() {
     werbung: 'Werbung',
     newsletter: 'Newsletter',
     sent: 'Gesendet',
-    spam: 'Spam'
+    papierkorb: 'Papierkorb'
   };
   elements.headerTitle.textContent = titles[currentCategory] || 'Posteingang';
 }
@@ -1830,7 +1830,7 @@ function renderChart() {
     info: 0,
     newsletter: 0,
     werbung: 0,
-    spam: 0,
+    papierkorb: 0,
     veraltet: 0
   }));
 
@@ -1881,11 +1881,11 @@ function renderChart() {
 
   // Berechne Maximum für Skalierung (alle Kategorien)
   const maxTotal = Math.max(1, ...data.map(d =>
-    d.essenz + d.wichtig + d.termine + d.rechnung + d.normal + d.info + d.newsletter + d.werbung + d.spam + d.veraltet
+    d.essenz + d.wichtig + d.termine + d.rechnung + d.normal + d.info + d.newsletter + d.werbung + d.papierkorb + d.veraltet
   ));
 
   elements.chartBars.innerHTML = data.map((d, i) => {
-    const total = d.essenz + d.wichtig + d.termine + d.rechnung + d.normal + d.info + d.newsletter + d.werbung + d.spam + d.veraltet;
+    const total = d.essenz + d.wichtig + d.termine + d.rechnung + d.normal + d.info + d.newsletter + d.werbung + d.papierkorb + d.veraltet;
     const scale = 100 / maxTotal;
 
     return `
@@ -1900,7 +1900,7 @@ function renderChart() {
           <div class="chart-bar info" style="width: ${d.info * scale}%" title="Info: ${d.info}"></div>
           <div class="chart-bar newsletter" style="width: ${d.newsletter * scale}%" title="Newsletter: ${d.newsletter}"></div>
           <div class="chart-bar werbung" style="width: ${d.werbung * scale}%" title="Werbung: ${d.werbung}"></div>
-          <div class="chart-bar spam" style="width: ${d.spam * scale}%" title="Spam: ${d.spam}"></div>
+          <div class="chart-bar papierkorb" style="width: ${d.papierkorb * scale}%" title="Papierkorb: ${d.papierkorb}"></div>
           <div class="chart-bar veraltet" style="width: ${d.veraltet * scale}%" title="Veraltet: ${d.veraltet}"></div>
         </div>
         <span class="chart-total">${total}</span>
@@ -2146,17 +2146,17 @@ async function analyzeAllEmails() {
   }
 }
 
-async function emptySpam() {
-  if (!confirm('Alle Spam-E-Mails löschen?')) return;
+async function emptyPapierkorb() {
+  if (!confirm('Papierkorb leeren?')) return;
 
   try {
-    await ipcRenderer.invoke('email:emptySpam');
-    emails = emails.filter(e => !e.isPapierkorb);
+    await ipcRenderer.invoke('email:emptyPapierkorb');
+    emails = emails.filter(e => !e.isPapierkorb && e.kategorie !== 'papierkorb');
     updateCategoryCounts();
     renderEmailList();
-    showToast('Spam geleert');
+    showToast('Papierkorb geleert');
   } catch (error) {
-    console.error('Error emptying spam:', error);
+    console.error('Error emptying papierkorb:', error);
     showToast('Fehler beim Leeren', 'error');
   }
 }
@@ -3006,7 +3006,7 @@ function formatKategorieName(kat) {
     normal: 'Normal',
     info: 'Info',
     newsletter: 'Newsletter',
-    spam: 'Spam',
+    papierkorb: 'Papierkorb',
     werbung: 'Werbung'
   };
   return names[kat] || kat;
@@ -3073,7 +3073,7 @@ function formatKategorieIcon(kat) {
     normal: '🔵 Normal',
     info: 'ℹ️ Info',
     newsletter: '📰 Newsletter',
-    spam: '🗑️ Spam',
+    papierkorb: '🗑️ Papierkorb',
     werbung: '📢 Werbung'
   };
   return icons[kat] || kat;
