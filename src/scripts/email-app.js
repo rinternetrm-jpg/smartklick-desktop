@@ -555,6 +555,7 @@ async function classifyAllEmails() {
     console.error('[CLASSIFY] Fehler bei Batch-Klassifizierung:', error);
   } finally {
     isClassifying = false;
+    renderChart(); // Chart mit echten Daten aktualisieren
   }
 }
 
@@ -1202,18 +1203,22 @@ async function selectEmail(email) {
   elements.detailDate.textContent = formatFullDate(email.date);
 
   // Load full content for IMAP emails
-  if (email.provider === 'imap' && email.uid && !email.body) {
+  if (email.provider === 'imap' && email.uid && !email.body && !email.html) {
     elements.detailBody.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Lade Inhalt...</span></div>';
 
     try {
       const fullEmail = await ipcRenderer.invoke('imap:getEmailContent', email.accountId, email.uid, email.folder || 'INBOX');
       if (fullEmail && fullEmail.success && fullEmail.email) {
         const content = fullEmail.email;
-        email.body = content.text || content.html || '';
-        if (content.html) {
-          elements.detailBody.innerHTML = content.html;
+        // Speichere BEIDE Versionen - Text UND HTML
+        email.body = content.text || '';
+        email.html = content.html || '';
+
+        // Zeige HTML wenn vorhanden, sonst Text
+        if (email.html) {
+          elements.detailBody.innerHTML = email.html;
         } else {
-          elements.detailBody.textContent = content.text || 'Kein Inhalt';
+          elements.detailBody.textContent = email.body || 'Kein Inhalt';
         }
 
         // Mark as read
@@ -1230,7 +1235,12 @@ async function selectEmail(email) {
       elements.detailBody.textContent = 'Fehler: ' + err.message;
     }
   } else {
-    elements.detailBody.textContent = email.body || email.snippet || 'Kein Inhalt';
+    // Bereits geladene E-Mail - zeige HTML wenn vorhanden, sonst Text
+    if (email.html) {
+      elements.detailBody.innerHTML = email.html;
+    } else {
+      elements.detailBody.textContent = email.body || email.snippet || 'Kein Inhalt';
+    }
   }
 
   // Update action buttons
@@ -1640,32 +1650,68 @@ function updateHeader() {
 }
 
 function renderChart() {
-  // Sample data for the week
+  // Berechne echte Daten aus den geladenen E-Mails
   const days = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-  const data = [
-    { spam: 5, news: 8, normal: 15, important: 3 },
-    { spam: 3, news: 12, normal: 20, important: 5 },
-    { spam: 7, news: 6, normal: 18, important: 4 },
-    { spam: 4, news: 10, normal: 22, important: 6 },
-    { spam: 2, news: 9, normal: 16, important: 3 },
-    { spam: 1, news: 4, normal: 8, important: 1 },
-    { spam: 2, news: 5, normal: 10, important: 2 }
-  ];
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0 = Sonntag
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
-  const maxTotal = Math.max(...data.map(d => d.spam + d.news + d.normal + d.important));
+  // Initialisiere Daten für jeden Wochentag
+  const data = days.map(() => ({
+    essenz: 0,
+    wichtig: 0,
+    normal: 0,
+    info: 0,
+    newsletter: 0,
+    werbung: 0,
+    spam: 0
+  }));
+
+  // Zähle E-Mails pro Tag und Kategorie
+  emails.forEach(email => {
+    const emailDate = new Date(email.date);
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    // Nur E-Mails dieser Woche
+    if (emailDate >= monday && emailDate <= sunday) {
+      const emailDayOfWeek = emailDate.getDay();
+      const dayIndex = emailDayOfWeek === 0 ? 6 : emailDayOfWeek - 1; // Mo=0, So=6
+
+      const kategorie = email.kategorie || 'normal';
+      if (data[dayIndex][kategorie] !== undefined) {
+        data[dayIndex][kategorie]++;
+      } else {
+        data[dayIndex].normal++;
+      }
+    }
+  });
+
+  // Berechne Maximum für Skalierung
+  const maxTotal = Math.max(1, ...data.map(d =>
+    d.essenz + d.wichtig + d.normal + d.info + d.newsletter + d.werbung + d.spam
+  ));
 
   elements.chartBars.innerHTML = data.map((d, i) => {
-    const total = d.spam + d.news + d.normal + d.important;
+    const total = d.essenz + d.wichtig + d.normal + d.info + d.newsletter + d.werbung + d.spam;
     const scale = 100 / maxTotal;
 
     return `
       <div class="chart-row">
         <span class="chart-label">${days[i]}</span>
         <div class="chart-bar-container">
-          <div class="chart-bar spam" style="width: ${d.spam * scale}%"></div>
-          <div class="chart-bar news" style="width: ${d.news * scale}%"></div>
-          <div class="chart-bar normal" style="width: ${d.normal * scale}%"></div>
-          <div class="chart-bar important" style="width: ${d.important * scale}%"></div>
+          <div class="chart-bar essenz" style="width: ${d.essenz * scale}%" title="Essenz: ${d.essenz}"></div>
+          <div class="chart-bar wichtig" style="width: ${d.wichtig * scale}%" title="Wichtig: ${d.wichtig}"></div>
+          <div class="chart-bar normal" style="width: ${d.normal * scale}%" title="Normal: ${d.normal}"></div>
+          <div class="chart-bar info" style="width: ${d.info * scale}%" title="Info: ${d.info}"></div>
+          <div class="chart-bar newsletter" style="width: ${d.newsletter * scale}%" title="Newsletter: ${d.newsletter}"></div>
+          <div class="chart-bar werbung" style="width: ${d.werbung * scale}%" title="Werbung: ${d.werbung}"></div>
+          <div class="chart-bar spam" style="width: ${d.spam * scale}%" title="Spam: ${d.spam}"></div>
         </div>
         <span class="chart-total">${total}</span>
       </div>
@@ -1870,6 +1916,7 @@ async function analyzeAllEmails() {
     }
     const progressIndicator = document.getElementById('analysisProgressIndicator');
     if (progressIndicator) progressIndicator.classList.remove('visible');
+    renderChart(); // Chart mit echten Daten aktualisieren
   }
 }
 
