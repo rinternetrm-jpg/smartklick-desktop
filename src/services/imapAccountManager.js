@@ -497,7 +497,7 @@ class ImapAccountManager {
           console.log(`[IMAP] Fetching UID range: ${uidRange}`);
 
           const fetch = imap.fetch(uidRange, {
-            bodies: ['HEADER', 'TEXT', ''],
+            bodies: '',  // Nur komplette Nachricht, nicht doppelt
             struct: true
           });
 
