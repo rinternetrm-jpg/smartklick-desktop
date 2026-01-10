@@ -61,28 +61,34 @@ class Stufe3Classifier {
     const attachmentInfo = this.getAttachmentInfo(email.attachments);
 
     // STUFE 2: Mit Inhalt (nur wenn Stufe 1 unsicher war)
-    const prompt = `Du bist Roland, ein Unternehmer. Stufe 1 war UNSICHER bei dieser E-Mail.
+    const prompt = `Du bist Roland Müller, ein Schweizer Unternehmer. Stufe 1 war UNSICHER - jetzt mit Inhalt analysieren:
 
 ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
 INHALT (erste 300 Zeichen): ${body}
 ${attachmentInfo}
 
-Jetzt mit dem Inhalt: Ist das ein echter Mensch der auf meine Antwort wartet?
+WICHTIG: Mein Name ist "Roland Müller". E-Mails von mir selbst sind IMMER Tests!
 
-Erkenne Muster:
-- "Hallo Roland, ich wollte fragen..." = ESSENZ (echter Mensch)
-- Automatisch generierter Text, Marketing = WERBUNG/NEWSLETTER
-- "Your account", "Bestätigung", System-Mail = INFO
-- Verdächtige Links, "Gewinn" = SPAM
+Frage: Ist das ein echter Mensch der auf MEINE Antwort wartet?
 
-JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","sicherheit":0-100,"piepst":true/false,"grund":"kurz"}`;
+KATEGORIEN:
+- essenz = Echter Mensch wartet definitiv auf Antwort
+- wichtig = Könnte Antwort brauchen
+- info = System-Mails, Bestätigungen, automatisch
+- werbung = Shops, Social Media, Marketing
+- newsletter = Abonnierte Updates
+- spam = Phishing, Betrug, Tests
+
+DENKE LAUT: Erkläre ausführlich warum du so entscheidest.
+
+JSON: {"kategorie":"...","gedanken":"Ausführliche Begründung...","sicherheit":0-100}`;
 
     try {
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 100, // Kompakteres JSON
+        max_tokens: 250, // Mehr Platz für Gedanken
         temperature: 0.1
       });
 
@@ -96,19 +102,20 @@ JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","sicherheit":0-100,"p
 
       const result = JSON.parse(jsonStr);
 
-      // Kategorie aus "kat" oder "kategorie" lesen
-      const kategorie = (result.kat || result.kategorie || 'info').toLowerCase();
-      const sicherheit = result.sicherheit || result.conf || result.confidence || 85;
-      const piepst = result.piepst || false;
-      const grund = result.grund || '';
+      // Felder auslesen
+      const kategorie = (result.kategorie || result.kat || 'info').toLowerCase();
+      const sicherheit = result.sicherheit || result.confidence || 85;
+      const gedanken = result.gedanken || result.grund || '';
 
       console.log(`[STUFE2] ${email.subject?.substring(0, 30)}... → ${kategorie} (${sicherheit}%) ✓`);
+      if (gedanken) {
+        console.log(`[STUFE2] Gedanken: ${gedanken.substring(0, 150)}...`);
+      }
 
       return {
         kategorie,
         confidence: Math.max(sicherheit, 75), // Stufe 2 sollte sicher sein
-        piepst,
-        grund,
+        gedanken,
         stufe: 2
       };
 

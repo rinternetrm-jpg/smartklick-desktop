@@ -682,6 +682,35 @@
     </div>
   </div>
 
+  <!-- Debug Modal - GPT Gedanken -->
+  <div class="modal-overlay hidden" id="debugModal">
+    <div class="modal debug-modal">
+      <div class="modal-header">
+        <div class="modal-icon">🧠</div>
+        <div>
+          <div class="modal-title">KI-Klassifizierung</div>
+          <div class="modal-subtitle" id="debugModalSubtitle">Warum wurde diese E-Mail so sortiert?</div>
+        </div>
+        <button class="modal-close" id="closeDebugBtn">✕</button>
+      </div>
+      <div class="modal-body debug-body">
+        <!-- Debug Log Container -->
+        <div class="debug-log" id="debugLog">
+          <!-- Debug entries will be added here -->
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="clearDebugBtn">Log leeren</button>
+        <button class="btn-primary" id="closeDebugModalBtn">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug Toggle Button (fixed position) -->
+  <button class="debug-toggle-btn" id="debugToggleBtn" title="KI-Debug anzeigen">
+    🧠
+  </button>
+
   <!-- Toast Notification -->
   <div class="toast" id="toast"></div>
 

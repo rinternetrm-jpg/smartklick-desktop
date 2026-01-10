@@ -1,13 +1,9 @@
 /**
- * STUFE 2: Intelligente GPT-Klassifizierung (Betreff + Absender)
+ * STUFE 1: GPT-Klassifizierung (nur Absender + Betreff)
  *
- * GPT entscheidet basierend auf 4 Fragen:
- * 1. Ist das ein echter Mensch oder automatisch?
- * 2. Erwartet jemand eine Antwort/Aktion?
- * 3. Geht es um Geld?
- * 4. Ist es zeitkritisch?
- *
- * KEINE Regeln, KEINE Whitelist/Blacklist - nur GPT-Intelligenz
+ * Wird aufgerufen wenn Stufe 0 (Domain-Check) nicht sicher war.
+ * Analysiert nur Absender und Betreff - günstig!
+ * Bei Unsicherheit (<80%) → Stufe 2 mit Inhalt
  */
 
 const OpenAI = require('openai');
@@ -59,37 +55,26 @@ class Stufe2Classifier {
     const subject = email.subject || '';
 
     // STUFE 1: Nur Absender + Betreff (günstig)
-    const prompt = `Du bist Roland, ein Unternehmer. Schau dir diese E-Mail an:
+    const prompt = `Du bist Roland Müller, ein Schweizer Unternehmer. Analysiere diese E-Mail:
 
 ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
 
-Ist das ein echter Mensch der auf meine Antwort wartet? Oder Werbung/Newsletter/Automatisch?
+WICHTIG: Mein Name ist "Roland Müller". E-Mails von mir selbst an mich selbst sind IMMER Tests!
 
-SICHER NICHT WICHTIG (100% sicher):
-- MediaMarkt, Eventim, Amazon, eBay = WERBUNG
-- Facebook, LinkedIn, Instagram = WERBUNG
-- Google-Warnungen, WordPress, IONOS = INFO
-- Newsletter, Weekly, Monthly = NEWSLETTER
-- noreply@, notification@ = INFO
+Frage: Ist das ein echter Mensch der auf MEINE Antwort wartet?
 
-SICHER WICHTIG (100% sicher):
-- Echter Name + echtes Anliegen ("Frage zu...", "Können wir...")
-- Persönliche E-Mail-Adresse mit direktem Betreff
-
-UNSICHER (muss Inhalt prüfen):
-- Nur "Test", "Anhang", "Dokument" ohne Kontext
-- Unbekannter Absender mit unklarem Betreff
-
-Kategorien:
-- essenz = Echter Mensch wartet auf Antwort
+KATEGORIEN:
+- essenz = Echter Mensch wartet definitiv auf Antwort
 - wichtig = Könnte Antwort brauchen
-- info = System-Mails, Bestätigungen
-- werbung = Social Media, Shops, Marketing
+- info = System-Mails, Bestätigungen, automatisch
+- werbung = Shops, Social Media, Marketing
 - newsletter = Abonnierte Updates
-- spam = Phishing, Betrug
+- spam = Phishing, Betrug, Tests
 
-JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","sicherheit":0-100,"piepst":true/false}`;
+DENKE LAUT: Erkläre kurz warum du so entscheidest.
+
+JSON: {"kategorie":"...","gedanken":"Kurze Begründung warum...","sicherheit":0-100}`;
 
     try {
       const response = await this.openai.chat.completions.create({
@@ -117,20 +102,23 @@ JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","sicherheit":0-100,"p
       const result = JSON.parse(jsonStr);
       console.log('[STUFE1] Parsed:', result);
 
-      // Kategorie aus "kat" oder "kategorie" lesen
-      const kategorie = (result.kat || result.kategorie || 'info').toLowerCase();
-      const sicherheit = result.sicherheit || result.conf || result.confidence || 70;
-      const piepst = result.piepst || false;
+      // Felder auslesen
+      const kategorie = (result.kategorie || result.kat || 'info').toLowerCase();
+      const sicherheit = result.sicherheit || result.confidence || 70;
+      const gedanken = result.gedanken || result.grund || '';
 
       // STUFE 2 nur wenn Sicherheit < 80%
       const needsMoreText = sicherheit < 80;
 
       console.log(`[STUFE1] ${subject?.substring(0, 30)}... → ${kategorie} (${sicherheit}%) ${needsMoreText ? '→ STUFE 2' : '✓'}`);
+      if (gedanken) {
+        console.log(`[STUFE1] Gedanken: ${gedanken.substring(0, 100)}...`);
+      }
 
       return {
         kategorie,
         confidence: sicherheit,
-        piepst,
+        gedanken,
         needsMoreText,
         stufe: 1
       };

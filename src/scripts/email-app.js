@@ -15,6 +15,7 @@ let autoReplyEnabled = false;
 let autoClassifyEnabled = true;
 let classifierStats = null;
 let isClassifying = false;  // Flag um doppelte Klassifizierung zu verhindern
+let debugLog = [];  // Debug-Log für GPT-Gedanken
 
 // Kategorie-Mapping für UI
 const KATEGORIE_MAP = {
@@ -163,7 +164,15 @@ function initializeElements() {
     composeSendBtn: document.getElementById('composeSendBtn'),
 
     // Toast
-    toast: document.getElementById('toast')
+    toast: document.getElementById('toast'),
+
+    // Debug Modal
+    debugModal: document.getElementById('debugModal'),
+    debugLog: document.getElementById('debugLog'),
+    debugToggleBtn: document.getElementById('debugToggleBtn'),
+    closeDebugBtn: document.getElementById('closeDebugBtn'),
+    closeDebugModalBtn: document.getElementById('closeDebugModalBtn'),
+    clearDebugBtn: document.getElementById('clearDebugBtn')
   };
 }
 
@@ -292,6 +301,12 @@ function setupEventListeners() {
   elements.composeSendBtn?.addEventListener('click', sendNewEmail);
   elements.composeAiBtn?.addEventListener('click', generateComposeAI);
   elements.composeAttachBtn?.addEventListener('click', addComposeAttachment);
+
+  // Debug Modal
+  elements.debugToggleBtn?.addEventListener('click', openDebugModal);
+  elements.closeDebugBtn?.addEventListener('click', closeDebugModal);
+  elements.closeDebugModalBtn?.addEventListener('click', closeDebugModal);
+  elements.clearDebugBtn?.addEventListener('click', clearDebugLog);
 
   // Click outside to close dropdowns
   document.addEventListener('click', (e) => {
@@ -1778,13 +1793,16 @@ async function analyzeAllEmails() {
         email.isNewsletter = classification.kategorie === 'newsletter';
         email.canAutoReply = classification.autoAntwortMöglich;
 
+        // Debug-Log Eintrag hinzufügen
+        addDebugEntry(emailForClassification, classification);
+
         // SOFORT Animation für diese E-Mail
         await emailAnalysisAnimation.animateEmailToCategory(email, classification.kategorie, i);
 
         // Update Counts nach jeder E-Mail
         updateCategoryCounts();
 
-        console.log(`[ANALYZE] ${i + 1}/${totalEmails}: ${email.subject?.substring(0, 30)}... → ${classification.kategorie}`);
+        console.log(`[ANALYZE] ${i + 1}/${totalEmails}: ${email.subject?.substring(0, 30)}... → ${classification.kategorie} (Stufe ${classification.stufe})`);
       } else {
         console.warn(`[ANALYZE] Fehler bei E-Mail ${i + 1}:`, result.error);
       }
@@ -1812,8 +1830,9 @@ async function analyzeAllEmails() {
 
     // Zeige Classifier-Kosten wenn verfügbar
     if (classifierStats?.stats) {
-      console.log('[CLASSIFIER] Stufe 2:', classifierStats.stats.stufe2);
-      console.log('[CLASSIFIER] Stufe 3:', classifierStats.stats.stufe3);
+      console.log('[CLASSIFIER] Stufe 0 (Domain):', classifierStats.stats.stufe0 || 0);
+      console.log('[CLASSIFIER] Stufe 1 (Header):', classifierStats.stats.stufe1 || 0);
+      console.log('[CLASSIFIER] Stufe 2 (Inhalt):', classifierStats.stats.stufe2 || 0);
       console.log('[CLASSIFIER] Kosten:', classifierStats.stats.kostenGesamt);
     }
 
@@ -2226,6 +2245,97 @@ function composeNewEmail() {
 function closeComposeModal() {
   elements.composeModal.classList.add('hidden');
   composeAttachments = [];
+}
+
+// =============================================================================
+// DEBUG MODAL - GPT GEDANKEN
+// =============================================================================
+
+function openDebugModal() {
+  elements.debugModal?.classList.remove('hidden');
+  renderDebugLog();
+}
+
+function closeDebugModal() {
+  elements.debugModal?.classList.add('hidden');
+}
+
+function clearDebugLog() {
+  debugLog = [];
+  renderDebugLog();
+  updateDebugButton();
+}
+
+function addDebugEntry(email, classification) {
+  const entry = {
+    timestamp: new Date(),
+    from: email.from?.address || email.from || 'Unbekannt',
+    fromName: email.from?.name || email.fromName || '',
+    subject: email.subject || '(Kein Betreff)',
+    kategorie: classification.kategorie || 'info',
+    confidence: classification.confidence || 0,
+    gedanken: classification.gedanken || '',
+    stufe: classification.stufe || 0,
+    schnell: classification.schnell || false
+  };
+
+  // Am Anfang einfügen (neueste zuerst)
+  debugLog.unshift(entry);
+
+  // Max 50 Einträge behalten
+  if (debugLog.length > 50) {
+    debugLog = debugLog.slice(0, 50);
+  }
+
+  updateDebugButton();
+
+  // Wenn Modal offen ist, sofort aktualisieren
+  if (!elements.debugModal?.classList.contains('hidden')) {
+    renderDebugLog();
+  }
+}
+
+function updateDebugButton() {
+  if (debugLog.length > 0) {
+    elements.debugToggleBtn?.classList.add('has-entries');
+  } else {
+    elements.debugToggleBtn?.classList.remove('has-entries');
+  }
+}
+
+function renderDebugLog() {
+  if (!elements.debugLog) return;
+
+  if (debugLog.length === 0) {
+    elements.debugLog.innerHTML = `
+      <div class="debug-empty">
+        <div class="debug-empty-icon">🧠</div>
+        <p>Noch keine Klassifizierungen.</p>
+        <p>Starte die KI-Analyse um die Gedanken zu sehen.</p>
+      </div>
+    `;
+    return;
+  }
+
+  elements.debugLog.innerHTML = debugLog.map(entry => {
+    const stufeLabel = entry.stufe === 0 ? 'DOMAIN' : entry.stufe === 1 ? 'HEADER' : 'INHALT';
+    const kategorieDisplay = KATEGORIE_MAP[entry.kategorie]?.name || entry.kategorie;
+
+    return `
+      <div class="debug-entry stufe-${entry.stufe}">
+        <div class="debug-entry-header">
+          <span class="debug-entry-stufe">STUFE ${entry.stufe}: ${stufeLabel}</span>
+          <span class="debug-entry-kategorie ${entry.kategorie}">${kategorieDisplay}</span>
+          <span class="debug-entry-confidence">${entry.confidence}% sicher</span>
+        </div>
+        <div class="debug-entry-email">
+          <div class="debug-entry-from">${entry.fromName ? entry.fromName + ' ' : ''}&lt;${entry.from}&gt;</div>
+          <div class="debug-entry-subject">${entry.subject}</div>
+        </div>
+        ${entry.gedanken ? `<div class="debug-entry-gedanken">${entry.gedanken}</div>` : ''}
+      </div>
+    `;
+  }).join('');
 }
 
 async function sendNewEmail() {
