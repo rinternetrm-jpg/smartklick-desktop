@@ -1,18 +1,25 @@
 /**
- * E-Mail-Klassifizierungssystem v3.2
+ * E-Mail-Klassifizierungssystem v3.3
  *
- * NEU: WERBUNG-KEYWORDS und PAPIERKORB-KEYWORDS VOR Domain-Check!
- * "10% Rabatt" = WERBUNG, "Spambericht" = PAPIERKORB
+ * KRITISCHE FIXES:
+ * - DRINGLICHKEITS-SIGNALE jetzt DIREKT klassifiziert (nicht mehr GPT)
+ * - "Meeting Roland" → TERMIN
+ * - "incasso@" im Absender → ESSENZ
+ * - "Kündigung" → WICHTIG
+ * - ALTER > 30 Tage → PAPIERKORB (außer Buchungen)
+ * - Buchungen: GPT prüft ob Flugdatum noch aktuell
  *
- * REIHENFOLGE (v3.2):
- * 1. RECHNUNG (inkl. Monatsauszug, zum Abruf)
- * 2. TERMIN (eigene Datum-Logik)
- * 3. DRINGLICHKEITS-SIGNALE (VOR Domains!) → GPT mit Inhalt
- * 4. PAPIERKORB-KEYWORDS (Spambericht, etc.)
- * 5. WERBUNG-KEYWORDS (Rabatt, Bonuspunkte, Angebot, etc.)
+ * REIHENFOLGE (v3.3):
+ * 1. RECHNUNG
+ * 2. TERMIN (inkl. "Meeting Roland")
+ * 3. DRINGLICHKEITS-SIGNALE → DIREKT ESSENZ/WICHTIG
+ * 4. PAPIERKORB-KEYWORDS
+ * 5. WERBUNG-KEYWORDS
  * 6. EIGENE EMAIL → PAPIERKORB
- * 7. ALTER > 90 Tage = PAPIERKORB
- * 8. BEKANNTE DOMAINS (WERBUNG, NEWSLETTER, INFO)
+ * 7. ALTER > 90 Tage → PAPIERKORB (Archiv)
+ * 7b. BUCHUNG > 30 Tage → GPT prüft Datum
+ * 7c. ALTER > 30 Tage → PAPIERKORB (Veraltet)
+ * 8. BEKANNTE DOMAINS
  * 9. ABSENDER-HISTORIE
  * 10. GPT
  * 11. ALTERS-LIMIT
@@ -65,14 +72,21 @@ const RECHNUNG_PATTERNS = [
 // =============================================================================
 
 const TERMIN_PATTERNS = [
+  // Meeting mit Namen = IMMER Termin!
+  /^meeting\s+\w+/i,           // "Meeting Roland", "Meeting Michael"
+  /meeting\s+mit\s+/i,         // "Meeting mit Roland"
+  /meeting\s+&\s+/i,           // "Meeting Roland & Michael"
+  // Zoom
   /zoom.*meeting/i,
   /zoom.*einladung/i,
   /join.*zoom/i,
   /zoom-meeting/i,
+  // Teams
   /teams.*meeting/i,
   /teams.*einladung/i,
   /teams.*besprechung/i,
   /microsoft\s*teams/i,
+  // Calendar
   /calendar.*invite/i,
   /google.*calendar/i,
   /einladung.*kalender/i,
@@ -102,6 +116,7 @@ const DRINGLICHKEIT_SIGNALE = {
     /letzte\s*mahnung/i,
     /mahnung/i,
     /inkasso/i,
+    /incasso/i,                    // Auch englisch/international
     /anwalt/i,
     /gericht/i,
     /klage/i,
@@ -133,7 +148,12 @@ const DRINGLICHKEIT_SIGNALE = {
     /einzug.*fehl/i,
     /zahlung.*fehl/i,
     /konto.*gesperrt/i,
-    /lastschrift.*fehl/i
+    /lastschrift.*fehl/i,
+    // Kündigung = WICHTIG!
+    /kündigung/i,
+    /gekündigt/i,
+    /bestätigung.*kündigung/i,
+    /kündigung.*erforderlich/i
   ],
 
   FRISTEN: [
@@ -147,6 +167,16 @@ const DRINGLICHKEIT_SIGNALE = {
 
 // WICHTIG: "letzte chance" ist KEIN Dringlichkeits-Signal!
 // Das ist fast immer Marketing-Sprache
+
+// Signale die auch im ABSENDER erkannt werden (z.B. incasso@)
+const ABSENDER_SIGNALE = [
+  /incasso/i,
+  /inkasso/i,
+  /mahnung/i,
+  /anwalt/i,
+  /gericht/i,
+  /vollstreckung/i
+];
 
 // =============================================================================
 // STUFE 6: DOMAIN-LISTEN
@@ -421,14 +451,25 @@ function handleTermin(email) {
 // STUFE 3: DRINGLICHKEITS-SIGNALE (KRITISCH: VOR DOMAINS!)
 // =============================================================================
 
-function hasDringlichkeitsSignal(subject) {
+function hasDringlichkeitsSignal(subject, fromAddress = '') {
+  // 1. Prüfe Betreff
   for (const [typ, patterns] of Object.entries(DRINGLICHKEIT_SIGNALE)) {
     for (const pattern of patterns) {
       if (pattern.test(subject)) {
-        return { hasSignal: true, typ, pattern: pattern.toString() };
+        return { hasSignal: true, typ, pattern: pattern.toString(), source: 'subject' };
       }
     }
   }
+
+  // 2. Prüfe Absender-Adresse (z.B. incasso@cornercard.ch)
+  if (fromAddress) {
+    for (const pattern of ABSENDER_SIGNALE) {
+      if (pattern.test(fromAddress)) {
+        return { hasSignal: true, typ: 'RECHTLICH', pattern: pattern.toString(), source: 'sender' };
+      }
+    }
+  }
+
   return { hasSignal: false };
 }
 
@@ -733,24 +774,38 @@ class ImprovedClassifier {
     }
 
     // ========== STUFE 3: DRINGLICHKEITS-SIGNALE (VOR DOMAINS!) ==========
-    const signalResult = hasDringlichkeitsSignal(subject);
+    // KRITISCH: Bei Signalen DIREKT klassifizieren, nicht GPT fragen!
+    const signalResult = hasDringlichkeitsSignal(subject, fromAddress);
     if (signalResult.hasSignal) {
-      console.log(`[CLASSIFY] ⚠️ SIGNAL: ${signalResult.typ} → GPT mit Inhalt!`);
-      // Bei Dringlichkeits-Signalen IMMER GPT mit Inhalt fragen!
-      // Domain-Check wird ÜBERSPRUNGEN!
-      return {
-        kategorie: null,
-        needsGPT: true,
-        gptMode: 'WITH_CONTENT',
-        signal: signalResult,
-        prompt: GPT_PROMPT_MIT_INHALT
-          .replace('{signal}', signalResult.pattern)
-          .replace('{from}', fromAddress)
-          .replace('{subject}', subject)
-          .replace('{age}', age)
-          .replace('{content}', content),
-        stufe: 3
-      };
+      // RECHTLICH oder PERSOENLICH = ESSENZ (wenn < 14 Tage alt)
+      if (signalResult.typ === 'RECHTLICH' || signalResult.typ === 'PERSOENLICH') {
+        const kategorie = age <= 14 ? 'essenz' : (age <= 30 ? 'wichtig' : 'normal');
+        console.log(`[CLASSIFY] ⚠️ SIGNAL RECHTLICH/PERSOENLICH → ${kategorie.toUpperCase()}`);
+        return {
+          kategorie: kategorie,
+          confidence: 95,
+          gedanken: `DRINGEND: "${signalResult.pattern}" erkannt (${signalResult.source}). ${age} Tage alt.`,
+          stufe: 3,
+          schnell: true,
+          final: true,
+          signal: signalResult
+        };
+      }
+
+      // FINANZIELL oder FRISTEN = WICHTIG (wenn < 14 Tage alt)
+      if (signalResult.typ === 'FINANZIELL' || signalResult.typ === 'FRISTEN') {
+        const kategorie = age <= 14 ? 'wichtig' : (age <= 30 ? 'normal' : 'veraltet');
+        console.log(`[CLASSIFY] ⚠️ SIGNAL FINANZIELL/FRISTEN → ${kategorie.toUpperCase()}`);
+        return {
+          kategorie: kategorie,
+          confidence: 92,
+          gedanken: `WICHTIG: "${signalResult.pattern}" erkannt (${signalResult.source}). ${age} Tage alt.`,
+          stufe: 3,
+          schnell: true,
+          final: true,
+          signal: signalResult
+        };
+      }
     }
 
     // ========== STUFE 4: PAPIERKORB-KEYWORDS (Spambericht etc.) ==========
@@ -794,18 +849,53 @@ class ImprovedClassifier {
 
     // ========== STUFE 7: ALTER > 90 Tage ==========
     if (age > AGE_LIMITS.ARCHIV) {
-      console.log(`[CLASSIFY] → PAPIERKORB (${age} Tage alt)`);
+      console.log(`[CLASSIFY] → PAPIERKORB (${age} Tage alt - ARCHIV)`);
       return {
         kategorie: 'papierkorb',
         confidence: 100,
-        gedanken: `E-Mail ist ${age} Tage alt.`,
+        gedanken: `E-Mail ist ${age} Tage alt - Archiv.`,
         stufe: 7,
         schnell: true,
         final: true
       };
     }
 
-    // ========== STUFE 6/7: DOMAIN CHECK ==========
+    // ========== STUFE 7b: BUCHUNG > 30 Tage → GPT prüft ob aktuell ==========
+    const isBuchung = /buchung|booking|flug|flight|reise|hotel|reservation/i.test(subject);
+    if (isBuchung && age > AGE_LIMITS.VERALTET) {
+      console.log(`[CLASSIFY] → GPT prüft alte Buchung (${age} Tage)`);
+      return {
+        kategorie: null,
+        needsGPT: true,
+        gptMode: 'WITH_CONTENT',
+        prompt: `ALTE BUCHUNG (${age} Tage alt): Prüfe ob das Reise-/Flugdatum noch in der Zukunft liegt.
+Betreff: ${subject}
+Von: ${fromAddress}
+Inhalt: ${content}
+
+Wenn das Reisedatum IN DER ZUKUNFT liegt → "termine"
+Wenn das Reisedatum VORBEI ist → "papierkorb"
+Wenn unklar → "papierkorb"
+
+Antwort als JSON: {"kategorie":"...","gedanken":"..."}`,
+        stufe: 7
+      };
+    }
+
+    // ========== STUFE 7c: ALTER > 30 Tage (ohne Signale) → PAPIERKORB ==========
+    if (age > AGE_LIMITS.VERALTET) {
+      console.log(`[CLASSIFY] → PAPIERKORB (${age} Tage alt - VERALTET)`);
+      return {
+        kategorie: 'papierkorb',
+        confidence: 90,
+        gedanken: `E-Mail ist ${age} Tage alt - veraltet.`,
+        stufe: 7,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // ========== STUFE 8: DOMAIN CHECK ==========
     const domainResult = checkDomain(fromAddress, age);
     if (domainResult.final) {
       console.log(`[CLASSIFY] → ${domainResult.kategorie} (Stufe ${domainResult.stufe} - Domain)`);
