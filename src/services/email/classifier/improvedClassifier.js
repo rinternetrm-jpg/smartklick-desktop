@@ -906,59 +906,13 @@ class ImprovedClassifier {
       };
     }
 
-    // ========== STUFE 7: GPT ENTSCHEIDET MIT LOGIK ==========
-    // Keine Regeln mehr - GPT analysiert den Betreff und Absender intelligent
-    console.log(`[CLASSIFY] → GPT analysiert mit Logik`);
+    // ========== STUFE 7: WEITER ZU GPT (Stufe 1/2) ==========
+    // Kein Match in Stufe 0-6 → null zurückgeben damit GPT gefragt wird
+    console.log(`[CLASSIFY] → Keine Regel matched, weiter zu GPT`);
 
-    const intelligentPrompt = `KLASSIFIZIERE DIESE E-MAIL:
-
-Von: ${fromAddress}
-Betreff: ${subject}
-
-REGELN (STRIKT BEFOLGEN!):
-
-PAPIERKORB wenn:
-- "Spambericht" oder "Spam Report" im Betreff
-- "Bitte moderiere" (WordPress Spam)
-- "Hello world" im Betreff
-
-WERBUNG wenn IRGENDEINES davon zutrifft:
-- Prozent-Zeichen (%, Rabatt, off)
-- "Sale", "Deal", "Angebot", "sparen"
-- "Letzte Chance", "Jetzt sichern", "Beeil dich"
-- Emojis im Betreff (🎟️, ⏰, 🎁, ❀, etc.)
-- "vermisst", "wir haben Sie"
-- Firmen-Newsletter (IONOS, Netflix, Zalando, etc.)
-- "Product Release", "New Features"
-- Konzert/Event-Werbung
-- "Top-Angebote", "Knaller-Deals"
-
-INFO nur wenn:
-- Google Sicherheitswarnung
-- Schul-Benachrichtigung (Unterricht, aflyst)
-- DHL/DPD Tracking
-
-BEISPIELE:
-"10% Rabatt" → werbung
-"Täglicher Spambericht" → papierkorb
-"[comtopoint] Bitte moderiere" → papierkorb
-"Knaller-Deals" → werbung
-"⏰ 3 Tage" → werbung (Emoji!)
-"Sicherheitswarnung" von Google → info
-"Undervisningen er aflyst" → info (Schule)
-
-DEFAULT: Wenn unsicher → werbung
-
-Antwort NUR als JSON:
-{"kategorie":"werbung|papierkorb|info","gedanken":"..."}`;
-
-    return {
-      kategorie: null,
-      needsGPT: true,
-      gptMode: 'HEADER_ONLY',
-      prompt: intelligentPrompt,
-      stufe: 7
-    };
+    // WICHTIG: null zurückgeben, NICHT ein Objekt!
+    // Sonst wird alles auf "info" gesetzt weil kategorie: null || 'info' = 'info'
+    return null;
   }
 
   /**
