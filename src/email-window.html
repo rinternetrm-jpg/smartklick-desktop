@@ -551,6 +551,33 @@
         </div>
       </div>
 
+      <!-- KI-Regeln Verwaltung -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          📚 KI-Regeln
+        </div>
+
+        <div class="ki-regeln-info">
+          Die KI lernt aus deinem Feedback und erstellt Regeln für zukünftige E-Mails.
+        </div>
+
+        <!-- Regeln-Liste -->
+        <div class="ki-regeln-liste" id="kiRegelnListe">
+          <!-- Regeln werden dynamisch geladen -->
+          <div class="ki-regeln-empty">Noch keine Regeln gelernt.</div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="ki-regeln-actions">
+          <button class="btn-secondary" id="addRegelBtn">
+            ➕ Neue Regel
+          </button>
+          <button class="btn-danger-outline" id="deleteAllRegelnBtn">
+            🗑️ Alle löschen
+          </button>
+        </div>
+      </div>
+
       <!-- Danger Zone -->
       <div class="settings-section danger-zone">
         <h3>⚠️ Gefahrenzone</h3>
@@ -833,6 +860,88 @@
   <button class="debug-toggle-btn" id="debugToggleBtn" title="KI-Debug anzeigen">
     🧠
   </button>
+
+  <!-- Regel bearbeiten/hinzufügen Modal -->
+  <div class="modal-overlay hidden" id="regelModal">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h2 id="regelModalTitle">➕ Neue Regel</h2>
+        <button class="modal-close" id="closeRegelModalBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Wenn... (Bedingung):</label>
+          <textarea
+            id="regelTextInput"
+            class="regel-textarea"
+            placeholder="z.B. E-Mail enthält 'bitte anrufen' oder 'rückruf'"
+            rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Dann... (Kategorie):</label>
+          <select id="regelKategorieSelect" class="regel-select">
+            <option value="essenz">🔴 Essenz (IMMER wichtig)</option>
+            <option value="wichtig">🟠 Wichtig</option>
+            <option value="normal">🔵 Normal</option>
+            <option value="info">ℹ️ Info</option>
+            <option value="newsletter">📰 Newsletter</option>
+            <option value="werbung">📢 Werbung</option>
+            <option value="spam">🗑️ Spam</option>
+          </select>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-secondary" id="cancelRegelBtn">Abbrechen</button>
+          <button class="btn-primary" id="saveRegelBtn">💾 Speichern</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Regel löschen Bestätigung -->
+  <div class="modal-overlay hidden" id="deleteRegelModal">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h2>⚠️ Regel löschen?</h2>
+        <button class="modal-close" id="closeDeleteRegelBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="delete-regel-text" id="deleteRegelText">
+          Diese Regel wirklich löschen?
+        </p>
+        <p class="delete-regel-warning">
+          Die KI wird diese Regel nicht mehr berücksichtigen.
+        </p>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="cancelDeleteRegelBtn">Abbrechen</button>
+          <button class="btn-danger" id="confirmDeleteRegelBtn">🗑️ Löschen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alle Regeln löschen Bestätigung -->
+  <div class="modal-overlay hidden" id="deleteAllRegelnModal">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h2>⚠️ ALLE Regeln löschen?</h2>
+        <button class="modal-close" id="closeDeleteAllRegelnBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="delete-regel-text">
+          Bist du sicher? <span id="regelCountText">Alle gelernten Regeln</span> werden gelöscht.
+        </p>
+        <p class="delete-regel-warning">
+          Die KI fängt komplett von vorne an.
+        </p>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="cancelDeleteAllRegelnBtn">Abbrechen</button>
+          <button class="btn-danger" id="confirmDeleteAllRegelnBtn">🗑️ Ja, alle löschen</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Toast Notification -->
   <div class="toast" id="toast"></div>

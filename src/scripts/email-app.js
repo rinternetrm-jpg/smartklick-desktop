@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   initKIFeedback();
   setupKIFeedbackListeners();
+  setupKIRegelnListeners();
   loadAccounts();
   loadEmails();
   renderChart();
@@ -2803,6 +2804,202 @@ function formatKategorieIcon(kat) {
     werbung: '📢 Werbung'
   };
   return icons[kat] || kat;
+}
+
+// =============================================================================
+// KI-REGELN VERWALTUNG
+// =============================================================================
+
+let currentEditRegelId = null;
+
+// Regeln laden und anzeigen
+async function loadKIRegeln() {
+  try {
+    const result = await ipcRenderer.invoke('regeln:getAll');
+    const regeln = result.regeln || [];
+    renderKIRegeln(regeln);
+  } catch (err) {
+    console.error('[KI-REGELN] Fehler beim Laden:', err);
+  }
+}
+
+// Regeln in der Liste rendern
+function renderKIRegeln(regeln) {
+  const container = document.getElementById('kiRegelnListe');
+  if (!container) return;
+
+  if (regeln.length === 0) {
+    container.innerHTML = '<div class="ki-regeln-empty">Noch keine Regeln gelernt.</div>';
+    return;
+  }
+
+  container.innerHTML = regeln.map((regel, index) => `
+    <div class="ki-regel-item" data-id="${regel.id}">
+      <div class="ki-regel-header">
+        <div class="ki-regel-nummer">${index + 1}</div>
+        <div class="ki-regel-content">
+          <div class="ki-regel-text">${escapeHtml(regel.text)}</div>
+          <div class="ki-regel-kategorie">
+            → <span class="ki-regel-kategorie-badge ${regel.kategorie}">${formatKategorieName(regel.kategorie).toUpperCase()}</span>
+          </div>
+        </div>
+        <div class="ki-regel-actions">
+          <button class="ki-regel-btn edit" onclick="editRegel(${regel.id})" title="Bearbeiten">✏️</button>
+          <button class="ki-regel-btn delete" onclick="confirmDeleteRegel(${regel.id})" title="Löschen">🗑️</button>
+        </div>
+      </div>
+      <div class="ki-regel-meta">
+        <span>📅 ${formatRegelDate(regel.erstelltAm)}</span>
+        <span>✓ ${regel.anwendungen || 0}x angewendet</span>
+        <span>${regel.quelle === 'feedback' ? '🤖 Aus Feedback' : '✏️ Manuell'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function formatRegelDate(dateStr) {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('de-DE');
+}
+
+// Modal für neue Regel öffnen
+function openAddRegelModal() {
+  currentEditRegelId = null;
+  document.getElementById('regelModalTitle').textContent = '➕ Neue Regel';
+  document.getElementById('regelTextInput').value = '';
+  document.getElementById('regelKategorieSelect').value = 'wichtig';
+  document.getElementById('regelModal').classList.remove('hidden');
+}
+
+// Modal für Regel bearbeiten öffnen
+async function editRegel(regelId) {
+  try {
+    const result = await ipcRenderer.invoke('regeln:getAll');
+    const regel = (result.regeln || []).find(r => r.id === regelId);
+    if (!regel) return;
+
+    currentEditRegelId = regelId;
+    document.getElementById('regelModalTitle').textContent = '✏️ Regel bearbeiten';
+    document.getElementById('regelTextInput').value = regel.text;
+    document.getElementById('regelKategorieSelect').value = regel.kategorie;
+    document.getElementById('regelModal').classList.remove('hidden');
+  } catch (err) {
+    console.error('[KI-REGELN] Fehler beim Laden:', err);
+  }
+}
+
+// Regel speichern (neu oder bearbeiten)
+async function saveRegel() {
+  const text = document.getElementById('regelTextInput').value.trim();
+  const kategorie = document.getElementById('regelKategorieSelect').value;
+
+  if (!text) {
+    showToast('Bitte gib eine Bedingung ein', 'warning');
+    return;
+  }
+
+  try {
+    if (currentEditRegelId) {
+      // Bearbeiten
+      await ipcRenderer.invoke('regeln:update', currentEditRegelId, text, kategorie);
+      showToast('Regel aktualisiert!');
+    } else {
+      // Neue Regel
+      await ipcRenderer.invoke('regeln:add', text, kategorie, 'manuell');
+      showToast('Regel hinzugefügt!');
+    }
+
+    closeRegelModal();
+    loadKIRegeln();
+  } catch (err) {
+    console.error('[KI-REGELN] Fehler beim Speichern:', err);
+    showToast('Fehler beim Speichern', 'error');
+  }
+}
+
+// Regel Modal schließen
+function closeRegelModal() {
+  document.getElementById('regelModal').classList.add('hidden');
+  currentEditRegelId = null;
+}
+
+// Einzelne Regel löschen - Bestätigung
+let deleteRegelId = null;
+
+function confirmDeleteRegel(regelId) {
+  deleteRegelId = regelId;
+  document.getElementById('deleteRegelModal').classList.remove('hidden');
+}
+
+async function deleteRegel() {
+  if (!deleteRegelId) return;
+
+  try {
+    await ipcRenderer.invoke('regeln:delete', deleteRegelId);
+    showToast('Regel gelöscht!');
+    document.getElementById('deleteRegelModal').classList.add('hidden');
+    deleteRegelId = null;
+    loadKIRegeln();
+  } catch (err) {
+    console.error('[KI-REGELN] Fehler beim Löschen:', err);
+    showToast('Fehler beim Löschen', 'error');
+  }
+}
+
+function closeDeleteRegelModal() {
+  document.getElementById('deleteRegelModal').classList.add('hidden');
+  deleteRegelId = null;
+}
+
+// Alle Regeln löschen
+function openDeleteAllRegelnModal() {
+  document.getElementById('deleteAllRegelnModal').classList.remove('hidden');
+}
+
+async function deleteAllRegeln() {
+  try {
+    await ipcRenderer.invoke('regeln:deleteAll');
+    showToast('Alle Regeln gelöscht!');
+    document.getElementById('deleteAllRegelnModal').classList.add('hidden');
+    loadKIRegeln();
+  } catch (err) {
+    console.error('[KI-REGELN] Fehler beim Löschen:', err);
+    showToast('Fehler beim Löschen', 'error');
+  }
+}
+
+function closeDeleteAllRegelnModal() {
+  document.getElementById('deleteAllRegelnModal').classList.add('hidden');
+}
+
+// Event Listeners für KI-Regeln
+function setupKIRegelnListeners() {
+  // Neue Regel Button
+  document.getElementById('addRegelBtn')?.addEventListener('click', openAddRegelModal);
+
+  // Alle löschen Button
+  document.getElementById('deleteAllRegelnBtn')?.addEventListener('click', openDeleteAllRegelnModal);
+
+  // Regel Modal
+  document.getElementById('closeRegelModalBtn')?.addEventListener('click', closeRegelModal);
+  document.getElementById('cancelRegelBtn')?.addEventListener('click', closeRegelModal);
+  document.getElementById('saveRegelBtn')?.addEventListener('click', saveRegel);
+
+  // Delete Regel Modal
+  document.getElementById('closeDeleteRegelBtn')?.addEventListener('click', closeDeleteRegelModal);
+  document.getElementById('cancelDeleteRegelBtn')?.addEventListener('click', closeDeleteRegelModal);
+  document.getElementById('confirmDeleteRegelBtn')?.addEventListener('click', deleteRegel);
+
+  // Delete All Modal
+  document.getElementById('closeDeleteAllRegelnBtn')?.addEventListener('click', closeDeleteAllRegelnModal);
+  document.getElementById('cancelDeleteAllRegelnBtn')?.addEventListener('click', closeDeleteAllRegelnModal);
+  document.getElementById('confirmDeleteAllRegelnBtn')?.addEventListener('click', deleteAllRegeln);
+
+  // Regeln laden wenn Settings geöffnet werden
+  document.getElementById('settingsBtn')?.addEventListener('click', () => {
+    setTimeout(loadKIRegeln, 100);
+  });
 }
 
 async function sendNewEmail() {

@@ -13,8 +13,27 @@ class Stufe2Classifier {
   constructor() {
     this.store = new Store({ name: 'email-classifier-config' });
     this.feedbackStore = new Store({ name: 'ki-feedback' });
+    this.regelnStore = new Store({ name: 'ki-regeln' });
     this.openai = null;
     this.initOpenAI();
+  }
+
+  // Lade Regeln für GPT-Prompt
+  getRegelnContext() {
+    try {
+      const regeln = this.regelnStore.get('regeln', []);
+      if (regeln.length === 0) return '';
+
+      let context = '\nGELERNTE REGELN:\n';
+      regeln.forEach((r, i) => {
+        context += `${i + 1}. ${r.text} → ${r.kategorie.toUpperCase()}\n`;
+      });
+      context += '\nBerücksichtige diese Regeln IMMER bei der Klassifizierung.\n';
+
+      return context;
+    } catch (e) {
+      return '';
+    }
   }
 
   // Lade Feedback für GPT-Prompt
@@ -80,8 +99,9 @@ class Stufe2Classifier {
     const absenderEmail = from.address || '';
     const subject = email.subject || '';
 
-    // Lade vorheriges Feedback
+    // Lade vorheriges Feedback und Regeln
     const feedbackContext = this.getFeedbackContext();
+    const regelnContext = this.getRegelnContext();
 
     // STUFE 1: Nur Absender + Betreff (günstig)
     const prompt = `Du bist Roland Müller, ein Schweizer Unternehmer. Analysiere diese E-Mail:
@@ -93,7 +113,7 @@ WICHTIG - ABSENDER-REGELN:
 1. E-Mails von "Roland Müller" an mich selbst sind MEIST Tests
 2. ABER: Wenn Betreff/Inhalt "rückruf", "anrufen", "dringend", "erreichen", "bitte" enthält = WICHTIG!
 3. Der INHALT überschreibt die Absender-Regel! Jemand der um Rückruf bittet wartet auf mich!
-${feedbackContext}
+${regelnContext}${feedbackContext}
 Frage: Ist das ein echter Mensch der auf MEINE Antwort wartet?
 
 KATEGORIEN:

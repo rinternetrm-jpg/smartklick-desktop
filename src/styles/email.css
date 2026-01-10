@@ -3414,3 +3414,273 @@ body {
 .setting-card-avatar.teal {
   background: linear-gradient(135deg, #14b8a6, #0d9488);
 }
+
+/* =============================================================================
+   KI-REGELN VERWALTUNG
+   ============================================================================= */
+
+.ki-regeln-info {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+}
+
+.ki-regeln-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.ki-regeln-empty {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-muted);
+  font-size: 14px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+}
+
+.ki-regel-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.ki-regel-item:hover {
+  border-color: var(--accent);
+}
+
+.ki-regel-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ki-regel-nummer {
+  background: var(--accent);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.ki-regel-content {
+  flex: 1;
+}
+
+.ki-regel-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.ki-regel-kategorie {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ki-regel-kategorie-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.ki-regel-kategorie-badge.essenz { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+.ki-regel-kategorie-badge.wichtig { background: rgba(249, 115, 22, 0.2); color: #f97316; }
+.ki-regel-kategorie-badge.normal { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.ki-regel-kategorie-badge.info { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
+.ki-regel-kategorie-badge.newsletter { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+.ki-regel-kategorie-badge.werbung { background: rgba(236, 72, 153, 0.2); color: #ec4899; }
+.ki-regel-kategorie-badge.spam { background: rgba(75, 85, 99, 0.2); color: #4b5563; }
+
+.ki-regel-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ki-regel-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.ki-regel-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.ki-regel-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ki-regel-btn.delete:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.ki-regeln-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+}
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-danger-outline:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+
+/* Regel Modal */
+.modal-small {
+  max-width: 480px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.regel-textarea {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+  box-sizing: border-box;
+}
+
+.regel-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.regel-select {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239ca3af' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.regel-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #0d9488);
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+}
+
+.delete-regel-text {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.delete-regel-warning {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 0;
+}

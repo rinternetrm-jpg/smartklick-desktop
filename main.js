@@ -4002,6 +4002,146 @@ ipcMain.handle('email:getKIAnalyse', async (_, email) => {
   }
 });
 
+// === KI-REGELN VERWALTUNG ===
+
+// Alle Regeln laden
+ipcMain.handle('regeln:getAll', async () => {
+  try {
+    const Store = require('electron-store');
+    const regelnStore = new Store({ name: 'ki-regeln' });
+    const regeln = regelnStore.get('regeln', []);
+    return { success: true, regeln };
+  } catch (error) {
+    console.error('[REGELN] Fehler beim Laden:', error);
+    return { success: false, error: error.message, regeln: [] };
+  }
+});
+
+// Neue Regel hinzufügen
+ipcMain.handle('regeln:add', async (_, text, kategorie, quelle = 'manuell') => {
+  try {
+    const Store = require('electron-store');
+    const regelnStore = new Store({ name: 'ki-regeln' });
+
+    const regeln = regelnStore.get('regeln', []);
+    const neueRegel = {
+      id: Date.now(),
+      text,
+      kategorie,
+      erstelltAm: new Date().toISOString(),
+      quelle,
+      anwendungen: 0
+    };
+
+    regeln.push(neueRegel);
+    regelnStore.set('regeln', regeln);
+
+    console.log('[REGELN] Neue Regel hinzugefügt:', neueRegel.text);
+    return { success: true, regel: neueRegel };
+  } catch (error) {
+    console.error('[REGELN] Fehler beim Hinzufügen:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Regel aktualisieren
+ipcMain.handle('regeln:update', async (_, id, text, kategorie) => {
+  try {
+    const Store = require('electron-store');
+    const regelnStore = new Store({ name: 'ki-regeln' });
+
+    const regeln = regelnStore.get('regeln', []);
+    const index = regeln.findIndex(r => r.id === id);
+
+    if (index !== -1) {
+      regeln[index].text = text;
+      regeln[index].kategorie = kategorie;
+      regelnStore.set('regeln', regeln);
+      console.log('[REGELN] Regel aktualisiert:', id);
+      return { success: true };
+    }
+
+    return { success: false, error: 'Regel nicht gefunden' };
+  } catch (error) {
+    console.error('[REGELN] Fehler beim Aktualisieren:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Regel löschen
+ipcMain.handle('regeln:delete', async (_, id) => {
+  try {
+    const Store = require('electron-store');
+    const regelnStore = new Store({ name: 'ki-regeln' });
+
+    const regeln = regelnStore.get('regeln', []);
+    const filtered = regeln.filter(r => r.id !== id);
+    regelnStore.set('regeln', filtered);
+
+    console.log('[REGELN] Regel gelöscht:', id);
+    return { success: true };
+  } catch (error) {
+    console.error('[REGELN] Fehler beim Löschen:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Alle Regeln löschen
+ipcMain.handle('regeln:deleteAll', async () => {
+  try {
+    const Store = require('electron-store');
+    const regelnStore = new Store({ name: 'ki-regeln' });
+    regelnStore.set('regeln', []);
+
+    console.log('[REGELN] Alle Regeln gelöscht');
+    return { success: true };
+  } catch (error) {
+    console.error('[REGELN] Fehler beim Löschen aller:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Regel-Anwendung inkrementieren
+ipcMain.handle('regeln:increment', async (_, id) => {
+  try {
+    const Store = require('electron-store');
+    const regelnStore = new Store({ name: 'ki-regeln' });
+
+    const regeln = regelnStore.get('regeln', []);
+    const index = regeln.findIndex(r => r.id === id);
+
+    if (index !== -1) {
+      regeln[index].anwendungen = (regeln[index].anwendungen || 0) + 1;
+      regelnStore.set('regeln', regeln);
+    }
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Regeln für GPT-Prompt formatieren
+ipcMain.handle('regeln:getForPrompt', async () => {
+  try {
+    const Store = require('electron-store');
+    const regelnStore = new Store({ name: 'ki-regeln' });
+    const regeln = regelnStore.get('regeln', []);
+
+    if (regeln.length === 0) return '';
+
+    let prompt = 'GELERNTE REGELN AUS FEEDBACK:\n';
+    regeln.forEach((r, i) => {
+      prompt += `${i + 1}. ${r.text} → ${r.kategorie.toUpperCase()}\n`;
+    });
+    prompt += '\nBerücksichtige diese Regeln IMMER bei der Klassifizierung.\n';
+
+    return prompt;
+  } catch (error) {
+    return '';
+  }
+});
+
 // Absender zu Liste hinzufügen (vip, family, customer, whitelist, blacklist)
 ipcMain.handle('email:addSenderToList', (_, email, listType) => {
   return emailClassifier.addSenderToList(email, listType);
