@@ -3952,6 +3952,56 @@ ipcMain.handle('email:trackDeletedUnread', (_, email) => {
   return emailClassifier.trackDeletedUnread(email);
 });
 
+// === FEEDBACK SYSTEM ===
+
+// Feedback speichern
+ipcMain.handle('feedback:save', async (_, feedbackData) => {
+  try {
+    const Store = require('electron-store');
+    const feedbackStore = new Store({ name: 'ki-feedback' });
+
+    const all = feedbackStore.get('feedbackList', []);
+    all.push(feedbackData);
+
+    // Nur letzte 500 Feedbacks behalten
+    if (all.length > 500) {
+      all.splice(0, all.length - 500);
+    }
+
+    feedbackStore.set('feedbackList', all);
+    console.log('[FEEDBACK] Gespeichert:', feedbackData.feedbackType, feedbackData.absenderDomain);
+    return { success: true };
+  } catch (error) {
+    console.error('[FEEDBACK] Fehler beim Speichern:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// KI-Analyse auf Klick (mit Gedanken)
+ipcMain.handle('email:getKIAnalyse', async (_, email) => {
+  try {
+    // Verwende Stufe 2 Classifier für detaillierte Analyse
+    const Stufe2Classifier = require('./src/services/email/classifier/stufe2.js');
+    const classifier = new Stufe2Classifier();
+
+    const result = await classifier.klassifiziere(email);
+
+    return {
+      kategorie: result.kategorie || 'normal',
+      gedanken: result.gedanken || 'Keine detaillierte Analyse verfügbar.',
+      sicherheit: result.confidence || 70,
+      stufe: result.stufe || 1
+    };
+  } catch (error) {
+    console.error('[KI-ANALYSE] Fehler:', error);
+    return {
+      kategorie: 'normal',
+      gedanken: 'Fehler bei der Analyse: ' + error.message,
+      sicherheit: 0
+    };
+  }
+});
+
 // Absender zu Liste hinzufügen (vip, family, customer, whitelist, blacklist)
 ipcMain.handle('email:addSenderToList', (_, email, listType) => {
   return emailClassifier.addSenderToList(email, listType);

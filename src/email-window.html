@@ -223,7 +223,77 @@
               <div class="attachments-list" id="attachmentsList"></div>
             </div>
 
-            <!-- KI-Gedanken Box - Feedback Feature -->
+            <!-- Feedback Bar - für ALLE E-Mails -->
+            <div class="email-feedback-bar" id="emailFeedbackBar">
+              <span class="feedback-question">Ist die Kategorisierung richtig?</span>
+
+              <div class="feedback-buttons">
+                <button class="feedback-btn positive" id="feedbackJaBtn">
+                  👍 Ja
+                </button>
+                <button class="feedback-btn negative" id="feedbackNeinBtn">
+                  👎 Nein
+                </button>
+                <button class="feedback-btn" id="feedbackTextBtn">
+                  ✏️ Feedback
+                </button>
+
+                <div class="dropdown-container">
+                  <button class="feedback-btn dropdown-trigger" id="verschiebenBtn">
+                    📁 Verschieben ▼
+                  </button>
+                  <div class="dropdown-menu hidden" id="kategorieDropdown">
+                    <div class="dropdown-item" data-kategorie="essenz">🔴 Essenz</div>
+                    <div class="dropdown-item" data-kategorie="wichtig">🟠 Wichtig</div>
+                    <div class="dropdown-item" data-kategorie="normal">🔵 Normal</div>
+                    <div class="dropdown-item" data-kategorie="info">ℹ️ Info</div>
+                    <div class="dropdown-item" data-kategorie="newsletter">📰 Newsletter</div>
+                    <div class="dropdown-item" data-kategorie="spam">🗑️ Spam</div>
+                  </div>
+                </div>
+
+                <button class="ki-analyse-btn" id="kiAnalyseBtn" title="KI-Analyse anzeigen">
+                  <span class="ki-logo">S</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Feedback Textfeld (versteckt bis Klick) -->
+            <div class="feedback-input-container hidden" id="feedbackInputContainer">
+              <textarea
+                class="feedback-textarea"
+                id="feedbackTextareaNew"
+                placeholder="Erkläre der KI warum diese Kategorisierung falsch ist..."></textarea>
+              <button class="feedback-submit" id="feedbackSubmitNewBtn">
+                💾 Speichern
+              </button>
+            </div>
+
+            <!-- KI-Analyse Box (versteckt bis Klick auf S) -->
+            <div class="ki-analyse-box hidden" id="kiAnalyseBox">
+              <div class="ki-analyse-header">
+                <div class="ki-logo">S</div>
+                <span class="ki-analyse-title">KI-Analyse</span>
+                <button class="ki-analyse-close" id="kiAnalyseCloseBtn">✕</button>
+              </div>
+
+              <div class="ki-analyse-content">
+                <div class="ki-kategorie">
+                  Kategorie: <span id="kiKategorie">🔵 Normal</span>
+                </div>
+
+                <div class="ki-begruendung">
+                  <strong>Begründung:</strong>
+                  <p id="kiBegruendung">Lade...</p>
+                </div>
+
+                <div class="ki-sicherheit">
+                  Sicherheit: <span id="kiSicherheit">-</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- KI-Gedanken Box - NUR für Wichtig/Essenz (automatisch) -->
             <div class="ki-gedanken-box hidden" id="kiGedankenBox" data-email-id="">
               <div class="ki-gedanken-header">
                 <div class="ki-logo">S</div>
