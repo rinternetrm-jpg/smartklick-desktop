@@ -424,8 +424,14 @@ function selectAccount(accountId) {
   // Update selector display
   if (accountId === 'all') {
     elements.currentAccountName.textContent = 'Alle Konten';
-    elements.currentAccountEmail.textContent = 'Unified Inbox';
+    const accountCount = accounts.length;
+    elements.currentAccountEmail.textContent = accountCount > 0 ? `${accountCount} ${accountCount === 1 ? 'Konto' : 'Konten'}` : '';
     elements.currentAccountAvatar.textContent = '✉';
+    // Update dropdown too
+    const dropdownAllCount = document.getElementById('dropdownAllCount');
+    if (dropdownAllCount) {
+      dropdownAllCount.textContent = accountCount > 0 ? `${accountCount} ${accountCount === 1 ? 'Konto' : 'Konten'}` : '';
+    }
   } else {
     const account = accounts.find(a => a.id === accountId);
     if (account) {
@@ -1049,9 +1055,32 @@ async function loadAccounts() {
     if (result.success) {
       accounts = result.accounts || [];
       updateAccountDropdown();
+
+      // Wenn nur 1 Konto → direkt dieses Konto auswählen
+      if (accounts.length === 1) {
+        selectedAccountId = accounts[0].id;
+        selectAccount(accounts[0].id);
+      } else {
+        // Bei mehreren oder keinen Konten → "Alle Konten" anzeigen
+        updateAccountSelectorDisplay();
+      }
     }
   } catch (error) {
     console.error('Error loading accounts:', error);
+  }
+}
+
+// Aktualisiert die Anzeige des Account-Selectors ohne E-Mails neu zu laden
+function updateAccountSelectorDisplay() {
+  if (selectedAccountId === 'all') {
+    elements.currentAccountName.textContent = 'Alle Konten';
+    const accountCount = accounts.length;
+    elements.currentAccountEmail.textContent = accountCount > 0 ? `${accountCount} ${accountCount === 1 ? 'Konto' : 'Konten'}` : '';
+    elements.currentAccountAvatar.textContent = '✉';
+    const dropdownAllCount = document.getElementById('dropdownAllCount');
+    if (dropdownAllCount) {
+      dropdownAllCount.textContent = accountCount > 0 ? `${accountCount} ${accountCount === 1 ? 'Konto' : 'Konten'}` : '';
+    }
   }
 }
 
