@@ -1,8 +1,8 @@
 /**
- * STUFE 3: Volltext-GPT-Analyse (nur bei Unsicherheit)
+ * STUFE 2: Inhalt-GPT-Analyse (nur bei Unsicherheit)
  *
- * Wird NUR aufgerufen wenn Stufe 2 unsicher war.
- * Analysiert den kompletten E-Mail-Text mit denselben 4 Fragen.
+ * Wird NUR aufgerufen wenn Stufe 1 unsicher war (< 80% Sicherheit).
+ * Analysiert die ersten 300 Zeichen + Anhang-Info.
  */
 
 const OpenAI = require('openai');
@@ -27,24 +27,26 @@ class Stufe3Classifier {
     this.openai = new OpenAI({ apiKey });
   }
 
-  // Kürze Text auf max. 1000 Zeichen (wichtigste Teile)
-  truncateText(text, maxLength = 1000) {
-    if (!text || text.length <= maxLength) return text;
-
-    // Nimm Anfang und Ende (oft wichtigste Infos)
-    const halfLength = Math.floor(maxLength / 2);
-    const start = text.substring(0, halfLength);
-    const end = text.substring(text.length - halfLength);
-
-    return start + '\n...[gekürzt]...\n' + end;
+  // Kürze Text auf max. 300 Zeichen (nur Anfang)
+  truncateText(text, maxLength = 300) {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   }
 
-  async klassifiziere(email, stufe2Result) {
+  // Anhang-Info als String
+  getAttachmentInfo(attachments) {
+    if (!attachments || attachments.length === 0) return '';
+    const names = attachments.map(a => a.filename || a.name || 'Datei').join(', ');
+    return `ANHÄNGE: ${attachments.length} (${names})`;
+  }
+
+  async klassifiziere(email, stufe1Result) {
     if (!this.openai) {
-      console.warn('OpenAI API Key nicht konfiguriert');
+      console.warn('[STUFE2] OpenAI API Key nicht konfiguriert');
       return {
-        ...stufe2Result,
-        stufe: 3,
+        ...stufe1Result,
+        stufe: 2,
         error: 'API Key fehlt'
       };
     }
@@ -53,47 +55,28 @@ class Stufe3Classifier {
     const absenderName = from.name || '';
     const absenderEmail = from.address || '';
     const subject = email.subject || '';
-    const body = this.truncateText(email.text || email.body || '');
 
-    const prompt = `Analysiere diese E-Mail mit Volltext.
+    // Nur erste 300 Zeichen vom Inhalt
+    const body = this.truncateText(email.text || email.body || '', 300);
+    const attachmentInfo = this.getAttachmentInfo(email.attachments);
+
+    // STUFE 2: Mit Inhalt (nur wenn Stufe 1 unsicher war)
+    const prompt = `Du bist Roland, ein Unternehmer. Stufe 1 war UNSICHER bei dieser E-Mail.
 
 ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
-INHALT: ${body}
+INHALT (erste 300 Zeichen): ${body}
+${attachmentInfo}
 
-WERBUNG (Social Media, Shops):
-- Facebook, LinkedIn, Instagram, Twitter = WERBUNG
-- Amazon, eBay, Zalando, MediaMarkt = WERBUNG
-- "hat gepostet", "neue Nachricht", "hat kommentiert" = WERBUNG
-- Rabatte, Sales, Angebote = WERBUNG
+Jetzt mit dem Inhalt: Ist das ein echter Mensch der auf meine Antwort wartet?
 
-INFO (System-Benachrichtigungen):
-- WordPress, IONOS, Hostinger = INFO
-- Google/GitHub Security = INFO
-- Bestellbestätigungen, Versand = INFO
-- noreply@, notification@ = INFO
+Erkenne Muster:
+- "Hallo Roland, ich wollte fragen..." = ESSENZ (echter Mensch)
+- Automatisch generierter Text, Marketing = WERBUNG/NEWSLETTER
+- "Your account", "Bestätigung", System-Mail = INFO
+- Verdächtige Links, "Gewinn" = SPAM
 
-NEWSLETTER:
-- Abonnierte Updates, Weekly, Monthly = NEWSLETTER
-- Blogs, News-Dienste = NEWSLETTER
-
-SPAM:
-- Phishing, Betrug = SPAM
-- Unbekannte Absender mit Links = SPAM
-
-ESSENZ nur wenn:
-- Echter Mensch schreibt PERSÖNLICH
-- Erwartet Antwort/Aktion
-
-Kategorien:
-- ESSENZ = Mensch erwartet Antwort
-- WICHTIG = Könnte Antwort brauchen
-- INFO = System-Mails
-- WERBUNG = Social Media, Shops
-- NEWSLETTER = Abonnierte Updates
-- SPAM = Phishing, Betrug
-
-JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","conf":0-100,"sum":"Was will die Mail?"}`;
+JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","sicherheit":0-100,"piepst":true/false,"grund":"kurz"}`;
 
     try {
       const response = await this.openai.chat.completions.create({
@@ -115,22 +98,27 @@ JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","conf":0-100,"sum":"W
 
       // Kategorie aus "kat" oder "kategorie" lesen
       const kategorie = (result.kat || result.kategorie || 'info').toLowerCase();
-      const confidence = result.conf || result.confidence || 80;
+      const sicherheit = result.sicherheit || result.conf || result.confidence || 85;
+      const piepst = result.piepst || false;
+      const grund = result.grund || '';
+
+      console.log(`[STUFE2] ${email.subject?.substring(0, 30)}... → ${kategorie} (${sicherheit}%) ✓`);
 
       return {
         kategorie,
-        confidence: Math.max(confidence, 75), // Stufe 3 sollte sicher sein
-        zusammenfassung: result.sum || result.zusammenfassung,
-        stufe: 3
+        confidence: Math.max(sicherheit, 75), // Stufe 2 sollte sicher sein
+        piepst,
+        grund,
+        stufe: 2
       };
 
     } catch (error) {
-      console.error('Stufe 3 GPT Fehler:', error.message);
+      console.error('[STUFE2] GPT Fehler:', error.message);
 
-      // Fallback: Stufe 2 Ergebnis verwenden
+      // Fallback: Stufe 1 Ergebnis verwenden
       return {
-        ...stufe2Result,
-        stufe: 3,
+        ...stufe1Result,
+        stufe: 2,
         error: error.message
       };
     }

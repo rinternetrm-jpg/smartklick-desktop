@@ -43,12 +43,12 @@ class Stufe2Classifier {
 
   async klassifiziere(email) {
     if (!this.openai) {
-      console.warn('[STUFE2] OpenAI API Key nicht konfiguriert!');
+      console.warn('[STUFE1] OpenAI API Key nicht konfiguriert!');
       return {
-        kategorie: 'info',  // Fallback zu info
+        kategorie: 'info',
         confidence: 50,
         needsMoreText: false,
-        stufe: 2,
+        stufe: 1,
         error: 'API Key fehlt'
       };
     }
@@ -58,41 +58,38 @@ class Stufe2Classifier {
     const absenderEmail = from.address || '';
     const subject = email.subject || '';
 
-    const prompt = `Klassifiziere diese E-Mail NUR anhand von Absender und Betreff.
+    // STUFE 1: Nur Absender + Betreff (günstig)
+    const prompt = `Du bist Roland, ein Unternehmer. Schau dir diese E-Mail an:
 
 ABSENDER: ${absenderName} <${absenderEmail}>
 BETREFF: ${subject}
 
-WERBUNG (Social Media, Shops, Marketing):
-- Facebook, LinkedIn, Twitter, Instagram, TikTok = WERBUNG
-- Shops: Amazon, eBay, Zalando, MediaMarkt = WERBUNG
-- "Neue Nachricht", "hat gepostet", "hat kommentiert" = WERBUNG
-- Rabatte, Sales, Angebote = WERBUNG
+Ist das ein echter Mensch der auf meine Antwort wartet? Oder Werbung/Newsletter/Automatisch?
 
-INFO (Automatische Benachrichtigungen):
-- WordPress, IONOS, Hostinger, Strato = INFO
-- noreply@, notification@, info@ = INFO
-- Bestellbestätigungen, Versand-Updates = INFO
-- GitHub, Google Security = INFO
+SICHER NICHT WICHTIG (100% sicher):
+- MediaMarkt, Eventim, Amazon, eBay = WERBUNG
+- Facebook, LinkedIn, Instagram = WERBUNG
+- Google-Warnungen, WordPress, IONOS = INFO
+- Newsletter, Weekly, Monthly = NEWSLETTER
+- noreply@, notification@ = INFO
 
-NEWSLETTER (Abonnierte Updates):
-- Newsletter, "Weekly", "Monthly" = NEWSLETTER
-- Blogs, News-Dienste = NEWSLETTER
+SICHER WICHTIG (100% sicher):
+- Echter Name + echtes Anliegen ("Frage zu...", "Können wir...")
+- Persönliche E-Mail-Adresse mit direktem Betreff
 
-ECHTE Menschen (ESSENZ/WICHTIG):
-- Persönliche E-Mail (vorname.nachname@firma.de)
-- Betreff: "Frage zu...", "Können wir...", "Bitte um..."
-- Jemand der PERSÖNLICH schreibt
+UNSICHER (muss Inhalt prüfen):
+- Nur "Test", "Anhang", "Dokument" ohne Kontext
+- Unbekannter Absender mit unklarem Betreff
 
 Kategorien:
-- ESSENZ = Echter Mensch erwartet Antwort
-- WICHTIG = Könnte Antwort brauchen
-- INFO = System-Mails, Bestätigungen
-- WERBUNG = Social Media, Shops, Marketing
-- NEWSLETTER = Abonnierte Updates
-- SPAM = Phishing, Betrug
+- essenz = Echter Mensch wartet auf Antwort
+- wichtig = Könnte Antwort brauchen
+- info = System-Mails, Bestätigungen
+- werbung = Social Media, Shops, Marketing
+- newsletter = Abonnierte Updates
+- spam = Phishing, Betrug
 
-JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","conf":0-100,"grund":"max 5 Worte"}`;
+JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","sicherheit":0-100,"piepst":true/false}`;
 
     try {
       const response = await this.openai.chat.completions.create({
@@ -118,31 +115,33 @@ JSON: {"kat":"essenz|wichtig|info|werbung|newsletter|spam","conf":0-100,"grund":
       }
 
       const result = JSON.parse(jsonStr);
-      console.log('[STUFE2] Parsed:', result);
+      console.log('[STUFE1] Parsed:', result);
 
       // Kategorie aus "kat" oder "kategorie" lesen
       const kategorie = (result.kat || result.kategorie || 'info').toLowerCase();
-      const confidence = result.conf || result.confidence || 70;
+      const sicherheit = result.sicherheit || result.conf || result.confidence || 70;
+      const piepst = result.piepst || false;
 
-      // Brauchen wir mehr Text? Nur bei niedriger Confidence
-      const needsMoreText = confidence < 60;
+      // STUFE 2 nur wenn Sicherheit < 80%
+      const needsMoreText = sicherheit < 80;
+
+      console.log(`[STUFE1] ${subject?.substring(0, 30)}... → ${kategorie} (${sicherheit}%) ${needsMoreText ? '→ STUFE 2' : '✓'}`);
 
       return {
         kategorie,
-        confidence,
-        grund: result.grund,
+        confidence: sicherheit,
+        piepst,
         needsMoreText,
-        stufe: 2
+        stufe: 1
       };
 
     } catch (error) {
-      console.error('[STUFE2] GPT Fehler:', error.message);
-      console.error('[STUFE2] Full error:', error);
+      console.error('[STUFE1] GPT Fehler:', error.message);
       return {
-        kategorie: 'info',  // Fallback zu info statt normal
+        kategorie: 'info',
         confidence: 50,
         needsMoreText: true,
-        stufe: 2,
+        stufe: 1,
         error: error.message
       };
     }
