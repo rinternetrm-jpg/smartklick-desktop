@@ -1203,18 +1203,19 @@ async function selectEmail(email) {
     elements.detailBody.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Lade Inhalt...</span></div>';
 
     try {
-      const fullEmail = await ipcRenderer.invoke('imap:getEmailContent', email.uid);
-      if (fullEmail && !fullEmail.error) {
-        email.body = fullEmail.text || fullEmail.html || '';
-        if (fullEmail.html) {
-          elements.detailBody.innerHTML = fullEmail.html;
+      const fullEmail = await ipcRenderer.invoke('imap:getEmailContent', email.accountId, email.uid, email.folder || 'INBOX');
+      if (fullEmail && fullEmail.success && fullEmail.email) {
+        const content = fullEmail.email;
+        email.body = content.text || content.html || '';
+        if (content.html) {
+          elements.detailBody.innerHTML = content.html;
         } else {
-          elements.detailBody.textContent = fullEmail.text || 'Kein Inhalt';
+          elements.detailBody.textContent = content.text || 'Kein Inhalt';
         }
 
         // Mark as read
         if (email.isUnread) {
-          await ipcRenderer.invoke('imap:markAsRead', email.uid);
+          await ipcRenderer.invoke('imap:markAsRead', email.accountId, email.uid, email.folder || 'INBOX');
           email.isUnread = false;
           updateStats();
           renderEmailList();
