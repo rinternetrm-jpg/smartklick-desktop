@@ -37,6 +37,14 @@ let currentExtractedContact = null;  // Aktuell extrahierter Kontakt
 // Payment Data - Extrahierte Zahlungsdaten
 let currentPaymentData = null;
 
+// Sync State - Initial-Synchronisation
+let isSyncing = false;
+let syncStartTime = null;
+let syncAccountId = null;
+let syncTotalEmails = 0;
+let syncLoadedEmails = 0;
+let syncCancelled = false;
+
 // Kategorie-Mapping für UI
 const KATEGORIE_MAP = {
   essenz: { name: 'Essenz', icon: '🔴', color: '#ef4444' },
@@ -271,7 +279,20 @@ function initializeElements() {
     debugToggleBtn: document.getElementById('debugToggleBtn'),
     closeDebugBtn: document.getElementById('closeDebugBtn'),
     closeDebugModalBtn: document.getElementById('closeDebugModalBtn'),
-    clearDebugBtn: document.getElementById('clearDebugBtn')
+    clearDebugBtn: document.getElementById('clearDebugBtn'),
+
+    // Sync Modal
+    syncModal: document.getElementById('syncModal'),
+    syncAccountName: document.getElementById('syncAccountName'),
+    syncStatus: document.getElementById('syncStatus'),
+    syncProgressFill: document.getElementById('syncProgressFill'),
+    syncLoadedCount: document.getElementById('syncLoadedCount'),
+    syncTotalCount: document.getElementById('syncTotalCount'),
+    syncTimeText: document.getElementById('syncTimeText'),
+    syncIndexing: document.getElementById('syncIndexing'),
+    syncIndexingStats: document.getElementById('syncIndexingStats'),
+    syncCancelBtn: document.getElementById('syncCancelBtn'),
+    syncFinishBtn: document.getElementById('syncFinishBtn')
   };
 }
 
@@ -526,6 +547,10 @@ function setupEventListeners() {
   elements.closeDebugBtn?.addEventListener('click', closeDebugModal);
   elements.closeDebugModalBtn?.addEventListener('click', closeDebugModal);
   elements.clearDebugBtn?.addEventListener('click', clearDebugLog);
+
+  // Sync Modal
+  elements.syncCancelBtn?.addEventListener('click', cancelSync);
+  elements.syncFinishBtn?.addEventListener('click', finishSync);
 
   // Click outside to close dropdowns
   document.addEventListener('click', (e) => {
@@ -3893,7 +3918,15 @@ async function connectGmail() {
       showToast('Gmail-Konto verbunden!');
       await loadAccounts();
       closeAddAccountModal();
-      loadEmails();
+
+      // Finde das neue Konto und starte Sync-Modal
+      const newAccount = accounts.find(a => a.provider === 'google' || a.id?.includes('gmail'));
+      if (newAccount) {
+        showSyncModal(newAccount.id, newAccount.email || newAccount.name);
+      } else {
+        // Fallback: Normale Ladung
+        loadEmails();
+      }
     } else {
       showToast('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'), 'error');
       elements.accountLoadingState.classList.add('hidden');
@@ -5242,3 +5275,249 @@ window.downloadAttachment = async (messageId, attachmentId, filename) => {
     showToast('Fehler beim Download', 'error');
   }
 };
+
+// =============================================================================
+// SYNC MODAL - Initial E-Mail Synchronisation
+// =============================================================================
+
+/**
+ * Zeigt das Sync-Modal für ein neues Konto
+ */
+function showSyncModal(accountId, accountName) {
+  console.log('[SYNC] Starte Sync für Account:', accountId, accountName);
+
+  // Reset state
+  isSyncing = true;
+  syncCancelled = false;
+  syncAccountId = accountId;
+  syncStartTime = Date.now();
+  syncTotalEmails = 0;
+  syncLoadedEmails = 0;
+
+  // UI zurücksetzen
+  elements.syncAccountName.textContent = accountName || 'E-Mails werden synchronisiert...';
+  elements.syncProgressFill.style.width = '0%';
+  elements.syncLoadedCount.textContent = '0';
+  elements.syncTotalCount.textContent = '?';
+  elements.syncTimeText.textContent = 'Berechne...';
+  elements.syncIndexing.classList.add('hidden');
+  elements.syncFinishBtn.disabled = true;
+
+  // Status
+  updateSyncStatus('⏳', 'Verbinde mit Server...');
+
+  // Modal anzeigen
+  elements.syncModal.style.display = 'flex';
+
+  // Sync starten
+  startFullSync(accountId);
+}
+
+/**
+ * Startet die vollständige Synchronisation
+ */
+async function startFullSync(accountId) {
+  console.log('[SYNC] Starte vollständige Synchronisation...');
+
+  try {
+    // Erst Gesamtanzahl der E-Mails ermitteln
+    updateSyncStatus('🔍', 'Ermittle E-Mail Anzahl...');
+
+    const countResult = await ipcRenderer.invoke('email:getEmailCount', accountId);
+    if (countResult.success) {
+      syncTotalEmails = countResult.count || 0;
+      elements.syncTotalCount.textContent = syncTotalEmails.toLocaleString();
+      console.log('[SYNC] Gefunden:', syncTotalEmails, 'E-Mails');
+    }
+
+    if (syncCancelled) return;
+
+    // Progressive Loading starten
+    updateSyncStatus('📥', 'Lade E-Mails...');
+
+    // Listener für Progress-Updates
+    const progressHandler = (event, data) => {
+      if (syncCancelled) return;
+
+      syncLoadedEmails = data.loaded || 0;
+      const progress = syncTotalEmails > 0 ? (syncLoadedEmails / syncTotalEmails) * 100 : 0;
+
+      elements.syncLoadedCount.textContent = syncLoadedEmails.toLocaleString();
+      elements.syncProgressFill.style.width = `${Math.min(progress, 100)}%`;
+
+      // Zeit berechnen
+      const elapsed = (Date.now() - syncStartTime) / 1000;
+      if (syncLoadedEmails > 0 && elapsed > 2) {
+        const emailsPerSecond = syncLoadedEmails / elapsed;
+        const remaining = syncTotalEmails - syncLoadedEmails;
+        const secondsLeft = remaining / emailsPerSecond;
+
+        if (secondsLeft < 60) {
+          elements.syncTimeText.textContent = `Noch ca. ${Math.ceil(secondsLeft)} Sekunden`;
+        } else {
+          elements.syncTimeText.textContent = `Noch ca. ${Math.ceil(secondsLeft / 60)} Minuten`;
+        }
+      }
+
+      // E-Mails in DB speichern
+      if (data.emails && data.emails.length > 0) {
+        saveEmailsToDatabase(data.emails, accountId);
+      }
+    };
+
+    ipcRenderer.on('email:syncProgress', progressHandler);
+
+    // Starte das Laden
+    const result = await ipcRenderer.invoke('email:loadAllEmails', accountId);
+
+    // Listener entfernen
+    ipcRenderer.removeListener('email:syncProgress', progressHandler);
+
+    if (syncCancelled) return;
+
+    if (result.success) {
+      syncLoadedEmails = result.totalLoaded || syncTotalEmails;
+      elements.syncLoadedCount.textContent = syncLoadedEmails.toLocaleString();
+      elements.syncProgressFill.style.width = '100%';
+
+      // Speichere alle geladenen E-Mails
+      if (result.emails && result.emails.length > 0) {
+        emails = result.emails;
+        await saveEmailsToDatabase(result.emails, accountId);
+      }
+
+      completeSyncLoading();
+    } else {
+      updateSyncStatus('❌', 'Fehler: ' + (result.error || 'Unbekannt'));
+      elements.syncFinishBtn.disabled = false;
+      elements.syncFinishBtn.textContent = 'Schließen';
+    }
+
+  } catch (error) {
+    console.error('[SYNC] Fehler:', error);
+    updateSyncStatus('❌', 'Fehler: ' + error.message);
+    elements.syncFinishBtn.disabled = false;
+    elements.syncFinishBtn.textContent = 'Schließen';
+  }
+}
+
+/**
+ * Aktualisiert den Status im Sync-Modal
+ */
+function updateSyncStatus(icon, text) {
+  const statusEl = elements.syncStatus;
+  if (statusEl) {
+    statusEl.innerHTML = `
+      <span class="sync-status-icon">${icon}</span>
+      <span class="sync-status-text">${text}</span>
+    `;
+  }
+}
+
+/**
+ * Wird aufgerufen wenn das Laden abgeschlossen ist
+ */
+async function completeSyncLoading() {
+  console.log('[SYNC] Laden abgeschlossen, starte Indizierung...');
+
+  updateSyncStatus('✅', 'E-Mails geladen!');
+
+  // Indexierung starten
+  elements.syncIndexing.classList.remove('hidden');
+
+  try {
+    // Konversations-Analyse
+    const indexResult = await indexConversations();
+
+    // Stats anzeigen
+    elements.syncIndexingStats.innerHTML = `
+      <div class="sync-index-stat">
+        <span class="sync-index-stat-icon">📧</span>
+        <div class="sync-index-stat-info">
+          <div class="sync-index-stat-value">${syncLoadedEmails.toLocaleString()}</div>
+          <div class="sync-index-stat-label">E-Mails</div>
+        </div>
+      </div>
+      <div class="sync-index-stat">
+        <span class="sync-index-stat-icon">👥</span>
+        <div class="sync-index-stat-info">
+          <div class="sync-index-stat-value">${indexResult.contacts || 0}</div>
+          <div class="sync-index-stat-label">Kontakte</div>
+        </div>
+      </div>
+      <div class="sync-index-stat">
+        <span class="sync-index-stat-icon">💬</span>
+        <div class="sync-index-stat-info">
+          <div class="sync-index-stat-value">${indexResult.conversations || 0}</div>
+          <div class="sync-index-stat-label">Konversationen</div>
+        </div>
+      </div>
+      <div class="sync-index-stat">
+        <span class="sync-index-stat-icon">⏱️</span>
+        <div class="sync-index-stat-info">
+          <div class="sync-index-stat-value">${Math.round((Date.now() - syncStartTime) / 1000)}s</div>
+          <div class="sync-index-stat-label">Dauer</div>
+        </div>
+      </div>
+    `;
+
+    // Fertig-Button aktivieren
+    elements.syncFinishBtn.disabled = false;
+    elements.syncFinishBtn.textContent = 'Fertig';
+    elements.syncModal.querySelector('.sync-modal')?.classList.add('sync-complete');
+
+  } catch (error) {
+    console.error('[SYNC] Indizierung fehlgeschlagen:', error);
+    elements.syncIndexingStats.innerHTML = '<div class="sync-error">Indizierung fehlgeschlagen</div>';
+    elements.syncFinishBtn.disabled = false;
+    elements.syncFinishBtn.textContent = 'Trotzdem fortfahren';
+  }
+}
+
+/**
+ * Indiziert alle Konversationen in der Datenbank
+ */
+async function indexConversations() {
+  console.log('[SYNC] Indiziere Konversationen...');
+
+  try {
+    const result = await ipcRenderer.invoke('emaildb:indexConversations', syncAccountId);
+    console.log('[SYNC] Indizierung abgeschlossen:', result);
+    return result;
+  } catch (error) {
+    console.error('[SYNC] Indizierung Fehler:', error);
+    return { contacts: 0, conversations: 0 };
+  }
+}
+
+/**
+ * Bricht die Synchronisation ab
+ */
+function cancelSync() {
+  console.log('[SYNC] Sync abgebrochen');
+  syncCancelled = true;
+  isSyncing = false;
+  closeSyncModal();
+}
+
+/**
+ * Beendet die Synchronisation und schließt das Modal
+ */
+function finishSync() {
+  console.log('[SYNC] Sync abgeschlossen');
+  isSyncing = false;
+  closeSyncModal();
+
+  // E-Mails laden und anzeigen
+  loadEmails(true);
+
+  showToast(`${syncLoadedEmails.toLocaleString()} E-Mails synchronisiert!`, 'success');
+}
+
+/**
+ * Schließt das Sync-Modal
+ */
+function closeSyncModal() {
+  elements.syncModal.style.display = 'none';
+  elements.syncModal.querySelector('.sync-modal')?.classList.remove('sync-complete');
+}

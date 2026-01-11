@@ -1223,6 +1223,63 @@
     </div>
   </div>
 
+  <!-- Sync Modal - Initial E-Mail Synchronisation -->
+  <div class="modal-overlay" id="syncModal" style="display: none;">
+    <div class="modal sync-modal">
+      <div class="modal-header">
+        <div class="modal-icon sync-icon">📥</div>
+        <div>
+          <div class="modal-title">Konto einrichten</div>
+          <div class="modal-subtitle" id="syncAccountName">E-Mails werden synchronisiert...</div>
+        </div>
+      </div>
+
+      <div class="sync-progress-section">
+        <div class="sync-status" id="syncStatus">
+          <span class="sync-status-icon">⏳</span>
+          <span class="sync-status-text">Verbinde mit Server...</span>
+        </div>
+
+        <div class="sync-progress-bar">
+          <div class="sync-progress-fill" id="syncProgressFill" style="width: 0%"></div>
+        </div>
+
+        <div class="sync-stats">
+          <div class="sync-stat">
+            <span class="sync-stat-number" id="syncLoadedCount">0</span>
+            <span class="sync-stat-label">geladen</span>
+          </div>
+          <div class="sync-stat-divider">/</div>
+          <div class="sync-stat">
+            <span class="sync-stat-number" id="syncTotalCount">?</span>
+            <span class="sync-stat-label">gesamt</span>
+          </div>
+        </div>
+
+        <div class="sync-time" id="syncTime">
+          <span>⏱️</span>
+          <span id="syncTimeText">Berechne...</span>
+        </div>
+      </div>
+
+      <!-- Phase 2: Indexierung -->
+      <div class="sync-indexing hidden" id="syncIndexing">
+        <div class="sync-indexing-header">
+          <span class="sync-indexing-icon">🔍</span>
+          <span>Analysiere Konversationen...</span>
+        </div>
+        <div class="sync-indexing-stats" id="syncIndexingStats">
+          <!-- Wird dynamisch gefüllt -->
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="syncCancelBtn">Abbrechen</button>
+        <button class="btn-primary" id="syncFinishBtn" disabled>Fertig</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div class="toast" id="toast"></div>
 

@@ -422,6 +422,99 @@ function emailExists(emailId) {
 }
 
 /**
+ * Indiziert alle Konversationen (einzigartige Kontakte zählen)
+ */
+function indexConversations(accountId = null) {
+  if (!db) initDatabase();
+
+  try {
+    console.log('[EMAIL-DB] Starte Konversations-Indizierung...');
+
+    // Alle einzigartigen Absender mit E-Mail-Anzahl
+    let query = `
+      SELECT
+        from_address,
+        from_name,
+        COUNT(*) as email_count,
+        MIN(date) as first_contact,
+        MAX(date) as last_contact
+      FROM emails
+    `;
+
+    if (accountId) {
+      query += ' WHERE account_id = ?';
+    }
+
+    query += ' GROUP BY from_address ORDER BY email_count DESC';
+
+    const stmt = db.prepare(query);
+    const contacts = accountId ? stmt.all(accountId) : stmt.all();
+
+    // Konversationen sind Kontakte mit mehr als 1 E-Mail
+    const conversations = contacts.filter(c => c.email_count >= 2);
+
+    // Update conversations table
+    const upsertStmt = db.prepare(`
+      INSERT OR REPLACE INTO conversations
+        (contact_email, contact_name, account_id, email_count, first_contact, last_contact, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
+    `);
+
+    const updateMany = db.transaction((contactList) => {
+      for (const contact of contactList) {
+        upsertStmt.run(
+          contact.from_address,
+          contact.from_name || '',
+          accountId || 'all',
+          contact.email_count,
+          contact.first_contact,
+          contact.last_contact
+        );
+      }
+    });
+
+    updateMany(conversations);
+
+    console.log(`[EMAIL-DB] Indizierung abgeschlossen: ${contacts.length} Kontakte, ${conversations.length} Konversationen`);
+
+    return {
+      contacts: contacts.length,
+      conversations: conversations.length
+    };
+
+  } catch (error) {
+    console.error('[EMAIL-DB] Indizierung fehlgeschlagen:', error);
+    return { contacts: 0, conversations: 0, error: error.message };
+  }
+}
+
+/**
+ * Holt alle Konversationen (für Übersicht)
+ */
+function getAllConversations(accountId = null, limit = 50) {
+  if (!db) initDatabase();
+
+  try {
+    let query = `
+      SELECT * FROM conversations
+    `;
+
+    if (accountId) {
+      query += ' WHERE account_id = ?';
+    }
+
+    query += ' ORDER BY email_count DESC LIMIT ?';
+
+    const stmt = db.prepare(query);
+    return accountId ? stmt.all(accountId, limit) : stmt.all(limit);
+
+  } catch (error) {
+    console.error('[EMAIL-DB] Fehler beim Abrufen der Konversationen:', error);
+    return [];
+  }
+}
+
+/**
  * Schließt die Datenbank
  */
 function closeDatabase() {
@@ -444,5 +537,7 @@ module.exports = {
   cleanupOldEmails,
   getDbStats,
   emailExists,
+  indexConversations,
+  getAllConversations,
   closeDatabase
 };

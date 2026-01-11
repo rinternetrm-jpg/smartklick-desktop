@@ -4197,6 +4197,95 @@ ipcMain.handle('emaildb:cleanup', (_, daysToKeep) => {
   }
 });
 
+// Konversationen indizieren
+ipcMain.handle('emaildb:indexConversations', async (_, accountId) => {
+  try {
+    console.log('[EMAIL-DB] Indiziere Konversationen für Account:', accountId);
+    const result = emailDatabase.indexConversations(accountId);
+    return result;
+  } catch (error) {
+    console.error('[EMAIL-DB] Index error:', error);
+    return { contacts: 0, conversations: 0, error: error.message };
+  }
+});
+
+// E-Mail Anzahl abrufen
+ipcMain.handle('email:getEmailCount', async (_, accountId) => {
+  try {
+    console.log('[EMAIL] Ermittle E-Mail Anzahl für Account:', accountId);
+
+    // Google Account - nutze die bestehende gmailService
+    if (accountId?.includes('gmail') || accountId?.includes('google')) {
+      // Versuche Anzahl über Gmail API zu ermitteln
+      try {
+        const profile = await gmailService.gmail?.users.getProfile({ userId: 'me' });
+        if (profile?.data?.messagesTotal) {
+          return { success: true, count: profile.data.messagesTotal };
+        }
+      } catch (e) {
+        console.log('[EMAIL] Konnte Profilinfo nicht abrufen:', e.message);
+      }
+    }
+
+    // Fallback: Schätzung nicht möglich
+    return { success: true, count: 0 };
+  } catch (error) {
+    console.error('[EMAIL] Count error:', error);
+    return { success: false, count: 0, error: error.message };
+  }
+});
+
+// Alle E-Mails laden (für Sync)
+ipcMain.handle('email:loadAllEmails', async (event, accountId) => {
+  try {
+    console.log('[EMAIL] Lade alle E-Mails für Account:', accountId);
+
+    let allEmails = [];
+    let totalLoaded = 0;
+
+    // Google Account
+    if (accountId?.includes('gmail') || accountId?.includes('google')) {
+      // Nutze bestehende getEmails mit hohem Limit
+      const result = await gmailService.getRecentEmails(10000); // Max 10000
+      if (result && Array.isArray(result)) {
+        allEmails = result.map(email => ({
+          id: email.id,
+          from: email.from,
+          fromName: email.fromName,
+          to: email.to,
+          subject: email.subject,
+          date: email.date,
+          snippet: email.snippet,
+          body: email.body,
+          html: email.html,
+          isRead: !email.isUnread,
+          isStarred: email.isStarred,
+          labels: email.labels,
+          threadId: email.threadId,
+          accountId: accountId,
+          provider: 'google'
+        }));
+        totalLoaded = allEmails.length;
+
+        // Progress senden
+        if (emailWindow && !emailWindow.isDestroyed()) {
+          emailWindow.webContents.send('email:syncProgress', {
+            loaded: totalLoaded,
+            emails: allEmails
+          });
+        }
+      }
+    }
+
+    console.log('[EMAIL] Sync abgeschlossen:', totalLoaded, 'E-Mails');
+    return { success: true, emails: allEmails, totalLoaded };
+
+  } catch (error) {
+    console.error('[EMAIL] Load all error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Lokale Kontakt-Extraktion (Fallback)
 // Nur echte Signatur-Daten extrahieren, keine Garbage-Daten
 function extractContactLocally(emailData) {
