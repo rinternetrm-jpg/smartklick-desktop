@@ -281,18 +281,33 @@ function initializeElements() {
     closeDebugModalBtn: document.getElementById('closeDebugModalBtn'),
     clearDebugBtn: document.getElementById('clearDebugBtn'),
 
-    // Sync Modal
+    // Sync Modal (Neues Design)
     syncModal: document.getElementById('syncModal'),
+    syncProviderIcon: document.getElementById('syncProviderIcon'),
+    syncTitle: document.getElementById('syncTitle'),
     syncAccountName: document.getElementById('syncAccountName'),
-    syncStatus: document.getElementById('syncStatus'),
     syncProgressFill: document.getElementById('syncProgressFill'),
+    syncStep1: document.getElementById('syncStep1'),
+    syncStep2: document.getElementById('syncStep2'),
+    syncStep2Text: document.getElementById('syncStep2Text'),
+    syncStep3: document.getElementById('syncStep3'),
+    syncStep4: document.getElementById('syncStep4'),
     syncLoadedCount: document.getElementById('syncLoadedCount'),
     syncTotalCount: document.getElementById('syncTotalCount'),
     syncTimeText: document.getElementById('syncTimeText'),
-    syncIndexing: document.getElementById('syncIndexing'),
-    syncIndexingStats: document.getElementById('syncIndexingStats'),
     syncCancelBtn: document.getElementById('syncCancelBtn'),
-    syncFinishBtn: document.getElementById('syncFinishBtn'),
+
+    // Cancel Confirmation Modal
+    cancelConfirmModal: document.getElementById('cancelConfirmModal'),
+    cancelProgressText: document.getElementById('cancelProgressText'),
+    continueImportBtn: document.getElementById('continueImportBtn'),
+    confirmCancelBtn: document.getElementById('confirmCancelBtn'),
+
+    // Cancelled Modal
+    cancelledModal: document.getElementById('cancelledModal'),
+    cancelledAccountText: document.getElementById('cancelledAccountText'),
+    cancelledProgressText: document.getElementById('cancelledProgressText'),
+    closeCancelledBtn: document.getElementById('closeCancelledBtn'),
 
     // Gmail Sync Filter Toggles
     excludePromotionsToggle: document.getElementById('excludePromotionsToggle'),
@@ -301,13 +316,15 @@ function initializeElements() {
     excludeUpdatesToggle: document.getElementById('excludeUpdatesToggle'),
     gmailSyncSection: document.getElementById('gmailSyncSection'),
 
-    // Resume Import Modal
+    // Resume Import Modal (Neues Design)
     resumeImportModal: document.getElementById('resumeImportModal'),
+    resumeProviderIcon: document.getElementById('resumeProviderIcon'),
     resumeImportAccount: document.getElementById('resumeImportAccount'),
     resumeImportedCount: document.getElementById('resumeImportedCount'),
     resumeTotalCount: document.getElementById('resumeTotalCount'),
     resumeInterruptedAt: document.getElementById('resumeInterruptedAt'),
-    closeResumeImportBtn: document.getElementById('closeResumeImportBtn'),
+    resumeProgressBar: document.getElementById('resumeProgressBar'),
+    resumeProgressPercent: document.getElementById('resumeProgressPercent'),
     discardImportBtn: document.getElementById('discardImportBtn'),
     restartImportBtn: document.getElementById('restartImportBtn'),
     resumeImportBtn: document.getElementById('resumeImportBtn')
@@ -567,14 +584,17 @@ function setupEventListeners() {
   elements.clearDebugBtn?.addEventListener('click', clearDebugLog);
 
   // Sync Modal
-  elements.syncCancelBtn?.addEventListener('click', cancelSync);
-  elements.syncFinishBtn?.addEventListener('click', finishSync);
+  elements.syncCancelBtn?.addEventListener('click', showCancelConfirmModal);
+
+  // Cancel Confirmation Modal
+  elements.continueImportBtn?.addEventListener('click', continueSyncImport);
+  elements.confirmCancelBtn?.addEventListener('click', confirmCancelSync);
+  elements.closeCancelledBtn?.addEventListener('click', closeCancelledModal);
 
   // Gmail Sync Filter Toggles
   setupSyncFilterToggles();
 
   // Resume Import Modal
-  elements.closeResumeImportBtn?.addEventListener('click', closeResumeImportModal);
   elements.discardImportBtn?.addEventListener('click', discardInterruptedImport);
   elements.restartImportBtn?.addEventListener('click', restartImport);
   elements.resumeImportBtn?.addEventListener('click', resumeImport);
@@ -4127,17 +4147,24 @@ async function showSyncModalImap(accountId, accountEmail) {
   syncTotalEmails = syncLimit;
   syncLoadedEmails = 0;
 
-  // UI zurücksetzen
+  // UI zurücksetzen (Neues Design)
+  if (elements.syncProviderIcon) {
+    elements.syncProviderIcon.className = 'provider-icon-large imap';
+    elements.syncProviderIcon.textContent = '✉';
+  }
+  if (elements.syncTitle) {
+    elements.syncTitle.textContent = 'IMAP wird verbunden...';
+  }
   elements.syncAccountName.textContent = accountEmail || 'IMAP-Konto';
   elements.syncProgressFill.style.width = '0%';
   elements.syncLoadedCount.textContent = '0';
   elements.syncTotalCount.textContent = syncLimit.toLocaleString();
   elements.syncTimeText.textContent = 'Lade E-Mails...';
-  elements.syncIndexing.classList.add('hidden');
-  elements.syncFinishBtn.disabled = true;
 
-  // Status
-  updateSyncStatus('📥', `Lade ${syncLimit.toLocaleString()} E-Mails...`);
+  // Steps zurücksetzen
+  resetSyncSteps();
+  updateSyncStep(1, 'completed');
+  updateSyncStep(2, 'active');
 
   // Modal anzeigen
   elements.syncModal.style.display = 'flex';
@@ -4186,15 +4213,20 @@ async function showSyncModalImap(accountId, accountEmail) {
       // Fertig
       completeSyncLoading();
     } else {
-      updateSyncStatus('❌', 'Fehler: ' + (result.error || 'Laden fehlgeschlagen'));
-      elements.syncFinishBtn.disabled = false;
-      elements.syncFinishBtn.textContent = 'Schließen';
+      if (elements.syncTitle) {
+        elements.syncTitle.textContent = 'Fehler beim Laden';
+      }
+      updateSyncStep(2, 'completed'); // Als fehlgeschlagen markieren
+      showToast('Fehler: ' + (result.error || 'Laden fehlgeschlagen'), 'error');
+      setTimeout(() => closeSyncModal(), 2000);
     }
   } catch (error) {
     console.error('[SYNC-IMAP] Fehler:', error);
-    updateSyncStatus('❌', 'Fehler: ' + error.message);
-    elements.syncFinishBtn.disabled = false;
-    elements.syncFinishBtn.textContent = 'Schließen';
+    if (elements.syncTitle) {
+      elements.syncTitle.textContent = 'Fehler beim Laden';
+    }
+    showToast('Fehler: ' + error.message, 'error');
+    setTimeout(() => closeSyncModal(), 2000);
   }
 }
 
@@ -5454,23 +5486,129 @@ function showSyncModal(accountId, accountName) {
   // E-Mail-Limit aus Einstellungen (Standard: 1000)
   const syncLimit = emailLimit > 0 ? emailLimit : 1000;
 
-  // UI zurücksetzen
-  elements.syncAccountName.textContent = accountName || 'E-Mails werden synchronisiert...';
+  // Provider-Typ ermitteln
+  const isGmail = accountId?.includes('gmail') || accountId?.includes('google');
+  const isOutlook = accountId?.includes('outlook');
+
+  // UI zurücksetzen (Neues Design)
+  if (elements.syncProviderIcon) {
+    elements.syncProviderIcon.className = 'provider-icon-large ' + (isGmail ? 'gmail' : isOutlook ? 'outlook' : 'imap');
+    elements.syncProviderIcon.textContent = isGmail ? 'G' : isOutlook ? 'O' : '✉';
+  }
+  if (elements.syncTitle) {
+    elements.syncTitle.textContent = isGmail ? 'Gmail wird verbunden...' : isOutlook ? 'Outlook wird verbunden...' : 'E-Mail wird verbunden...';
+  }
+  elements.syncAccountName.textContent = accountName || 'E-Mails werden geladen...';
   elements.syncProgressFill.style.width = '0%';
   elements.syncLoadedCount.textContent = '0';
   elements.syncTotalCount.textContent = syncLimit.toLocaleString();
   elements.syncTimeText.textContent = 'Berechne...';
-  elements.syncIndexing.classList.add('hidden');
-  elements.syncFinishBtn.disabled = true;
 
-  // Status
-  updateSyncStatus('⏳', 'Verbinde mit Server...');
+  // Status Steps zurücksetzen
+  resetSyncSteps();
+  updateSyncStep(1, 'completed');
+  updateSyncStep(2, 'active');
 
   // Modal anzeigen
   elements.syncModal.style.display = 'flex';
 
   // Sync starten mit Limit
   startFullSync(accountId, syncLimit);
+}
+
+/**
+ * Setzt alle Sync-Steps zurück
+ */
+function resetSyncSteps() {
+  [1, 2, 3, 4].forEach(step => {
+    const el = elements[`syncStep${step}`];
+    if (el) {
+      el.classList.remove('active', 'completed');
+      const icon = el.querySelector('.status-icon');
+      if (icon) icon.innerHTML = step;
+    }
+  });
+}
+
+/**
+ * Aktualisiert einen Sync-Step
+ */
+function updateSyncStep(stepNum, status) {
+  const el = elements[`syncStep${stepNum}`];
+  if (!el) return;
+
+  const icon = el.querySelector('.status-icon');
+
+  el.classList.remove('active', 'completed');
+
+  if (status === 'completed') {
+    el.classList.add('completed');
+    if (icon) icon.innerHTML = '✓';
+  } else if (status === 'active') {
+    el.classList.add('active');
+    if (icon) icon.innerHTML = '<div class="spinner"></div>';
+  } else {
+    if (icon) icon.innerHTML = stepNum;
+  }
+}
+
+/**
+ * Zeigt das Cancel Confirmation Modal
+ */
+function showCancelConfirmModal() {
+  if (elements.cancelProgressText) {
+    elements.cancelProgressText.textContent = `${syncLoadedEmails.toLocaleString()} von ${syncTotalEmails.toLocaleString()} E-Mails geladen`;
+  }
+  elements.syncModal.style.display = 'none';
+  elements.cancelConfirmModal?.classList.remove('hidden');
+}
+
+/**
+ * Setzt den Import fort (Cancel abgebrochen)
+ */
+function continueSyncImport() {
+  elements.cancelConfirmModal?.classList.add('hidden');
+  elements.syncModal.style.display = 'flex';
+}
+
+/**
+ * Bestätigt den Abbruch und speichert den Status
+ */
+async function confirmCancelSync() {
+  syncCancelled = true;
+
+  // Status speichern
+  try {
+    await ipcRenderer.invoke('emaildb:saveImportStatus', syncAccountId, {
+      status: 'interrupted',
+      totalCount: syncTotalEmails,
+      importedCount: syncLoadedEmails,
+      startedAt: syncStartTime
+    });
+  } catch (e) {
+    console.warn('[SYNC] Import-Status konnte nicht gespeichert werden:', e);
+  }
+
+  elements.cancelConfirmModal?.classList.add('hidden');
+
+  // Cancelled Modal anzeigen
+  if (elements.cancelledAccountText) {
+    const account = accounts.find(a => a.id === syncAccountId);
+    elements.cancelledAccountText.textContent = account?.email || syncAccountId;
+  }
+  if (elements.cancelledProgressText) {
+    elements.cancelledProgressText.textContent = `${syncLoadedEmails.toLocaleString()} E-Mails geladen`;
+  }
+  elements.cancelledModal?.classList.remove('hidden');
+
+  isSyncing = false;
+}
+
+/**
+ * Schließt das Cancelled Modal
+ */
+function closeCancelledModal() {
+  elements.cancelledModal?.classList.add('hidden');
 }
 
 /**
@@ -5518,8 +5656,7 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
     if (syncCancelled) return;
 
     // Direkt mit Laden starten (kein Zählen nötig, wir kennen das Limit)
-    const filterInfo = categoryQuery ? ' (gefiltert)' : '';
-    updateSyncStatus('📥', `Lade ${limit.toLocaleString()} E-Mails${filterInfo}...`);
+    // Step 2 ist bereits aktiv (durch showSyncModal gesetzt)
 
     // Zeitschätzung (ca. 1-2 E-Mails pro Sekunde)
     const remaining = limit - startCount;
@@ -5626,9 +5763,10 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
       completeSyncLoading();
     } else {
       console.error('[SYNC] LoadAllEmails failed:', result.error);
-      updateSyncStatus('❌', 'Fehler: ' + (result.error || 'Unbekannt'));
-      elements.syncFinishBtn.disabled = false;
-      elements.syncFinishBtn.textContent = 'Schließen';
+      if (elements.syncTitle) {
+        elements.syncTitle.textContent = 'Fehler beim Laden';
+      }
+      showToast('Fehler: ' + (result.error || 'Unbekannt'), 'error');
 
       // Import-Status als fehlgeschlagen markieren
       try {
@@ -5643,13 +5781,16 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
       } catch (e) {
         console.warn('[SYNC] Import-Status konnte nicht gespeichert werden:', e);
       }
+
+      setTimeout(() => closeSyncModal(), 2000);
     }
 
   } catch (error) {
     console.error('[SYNC] Fehler:', error);
-    updateSyncStatus('❌', 'Fehler: ' + error.message);
-    elements.syncFinishBtn.disabled = false;
-    elements.syncFinishBtn.textContent = 'Schließen';
+    if (elements.syncTitle) {
+      elements.syncTitle.textContent = 'Fehler beim Laden';
+    }
+    showToast('Fehler: ' + error.message, 'error');
 
     // Import-Status als fehlgeschlagen markieren
     try {
@@ -5664,6 +5805,8 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
     } catch (e) {
       console.warn('[SYNC] Import-Status konnte nicht gespeichert werden:', e);
     }
+
+    setTimeout(() => closeSyncModal(), 2000);
   }
 }
 
@@ -5686,57 +5829,59 @@ function updateSyncStatus(icon, text) {
 async function completeSyncLoading() {
   console.log('[SYNC] Laden abgeschlossen, starte Indizierung...');
 
-  updateSyncStatus('✅', 'E-Mails geladen!');
+  // Step 2 abschließen, Step 3 aktivieren
+  updateSyncStep(2, 'completed');
+  updateSyncStep(3, 'active');
 
-  // Indexierung starten
-  elements.syncIndexing.classList.remove('hidden');
+  if (elements.syncTitle) {
+    elements.syncTitle.textContent = 'Konversationen analysieren...';
+  }
 
   try {
     // Konversations-Analyse
     const indexResult = await indexConversations();
 
-    // Stats anzeigen
-    elements.syncIndexingStats.innerHTML = `
-      <div class="sync-index-stat">
-        <span class="sync-index-stat-icon">📧</span>
-        <div class="sync-index-stat-info">
-          <div class="sync-index-stat-value">${syncLoadedEmails.toLocaleString()}</div>
-          <div class="sync-index-stat-label">E-Mails</div>
-        </div>
-      </div>
-      <div class="sync-index-stat">
-        <span class="sync-index-stat-icon">👥</span>
-        <div class="sync-index-stat-info">
-          <div class="sync-index-stat-value">${indexResult.contacts || 0}</div>
-          <div class="sync-index-stat-label">Kontakte</div>
-        </div>
-      </div>
-      <div class="sync-index-stat">
-        <span class="sync-index-stat-icon">💬</span>
-        <div class="sync-index-stat-info">
-          <div class="sync-index-stat-value">${indexResult.conversations || 0}</div>
-          <div class="sync-index-stat-label">Konversationen</div>
-        </div>
-      </div>
-      <div class="sync-index-stat">
-        <span class="sync-index-stat-icon">⏱️</span>
-        <div class="sync-index-stat-info">
-          <div class="sync-index-stat-value">${Math.round((Date.now() - syncStartTime) / 1000)}s</div>
-          <div class="sync-index-stat-label">Dauer</div>
-        </div>
-      </div>
-    `;
+    // Step 3 abschließen, Step 4 aktivieren und abschließen
+    updateSyncStep(3, 'completed');
+    updateSyncStep(4, 'active');
 
-    // Fertig-Button aktivieren
-    elements.syncFinishBtn.disabled = false;
-    elements.syncFinishBtn.textContent = 'Fertig';
-    elements.syncModal.querySelector('.sync-modal')?.classList.add('sync-complete');
+    if (elements.syncTitle) {
+      elements.syncTitle.textContent = 'Fertigstellen...';
+    }
+
+    // Kurze Verzögerung für visuelles Feedback
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Step 4 abschließen
+    updateSyncStep(4, 'completed');
+
+    if (elements.syncTitle) {
+      elements.syncTitle.textContent = 'Synchronisation abgeschlossen!';
+    }
+
+    // Zeit anzeigen
+    const duration = Math.round((Date.now() - syncStartTime) / 1000);
+    if (elements.syncTimeText) {
+      elements.syncTimeText.textContent = `Fertig in ${duration}s`;
+    }
+
+    // Nach kurzer Verzögerung automatisch schließen und E-Mails laden
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    finishSync();
 
   } catch (error) {
     console.error('[SYNC] Indizierung fehlgeschlagen:', error);
-    elements.syncIndexingStats.innerHTML = '<div class="sync-error">Indizierung fehlgeschlagen</div>';
-    elements.syncFinishBtn.disabled = false;
-    elements.syncFinishBtn.textContent = 'Trotzdem fortfahren';
+
+    // Trotzdem als fertig markieren
+    updateSyncStep(3, 'completed');
+    updateSyncStep(4, 'completed');
+
+    if (elements.syncTitle) {
+      elements.syncTitle.textContent = 'Fertig (mit Warnungen)';
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    finishSync();
   }
 }
 
@@ -5920,10 +6065,30 @@ async function checkForInterruptedImport() {
 function showResumeImportModal(status, accountEmail) {
   if (!elements.resumeImportModal) return;
 
+  // Provider-Typ ermitteln
+  const accountId = status.accountId || '';
+  const isGmail = accountId.includes('gmail') || accountId.includes('google');
+  const isOutlook = accountId.includes('outlook');
+
+  // Provider-Icon setzen
+  if (elements.resumeProviderIcon) {
+    elements.resumeProviderIcon.className = 'resume-icon-provider ' + (isGmail ? 'gmail' : isOutlook ? 'outlook' : 'imap');
+    elements.resumeProviderIcon.textContent = isGmail ? 'G' : isOutlook ? 'O' : '✉';
+  }
+
   // Modal befüllen
   elements.resumeImportAccount.textContent = accountEmail;
   elements.resumeImportedCount.textContent = status.importedCount.toLocaleString();
   elements.resumeTotalCount.textContent = status.totalCount.toLocaleString();
+
+  // Fortschrittsanzeige
+  const progress = status.totalCount > 0 ? Math.round((status.importedCount / status.totalCount) * 100) : 0;
+  if (elements.resumeProgressBar) {
+    elements.resumeProgressBar.style.width = `${progress}%`;
+  }
+  if (elements.resumeProgressPercent) {
+    elements.resumeProgressPercent.textContent = `${progress}%`;
+  }
 
   // Zeitpunkt der Unterbrechung
   if (status.updatedAt) {
@@ -6027,17 +6192,28 @@ async function showSyncModalWithResume(accountId, accountName, resumeStatus) {
   syncLoadedEmails = resumeStatus.importedCount;
   syncTotalEmails = resumeStatus.totalCount;
 
-  // UI initialisieren
-  elements.syncAccountName.textContent = accountName + ' (Fortgesetzt)';
+  // Provider-Typ ermitteln
+  const isGmail = accountId?.includes('gmail') || accountId?.includes('google');
+  const isOutlook = accountId?.includes('outlook');
+
+  // UI initialisieren (Neues Design)
+  if (elements.syncProviderIcon) {
+    elements.syncProviderIcon.className = 'provider-icon-large ' + (isGmail ? 'gmail' : isOutlook ? 'outlook' : 'imap');
+    elements.syncProviderIcon.textContent = isGmail ? 'G' : isOutlook ? 'O' : '✉';
+  }
+  if (elements.syncTitle) {
+    elements.syncTitle.textContent = 'Import wird fortgesetzt...';
+  }
+  elements.syncAccountName.textContent = accountName;
   elements.syncProgressFill.style.width = `${(syncLoadedEmails / syncTotalEmails) * 100}%`;
   elements.syncLoadedCount.textContent = syncLoadedEmails.toLocaleString();
   elements.syncTotalCount.textContent = syncTotalEmails.toLocaleString();
   elements.syncTimeText.textContent = 'Setze fort...';
-  elements.syncIndexing.classList.add('hidden');
-  elements.syncFinishBtn.disabled = true;
 
-  // Status
-  updateSyncStatus('⏳', 'Setze Import fort...');
+  // Steps initialisieren (Step 1 completed, Step 2 active)
+  resetSyncSteps();
+  updateSyncStep(1, 'completed');
+  updateSyncStep(2, 'active');
 
   // Modal anzeigen
   elements.syncModal.style.display = 'flex';

@@ -1263,102 +1263,169 @@
     </div>
   </div>
 
-  <!-- Sync Modal - Initial E-Mail Synchronisation -->
+  <!-- Sync Modal - Initial E-Mail Synchronisation (Neues Design) -->
   <div class="modal-overlay" id="syncModal" style="display: none;">
-    <div class="modal sync-modal">
-      <div class="modal-header">
-        <div class="modal-icon sync-icon">📥</div>
-        <div>
-          <div class="modal-title">Konto einrichten</div>
-          <div class="modal-subtitle" id="syncAccountName">E-Mails werden synchronisiert...</div>
+    <div class="loading-modal">
+      <!-- Provider Icon -->
+      <div class="provider-icon-large gmail" id="syncProviderIcon">G</div>
+
+      <div class="loading-title" id="syncTitle">Gmail wird verbunden...</div>
+      <div class="loading-subtitle" id="syncAccountName">E-Mail wird geladen...</div>
+
+      <!-- Progress Bar -->
+      <div class="progress-container">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="syncProgressFill"></div>
         </div>
       </div>
 
-      <div class="sync-info-note">
-        Einmalige Synchronisation beim ersten Start. Die KI-Klassifizierung erfolgt danach automatisch.
-      </div>
-
-      <div class="sync-progress-section">
-        <div class="sync-status" id="syncStatus">
-          <span class="sync-status-icon">⏳</span>
-          <span class="sync-status-text">Verbinde mit Server...</span>
+      <!-- Status Steps -->
+      <div class="status-steps">
+        <div class="status-step completed" id="syncStep1">
+          <div class="status-icon">✓</div>
+          <span>Mit Server verbunden</span>
         </div>
-
-        <div class="sync-progress-bar">
-          <div class="sync-progress-fill" id="syncProgressFill" style="width: 0%"></div>
+        <div class="status-step active" id="syncStep2">
+          <div class="status-icon"><div class="spinner"></div></div>
+          <span id="syncStep2Text">E-Mails werden geladen...</span>
         </div>
-
-        <div class="sync-stats">
-          <div class="sync-stat">
-            <span class="sync-stat-number" id="syncLoadedCount">0</span>
-            <span class="sync-stat-label">geladen</span>
-          </div>
-          <div class="sync-stat-divider">/</div>
-          <div class="sync-stat">
-            <span class="sync-stat-number" id="syncTotalCount">?</span>
-            <span class="sync-stat-label">gesamt</span>
-          </div>
+        <div class="status-step" id="syncStep3">
+          <div class="status-icon">3</div>
+          <span>Konversationen analysieren</span>
         </div>
-
-        <div class="sync-time" id="syncTime">
-          <span>⏱️</span>
-          <span id="syncTimeText">Berechne...</span>
+        <div class="status-step" id="syncStep4">
+          <div class="status-icon">4</div>
+          <span>Fertigstellen</span>
         </div>
       </div>
 
-      <!-- Phase 2: Indexierung -->
-      <div class="sync-indexing hidden" id="syncIndexing">
-        <div class="sync-indexing-header">
-          <span class="sync-indexing-icon">🔍</span>
-          <span>Analysiere Konversationen...</span>
+      <!-- Stats -->
+      <div class="sync-stats-row">
+        <div class="sync-stat-item">
+          <span class="sync-stat-value" id="syncLoadedCount">0</span>
+          <span class="sync-stat-label">geladen</span>
         </div>
-        <div class="sync-indexing-stats" id="syncIndexingStats">
-          <!-- Wird dynamisch gefüllt -->
+        <div class="sync-stat-divider">/</div>
+        <div class="sync-stat-item">
+          <span class="sync-stat-value" id="syncTotalCount">?</span>
+          <span class="sync-stat-label">gesamt</span>
         </div>
       </div>
 
-      <div class="modal-actions">
-        <button class="btn-secondary" id="syncCancelBtn">Abbrechen</button>
-        <button class="btn-primary" id="syncFinishBtn" disabled>Fertig</button>
+      <!-- Time Estimate -->
+      <div class="time-estimate">
+        <span class="time-estimate-icon">⏱️</span>
+        <span id="syncTimeText">Berechne...</span>
+      </div>
+
+      <button class="cancel-btn" id="syncCancelBtn">Abbrechen</button>
+    </div>
+  </div>
+
+  <!-- Cancel Confirmation Modal -->
+  <div class="modal-overlay hidden" id="cancelConfirmModal">
+    <div class="confirm-modal">
+      <div class="confirm-icon warning">⚠️</div>
+      <div class="confirm-title">Import abbrechen?</div>
+      <div class="confirm-text">
+        Der Import-Fortschritt wird gespeichert. Du kannst später an dieser Stelle fortfahren.
+      </div>
+
+      <div class="confirm-status">
+        <div class="confirm-status-label">Aktueller Fortschritt:</div>
+        <div class="confirm-status-value" id="cancelProgressText">0 von 1000 E-Mails geladen</div>
+      </div>
+
+      <div class="confirm-buttons">
+        <button class="confirm-btn secondary" id="continueImportBtn">Weiter importieren</button>
+        <button class="confirm-btn danger" id="confirmCancelBtn">Abbrechen & Speichern</button>
       </div>
     </div>
   </div>
 
-  <!-- Resume Import Modal -->
+  <!-- Import Cancelled Confirmation -->
+  <div class="modal-overlay hidden" id="cancelledModal">
+    <div class="cancelled-modal">
+      <div class="cancelled-icon">💾</div>
+      <div class="cancelled-title">Import pausiert</div>
+      <div class="cancelled-text">
+        Dein Fortschritt wurde gespeichert. Du kannst den Import jederzeit fortsetzen.
+      </div>
+
+      <div class="cancelled-summary">
+        <div class="cancelled-summary-item">
+          <span class="cancelled-summary-icon">📧</span>
+          <span id="cancelledAccountText">Gmail: ...</span>
+        </div>
+        <div class="cancelled-summary-item">
+          <span class="cancelled-summary-icon">📊</span>
+          <span id="cancelledProgressText">0 E-Mails geladen</span>
+        </div>
+        <div class="cancelled-summary-item">
+          <span class="cancelled-summary-icon">📅</span>
+          <span>Gespeichert: Jetzt</span>
+        </div>
+      </div>
+
+      <button class="cancelled-btn" id="closeCancelledBtn">Verstanden</button>
+    </div>
+  </div>
+
+  <!-- Resume Import Modal (Neues Design) -->
   <div class="modal-overlay hidden" id="resumeImportModal">
-    <div class="modal modal-small">
-      <div class="modal-header">
-        <div class="modal-icon">⏸️</div>
-        <div>
-          <div class="modal-title">Unterbrochener Import</div>
-          <div class="modal-subtitle" id="resumeImportAccount">E-Mails wurden nicht vollständig geladen</div>
+    <div class="resume-modal">
+      <div class="resume-icon">
+        <div class="resume-icon-provider gmail" id="resumeProviderIcon">G</div>
+        <div class="resume-icon-badge">⏸️</div>
+      </div>
+
+      <div class="resume-title">Vorherigen Import fortsetzen?</div>
+      <div class="resume-subtitle" id="resumeImportAccount">E-Mail Adresse</div>
+
+      <div class="resume-info-card">
+        <div class="resume-info-row">
+          <span class="resume-info-label">Abgebrochen am:</span>
+          <span class="resume-info-value" id="resumeInterruptedAt">-</span>
         </div>
-        <button class="modal-close" id="closeResumeImportBtn">✕</button>
+        <div class="resume-info-row">
+          <span class="resume-info-label">Fortschritt:</span>
+          <span class="resume-info-value">
+            <div class="mini-progress">
+              <div class="mini-progress-fill" id="resumeProgressBar" style="width: 0%;"></div>
+            </div>
+            <span id="resumeProgressPercent">0%</span>
+          </span>
+        </div>
       </div>
-      <div class="modal-body">
-        <div class="resume-import-info">
-          <div class="resume-stat">
-            <span class="resume-stat-label">Bereits geladen:</span>
-            <span class="resume-stat-value" id="resumeImportedCount">0</span>
+
+      <div class="resume-cache-info">
+        <div class="resume-cache-title">📊 Bereits importiert:</div>
+        <div class="resume-cache-stats">
+          <div class="resume-cache-stat">
+            <span class="resume-cache-value" id="resumeImportedCount">0</span>
+            <span class="resume-cache-label">E-Mails geladen</span>
           </div>
-          <div class="resume-stat">
-            <span class="resume-stat-label">Geplant:</span>
-            <span class="resume-stat-value" id="resumeTotalCount">0</span>
-          </div>
-          <div class="resume-stat">
-            <span class="resume-stat-label">Unterbrochen am:</span>
-            <span class="resume-stat-value" id="resumeInterruptedAt">-</span>
+          <div class="resume-cache-stat">
+            <span class="resume-cache-value" id="resumeTotalCount">0</span>
+            <span class="resume-cache-label">geplant</span>
           </div>
         </div>
-        <p class="resume-import-question">
-          Möchtest du den Import fortsetzen oder neu starten?
-        </p>
       </div>
-      <div class="modal-actions">
-        <button class="btn-secondary" id="discardImportBtn">Verwerfen</button>
-        <button class="btn-secondary" id="restartImportBtn">Neu starten</button>
-        <button class="btn-primary" id="resumeImportBtn">Fortsetzen</button>
+
+      <div class="resume-buttons">
+        <button class="resume-btn secondary" id="restartImportBtn">
+          <span>🔄</span> Neu starten
+        </button>
+        <button class="resume-btn primary" id="resumeImportBtn">
+          <span>▶️</span> Fortsetzen
+        </button>
       </div>
+
+      <div class="resume-hint">
+        💡 Bei "Fortsetzen" werden nur die fehlenden E-Mails geladen.
+      </div>
+
+      <button class="resume-discard-btn" id="discardImportBtn">Verwerfen und schließen</button>
     </div>
   </div>
 
