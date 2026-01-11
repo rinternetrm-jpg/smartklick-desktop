@@ -611,6 +611,12 @@ function setupEventListeners() {
   elements.cancelImportOptionsBtn?.addEventListener('click', closeImportOptionsModal);
   elements.startImportBtn?.addEventListener('click', startImportFromOptions);
 
+  // Checkboxen für Kategorien - aktualisiere Gesamtanzahl bei Änderung
+  elements.optionExcludePromotions?.addEventListener('change', updateImportTotal);
+  elements.optionExcludeSocial?.addEventListener('change', updateImportTotal);
+  elements.optionExcludeForums?.addEventListener('change', updateImportTotal);
+  elements.optionExcludeUpdates?.addEventListener('change', updateImportTotal);
+
   // Gmail Sync Filter Toggles
   setupSyncFilterToggles();
 
@@ -5505,6 +5511,15 @@ window.downloadAttachment = async (messageId, attachmentId, filename) => {
 let pendingImportAccountId = null;
 let pendingImportAccountName = null;
 
+// Speicherung der E-Mail Counts für Berechnung
+let importCounts = {
+  total: 0,
+  promotions: 0,
+  social: 0,
+  forums: 0,
+  updates: 0
+};
+
 /**
  * Zeigt das Import-Optionen Modal
  */
@@ -5572,13 +5587,16 @@ function showImportOptionsModal(accountId, accountName) {
 async function loadEmailCounts(accountId) {
   console.log('[IMPORT] Lade E-Mail Counts für:', accountId);
 
+  // Reset counts
+  importCounts = { total: 0, promotions: 0, social: 0, forums: 0, updates: 0 };
+
   try {
     // Gesamt-Anzahl laden
     const totalResult = await ipcRenderer.invoke('email:getMessageCount', accountId);
     console.log('[IMPORT] Gesamt-Count:', totalResult);
 
-    if (totalResult.success && elements.optionsTotalCount) {
-      elements.optionsTotalCount.textContent = totalResult.count.toLocaleString();
+    if (totalResult.success) {
+      importCounts.total = totalResult.count;
     }
 
     // Kategorien-Counts laden (parallel)
@@ -5591,18 +5609,28 @@ async function loadEmailCounts(accountId) {
 
     console.log('[IMPORT] Kategorie-Counts:', { promotions, social, forums, updates });
 
+    // Counts speichern
+    if (promotions.success) importCounts.promotions = promotions.count;
+    if (social.success) importCounts.social = social.count;
+    if (forums.success) importCounts.forums = forums.count;
+    if (updates.success) importCounts.updates = updates.count;
+
+    // UI aktualisieren
     if (elements.countPromotions) {
-      elements.countPromotions.textContent = promotions.success ? promotions.count.toLocaleString() : '-';
+      elements.countPromotions.textContent = importCounts.promotions.toLocaleString();
     }
     if (elements.countSocial) {
-      elements.countSocial.textContent = social.success ? social.count.toLocaleString() : '-';
+      elements.countSocial.textContent = importCounts.social.toLocaleString();
     }
     if (elements.countForums) {
-      elements.countForums.textContent = forums.success ? forums.count.toLocaleString() : '-';
+      elements.countForums.textContent = importCounts.forums.toLocaleString();
     }
     if (elements.countUpdates) {
-      elements.countUpdates.textContent = updates.success ? updates.count.toLocaleString() : '-';
+      elements.countUpdates.textContent = importCounts.updates.toLocaleString();
     }
+
+    // Gesamtanzahl berechnen und anzeigen
+    updateImportTotal();
 
   } catch (error) {
     console.error('[IMPORT] Fehler beim Laden der Counts:', error);
@@ -5614,6 +5642,34 @@ async function loadEmailCounts(accountId) {
     if (elements.countSocial) elements.countSocial.textContent = '-';
     if (elements.countForums) elements.countForums.textContent = '-';
     if (elements.countUpdates) elements.countUpdates.textContent = '-';
+  }
+}
+
+/**
+ * Berechnet und aktualisiert die Gesamtanzahl basierend auf ausgeschlossenen Kategorien
+ */
+function updateImportTotal() {
+  let adjustedTotal = importCounts.total;
+
+  // Abzüge für ausgeschlossene Kategorien
+  if (elements.optionExcludePromotions?.checked) {
+    adjustedTotal -= importCounts.promotions;
+  }
+  if (elements.optionExcludeSocial?.checked) {
+    adjustedTotal -= importCounts.social;
+  }
+  if (elements.optionExcludeForums?.checked) {
+    adjustedTotal -= importCounts.forums;
+  }
+  if (elements.optionExcludeUpdates?.checked) {
+    adjustedTotal -= importCounts.updates;
+  }
+
+  // Sicherstellen dass nicht negativ
+  adjustedTotal = Math.max(0, adjustedTotal);
+
+  if (elements.optionsTotalCount) {
+    elements.optionsTotalCount.textContent = adjustedTotal.toLocaleString();
   }
 }
 
@@ -5635,6 +5691,11 @@ function startImportFromOptions() {
     return;
   }
 
+  // WICHTIG: Werte VOR dem Schließen des Modals speichern!
+  // closeImportOptionsModal() setzt pendingImportAccountId/Name auf null
+  const accountId = pendingImportAccountId;
+  const accountName = pendingImportAccountName;
+
   // Limit aus Radio-Button lesen
   const limitRadio = document.querySelector('input[name="emailLimit"]:checked');
   const limit = limitRadio ? parseInt(limitRadio.value) : 0; // 0 = Alle
@@ -5653,26 +5714,35 @@ function startImportFromOptions() {
   if (excludeUpdates) categoryQuery += '-category:updates ';
   categoryQuery = categoryQuery.trim();
 
+  // Erwartete Gesamtzahl berechnen (für Anzeige und Zeitschätzung)
+  let expectedTotal = importCounts.total;
+  if (excludePromotions) expectedTotal -= importCounts.promotions;
+  if (excludeSocial) expectedTotal -= importCounts.social;
+  if (excludeForums) expectedTotal -= importCounts.forums;
+  if (excludeUpdates) expectedTotal -= importCounts.updates;
+  expectedTotal = Math.max(0, expectedTotal);
+
   console.log('[IMPORT] Start mit Limit:', limit || 'Alle', 'Query:', categoryQuery || 'keine Filter');
+  console.log('[IMPORT] Account:', accountId, accountName, 'Erwartete Anzahl:', expectedTotal);
 
   // Modal schließen
   closeImportOptionsModal();
 
-  // Sync mit gewählten Optionen starten
-  showSyncModalWithOptions(pendingImportAccountId, pendingImportAccountName, limit, categoryQuery);
+  // Sync mit gespeicherten Werten starten (nicht pendingImportAccountId!)
+  showSyncModalWithOptions(accountId, accountName, limit, categoryQuery, expectedTotal);
 }
 
 /**
  * Zeigt das Sync-Modal und startet mit den gegebenen Optionen
  */
-function showSyncModalWithOptions(accountId, accountName, limit, categoryQuery) {
+function showSyncModalWithOptions(accountId, accountName, limit, categoryQuery, expectedTotal = 0) {
   // Verhindere doppelten Sync
   if (isSyncing) {
     console.log('[SYNC] Sync läuft bereits, überspringe');
     return;
   }
 
-  console.log('[SYNC] Starte Sync für Account:', accountId, accountName, 'Limit:', limit || 'Alle');
+  console.log('[SYNC] Starte Sync für Account:', accountId, accountName, 'Limit:', limit || 'Alle', 'Expected:', expectedTotal);
 
   // Reset state
   isSyncing = true;
@@ -5684,6 +5754,9 @@ function showSyncModalWithOptions(accountId, accountName, limit, categoryQuery) 
 
   // Limit setzen (0 = alle E-Mails)
   const syncLimit = limit > 0 ? limit : 999999; // 999999 als "praktisch unbegrenzt"
+
+  // Für Anzeige und Zeitberechnung: echte erwartete Anzahl verwenden
+  const displayTotal = limit > 0 ? limit : (expectedTotal > 0 ? expectedTotal : 0);
 
   // Provider-Typ ermitteln
   const isGmail = accountId?.includes('gmail') || accountId?.includes('google');
@@ -5700,7 +5773,7 @@ function showSyncModalWithOptions(accountId, accountName, limit, categoryQuery) 
   elements.syncAccountName.textContent = accountName || 'E-Mails werden geladen...';
   elements.syncProgressFill.style.width = '0%';
   elements.syncLoadedCount.textContent = '0';
-  elements.syncTotalCount.textContent = limit > 0 ? limit.toLocaleString() : 'Alle';
+  elements.syncTotalCount.textContent = displayTotal > 0 ? displayTotal.toLocaleString() : 'Alle';
   elements.syncTimeText.textContent = 'Berechne...';
 
   // Status Steps zurücksetzen
@@ -5711,8 +5784,8 @@ function showSyncModalWithOptions(accountId, accountName, limit, categoryQuery) 
   // Modal anzeigen
   elements.syncModal.style.display = 'flex';
 
-  // Sync starten mit den gewählten Optionen
-  startFullSyncWithOptions(accountId, syncLimit, { categoryQuery });
+  // Sync starten mit den gewählten Optionen (expectedTotal für Zeitberechnung)
+  startFullSyncWithOptions(accountId, syncLimit, { categoryQuery, expectedTotal: displayTotal });
 }
 
 /**
@@ -5884,11 +5957,12 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
   const categoryQuery = options.categoryQuery || '';
   const resumeToken = options.resumeToken || null;
   const startCount = options.startCount || 0;
+  const expectedTotal = options.expectedTotal || limit; // Erwartete Anzahl für Zeitberechnung
 
-  console.log('[SYNC] Starte Synchronisation für Account:', accountId, 'Limit:', limit, 'Query:', categoryQuery);
+  console.log('[SYNC] Starte Synchronisation für Account:', accountId, 'Limit:', limit, 'Expected:', expectedTotal, 'Query:', categoryQuery);
 
-  // Das Limit ist unsere Zielanzahl
-  syncTotalEmails = limit;
+  // Für Zeitberechnung die erwartete Anzahl verwenden (nicht das technische Limit)
+  syncTotalEmails = expectedTotal > 0 && expectedTotal < limit ? expectedTotal : limit;
 
   // Import-Status speichern (für Resume-Funktion)
   try {
@@ -5910,8 +5984,9 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
     // Direkt mit Laden starten (kein Zählen nötig, wir kennen das Limit)
     // Step 2 ist bereits aktiv (durch showSyncModal gesetzt)
 
-    // Zeitschätzung (ca. 1-2 E-Mails pro Sekunde)
-    const remaining = limit - startCount;
+    // Zeitschätzung (ca. 1-2 E-Mails pro Sekunde) - basierend auf erwarteter Anzahl
+    const targetCount = syncTotalEmails; // Verwendet expectedTotal, nicht das technische Limit
+    const remaining = targetCount - startCount;
     const estimatedMinutes = Math.ceil(remaining / 60);
     elements.syncTimeText.textContent = `Geschätzt: ~${estimatedMinutes} Min.`;
 
@@ -5919,10 +5994,10 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
     const progressHandler = async (event, data) => {
       if (syncCancelled) return;
 
-      console.log('[SYNC] Progress Update:', data.loaded, '/', limit, `(${Math.round(data.loaded / limit * 100)}%)`);
+      console.log('[SYNC] Progress Update:', data.loaded, '/', targetCount, `(${Math.round(data.loaded / targetCount * 100)}%)`);
 
       syncLoadedEmails = data.loaded || 0;
-      const progress = (syncLoadedEmails / limit) * 100;
+      const progress = (syncLoadedEmails / targetCount) * 100;
 
       elements.syncLoadedCount.textContent = syncLoadedEmails.toLocaleString();
       elements.syncProgressFill.style.width = `${Math.min(progress, 100)}%`;
@@ -5932,7 +6007,7 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
       if (syncLoadedEmails > startCount && elapsed > 2) {
         const loadedSinceStart = syncLoadedEmails - startCount;
         const emailsPerSecond = loadedSinceStart / elapsed;
-        const remainingEmails = limit - syncLoadedEmails;
+        const remainingEmails = targetCount - syncLoadedEmails;
         const secondsLeft = remainingEmails / emailsPerSecond;
 
         if (secondsLeft < 60) {
@@ -6167,9 +6242,15 @@ function cancelSync() {
  * Beendet die Synchronisation und schließt das Modal
  */
 function finishSync() {
-  console.log('[SYNC] Sync abgeschlossen');
+  console.log('[SYNC] Sync abgeschlossen für Account:', syncAccountId);
   isSyncing = false;
   closeSyncModal();
+
+  // Account auswählen, der gerade synchronisiert wurde
+  if (syncAccountId) {
+    console.log('[SYNC] Wechsle zu synchronisiertem Account:', syncAccountId);
+    selectAccount(syncAccountId);
+  }
 
   // E-Mails laden und anzeigen
   loadEmails(true);

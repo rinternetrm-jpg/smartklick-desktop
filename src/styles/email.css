@@ -3066,15 +3066,9 @@ body {
 }
 
 .checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-size: 13px;
   color: var(--text-primary);
-}
-
-.checkbox-icon {
-  font-size: 14px;
+  white-space: nowrap;
 }
 
 .checkbox-count {
