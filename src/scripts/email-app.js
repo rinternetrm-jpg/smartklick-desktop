@@ -52,13 +52,13 @@ const IMAP_PRESETS = {
 let elements = {};
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initializeElements();
   setupEventListeners();
   initKIFeedback();
   setupKIFeedbackListeners();
   setupKIRegelnListeners();
-  loadAccounts();
+  await loadAccounts();
   loadEmails();
   renderChart();
 });
@@ -1051,9 +1051,12 @@ async function loadImapEmails() {
 
 async function loadAccounts() {
   try {
+    console.log('[ACCOUNTS] Loading accounts...');
     const result = await ipcRenderer.invoke('email:getAccounts');
+    console.log('[ACCOUNTS] Result:', result);
     if (result.success) {
       accounts = result.accounts || [];
+      console.log('[ACCOUNTS] Loaded accounts:', accounts.length, accounts);
       updateAccountDropdown();
 
       // Wenn nur 1 Konto → direkt dieses Konto auswählen

@@ -269,7 +269,7 @@ class GmailService {
       subject: getHeader('Subject') || 'Kein Betreff',
       snippet: snippet,
       body: body.substring(0, 2000), // Limit body length
-      date: message.internalDate,
+      date: parseInt(message.internalDate),
       dateFormatted: this.formatDate(date),
       isUnread: labels.includes('UNREAD'),
       isImportant: labels.includes('IMPORTANT'),
