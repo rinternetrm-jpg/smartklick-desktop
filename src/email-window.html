@@ -243,6 +243,213 @@
                 <button class="action-btn danger" id="deleteBtn">🗑️ Löschen</button>
               </div>
             </div>
+
+            <!-- Contact Card -->
+            <div class="contact-card hidden" id="contactCard">
+              <div class="contact-card-header">
+                <span class="contact-card-icon">👤</span>
+                <span class="contact-card-title" id="contactCardTitle">Neuer Kontakt erkannt</span>
+                <button class="contact-card-close" id="contactCardClose">✕</button>
+              </div>
+              <div class="contact-card-body">
+                <div class="contact-avatar" id="contactAvatar">
+                  <span id="contactInitials">?</span>
+                </div>
+                <div class="contact-info">
+                  <div class="contact-name" id="contactName">Name</div>
+                  <div class="contact-company" id="contactCompany"></div>
+                  <div class="contact-position" id="contactPosition"></div>
+                </div>
+              </div>
+              <div class="contact-details" id="contactDetails">
+                <!-- Dynamisch gefüllt -->
+              </div>
+              <div class="contact-card-actions">
+                <button class="contact-action-btn primary" id="addContactBtn">
+                  ✓ Zu Kontakten hinzufügen
+                </button>
+                <button class="contact-action-btn" id="dismissContactBtn">
+                  Ignorieren
+                </button>
+              </div>
+            </div>
+
+            <!-- Payment Card (Rechnungs-Erkennung) -->
+            <div class="payment-card hidden" id="paymentCard">
+              <div class="payment-card-header">
+                <span class="payment-card-icon">💳</span>
+                <span class="payment-card-title">Rechnung erkannt</span>
+                <span class="payment-card-type" id="paymentType">Rechnung</span>
+                <button class="payment-card-close" id="paymentCardClose">✕</button>
+              </div>
+
+              <div class="payment-amounts">
+                <div class="payment-amount-box primary" id="paymentMainAmount">
+                  <div class="payment-amount-label">Betrag</div>
+                  <div class="payment-amount-value" id="paymentAmount">0,00 €</div>
+                  <div class="payment-amount-due" id="paymentDue"></div>
+                </div>
+                <div class="payment-amount-box" id="paymentMinBox">
+                  <div class="payment-amount-label">Mindestbetrag</div>
+                  <div class="payment-amount-value" id="paymentMinAmount">-</div>
+                </div>
+              </div>
+
+              <div class="payment-details" id="paymentDetails">
+                <div class="payment-detail-row">
+                  <span class="payment-detail-label">Empfänger</span>
+                  <span class="payment-detail-value" id="paymentRecipient">-</span>
+                </div>
+                <div class="payment-detail-row">
+                  <span class="payment-detail-label">IBAN</span>
+                  <span class="payment-detail-value payment-iban" id="paymentIban">-</span>
+                </div>
+                <div class="payment-detail-row">
+                  <span class="payment-detail-label">BIC</span>
+                  <span class="payment-detail-value" id="paymentBic">-</span>
+                </div>
+                <div class="payment-detail-row">
+                  <span class="payment-detail-label">Verwendungszweck</span>
+                  <span class="payment-detail-value" id="paymentReference">-</span>
+                </div>
+                <div class="payment-detail-row">
+                  <span class="payment-detail-label">Fällig am</span>
+                  <span class="payment-detail-value" id="paymentDueDate">-</span>
+                </div>
+              </div>
+
+              <div class="payment-timeline" id="paymentTimeline">
+                <div class="timeline-title">📅 Empfohlene Timeline</div>
+                <div class="timeline-track">
+                  <div class="timeline-point today">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-label">Heute</div>
+                  </div>
+                  <div class="timeline-line"></div>
+                  <div class="timeline-point reminder" id="timelineReminder">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-label">Erinnerung</div>
+                    <div class="timeline-date" id="timelineReminderDate">-</div>
+                  </div>
+                  <div class="timeline-line"></div>
+                  <div class="timeline-point transfer" id="timelineTransfer">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-label">Überweisung</div>
+                    <div class="timeline-date" id="timelineTransferDate">-</div>
+                  </div>
+                  <div class="timeline-line"></div>
+                  <div class="timeline-point due" id="timelineDue">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-label">Fällig</div>
+                    <div class="timeline-date" id="timelineDueDate">-</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="payment-card-actions">
+                <button class="payment-action-btn" id="createReminderBtn">
+                  🔔 Erinnerung erstellen
+                </button>
+                <button class="payment-action-btn primary" id="preparePaymentBtn">
+                  💳 Überweisung vorbereiten
+                </button>
+              </div>
+            </div>
+
+            <!-- Conversation Overview Card (Konversations-Übersicht) - Mockup Design -->
+            <div class="conversation-card hidden" id="conversationCard">
+              <div class="conversation-card-header">
+                <div class="conversation-card-icon">🤖</div>
+                <span class="conversation-card-title">KI-Zusammenfassung der Konversation</span>
+                <span class="conversation-count" id="conversationCount">Automatisch aktualisiert</span>
+                <button class="conversation-card-close" id="conversationCardClose">✕</button>
+              </div>
+
+              <!-- KI-Zusammenfassung -->
+              <div class="conversation-summary" id="conversationSummary">
+                <div class="summary-text" id="conversationSummaryText">
+                  Lade Zusammenfassung...
+                </div>
+              </div>
+
+              <!-- Korrespondenz-Statistiken - Mockup Style (Liste) -->
+              <div class="conversation-stats">
+                <div class="conversation-stats-header">
+                  <span class="stats-icon">📊</span>
+                  <span class="stats-title">Korrespondenz-Übersicht</span>
+                </div>
+                <div class="conv-stat-item">
+                  <span class="conv-stat-label">Erster Kontakt</span>
+                  <span class="conv-stat-value" id="convStatFirstContact">-</span>
+                </div>
+                <div class="conv-stat-item">
+                  <span class="conv-stat-label">Anzahl E-Mails</span>
+                  <span class="conv-stat-value" id="convStatEmailCount">0</span>
+                </div>
+                <div class="conv-stat-item">
+                  <span class="conv-stat-label">Ø Antwortzeit</span>
+                  <span class="conv-stat-value highlight" id="convStatResponseTime">-</span>
+                </div>
+                <div class="conv-stat-item">
+                  <span class="conv-stat-label">Status</span>
+                  <span class="conv-stat-value warning" id="convStatStatus">-</span>
+                </div>
+              </div>
+
+              <!-- Besprochene Themen - Mockup Style mit Status -->
+              <div class="conversation-topics" id="conversationTopics">
+                <div class="topics-header">
+                  <span class="topics-icon">📋</span>
+                  <span class="topics-title">Besprochene Themen</span>
+                </div>
+                <div class="topics-list" id="topicsList">
+                  <!-- Dynamisch gefüllt mit topic-item -->
+                </div>
+              </div>
+
+              <!-- E-Mail Timeline - Mockup Style -->
+              <div class="conversation-timeline" id="conversationTimeline">
+                <div class="conv-timeline-header">
+                  <span class="timeline-icon">📧</span>
+                  <span class="timeline-title">E-Mail Verlauf</span>
+                  <span class="conversation-count" id="timelineCount">0 E-Mails</span>
+                </div>
+                <div class="conv-timeline-list" id="convTimelineList">
+                  <!-- Dynamisch gefüllt -->
+                </div>
+              </div>
+
+              <!-- Schnellaktionen - Mockup Style -->
+              <div class="conversation-quick-actions">
+                <div class="quick-actions-header">
+                  <span class="quick-icon">⚡</span>
+                  <span class="quick-title">Schnellaktionen</span>
+                </div>
+                <button class="conv-quick-btn" id="convQuickReplyBtn">
+                  <span class="quick-btn-icon">↩️</span>
+                  <span class="quick-btn-text">Kontext-Antwort generieren</span>
+                </button>
+                <button class="conv-quick-btn" id="convViewAllBtn">
+                  <span class="quick-btn-icon">📧</span>
+                  <span class="quick-btn-text">Alle E-Mails anzeigen</span>
+                </button>
+                <button class="conv-quick-btn" id="convArchiveBtn">
+                  <span class="quick-btn-icon">📁</span>
+                  <span class="quick-btn-text">Konversation archivieren</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Image Banner -->
+            <div class="image-banner hidden" id="imageBanner">
+              <div class="image-banner-content">
+                <span class="image-banner-icon">🖼️</span>
+                <span class="image-banner-text">Externe Bilder werden blockiert</span>
+                <button class="image-banner-btn" id="loadImagesOnceBtn">Einmal laden</button>
+                <button class="image-banner-btn primary" id="loadImagesAlwaysBtn">Immer von diesem Absender</button>
+              </div>
+            </div>
+
             <div class="detail-body" id="detailBody"></div>
 
             <!-- Attachments -->

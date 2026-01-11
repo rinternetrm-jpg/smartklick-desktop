@@ -24,6 +24,19 @@ let currentPage = 1;
 let emailsPerPage = 30;
 let visibleEmails = [];  // Aktuell sichtbare E-Mails (für KI-Analyse)
 
+// Image Whitelist - Absender deren Bilder immer geladen werden
+let imageWhitelist = JSON.parse(localStorage.getItem('imageWhitelist') || '[]');
+let currentEmailHasBlockedImages = false;
+let originalEmailHtml = '';  // Original HTML für Bild-Laden
+
+// Contacts - Gespeicherte und abgelehnte Kontakte
+let savedContacts = JSON.parse(localStorage.getItem('savedContacts') || '[]');
+let dismissedContacts = JSON.parse(localStorage.getItem('dismissedContacts') || '[]');
+let currentExtractedContact = null;  // Aktuell extrahierter Kontakt
+
+// Payment Data - Extrahierte Zahlungsdaten
+let currentPaymentData = null;
+
 // Kategorie-Mapping für UI
 const KATEGORIE_MAP = {
   essenz: { name: 'Essenz', icon: '🔴', color: '#ef4444' },
@@ -116,8 +129,58 @@ function initializeElements() {
     detailFrom: document.getElementById('detailFrom'),
     detailDate: document.getElementById('detailDate'),
     detailBody: document.getElementById('detailBody'),
+    imageBanner: document.getElementById('imageBanner'),
+    loadImagesOnceBtn: document.getElementById('loadImagesOnceBtn'),
+    loadImagesAlwaysBtn: document.getElementById('loadImagesAlwaysBtn'),
     attachmentsSection: document.getElementById('attachmentsSection'),
     attachmentsList: document.getElementById('attachmentsList'),
+
+    // Contact Card
+    contactCard: document.getElementById('contactCard'),
+    contactCardTitle: document.getElementById('contactCardTitle'),
+    contactCardClose: document.getElementById('contactCardClose'),
+    contactAvatar: document.getElementById('contactAvatar'),
+    contactInitials: document.getElementById('contactInitials'),
+    contactName: document.getElementById('contactName'),
+    contactCompany: document.getElementById('contactCompany'),
+    contactPosition: document.getElementById('contactPosition'),
+    contactDetails: document.getElementById('contactDetails'),
+    addContactBtn: document.getElementById('addContactBtn'),
+    dismissContactBtn: document.getElementById('dismissContactBtn'),
+
+    // Payment Card
+    paymentCard: document.getElementById('paymentCard'),
+    paymentCardClose: document.getElementById('paymentCardClose'),
+    paymentType: document.getElementById('paymentType'),
+    paymentAmount: document.getElementById('paymentAmount'),
+    paymentDue: document.getElementById('paymentDue'),
+    paymentMinAmount: document.getElementById('paymentMinAmount'),
+    paymentMinBox: document.getElementById('paymentMinBox'),
+    paymentRecipient: document.getElementById('paymentRecipient'),
+    paymentIban: document.getElementById('paymentIban'),
+    paymentBic: document.getElementById('paymentBic'),
+    paymentReference: document.getElementById('paymentReference'),
+    paymentDueDate: document.getElementById('paymentDueDate'),
+    timelineReminderDate: document.getElementById('timelineReminderDate'),
+    timelineTransferDate: document.getElementById('timelineTransferDate'),
+    timelineDueDate: document.getElementById('timelineDueDate'),
+    createReminderBtn: document.getElementById('createReminderBtn'),
+    preparePaymentBtn: document.getElementById('preparePaymentBtn'),
+
+    // Conversation Card
+    conversationCard: document.getElementById('conversationCard'),
+    conversationCardClose: document.getElementById('conversationCardClose'),
+    conversationCount: document.getElementById('conversationCount'),
+    conversationSummaryText: document.getElementById('conversationSummaryText'),
+    convStatReceived: document.getElementById('convStatReceived'),
+    convStatSent: document.getElementById('convStatSent'),
+    convStatResponseTime: document.getElementById('convStatResponseTime'),
+    convStatTimespan: document.getElementById('convStatTimespan'),
+    topicsList: document.getElementById('topicsList'),
+    convTimelineList: document.getElementById('convTimelineList'),
+    convQuickReplyBtn: document.getElementById('convQuickReplyBtn'),
+    convViewAllBtn: document.getElementById('convViewAllBtn'),
+    convArchiveBtn: document.getElementById('convArchiveBtn'),
 
     // Action Buttons
     replyBtn: document.getElementById('replyBtn'),
@@ -274,6 +337,79 @@ function setupEventListeners() {
   elements.archiveBtn.addEventListener('click', archiveCurrentEmail);
   elements.starBtn.addEventListener('click', starCurrentEmail);
   elements.deleteBtn.addEventListener('click', deleteCurrentEmail);
+
+  // Image Banner Actions
+  if (elements.loadImagesOnceBtn) {
+    elements.loadImagesOnceBtn.addEventListener('click', () => {
+      if (currentEmail) {
+        displayEmailContent(currentEmail, true);
+        elements.imageBanner.classList.add('hidden');
+      }
+    });
+  }
+  if (elements.loadImagesAlwaysBtn) {
+    elements.loadImagesAlwaysBtn.addEventListener('click', () => {
+      if (currentEmail) {
+        addToImageWhitelist(currentEmail);
+        displayEmailContent(currentEmail, true);
+        elements.imageBanner.classList.add('hidden');
+      }
+    });
+  }
+
+  // Contact Card Actions
+  if (elements.contactCardClose) {
+    elements.contactCardClose.addEventListener('click', hideContactCard);
+  }
+  if (elements.addContactBtn) {
+    elements.addContactBtn.addEventListener('click', () => {
+      if (currentExtractedContact) {
+        saveContact(currentExtractedContact);
+        hideContactCard();
+      }
+    });
+  }
+  if (elements.dismissContactBtn) {
+    elements.dismissContactBtn.addEventListener('click', () => {
+      if (currentExtractedContact?.email) {
+        dismissContact(currentExtractedContact.email);
+        hideContactCard();
+      }
+    });
+  }
+
+  // Payment Card Actions
+  if (elements.paymentCardClose) {
+    elements.paymentCardClose.addEventListener('click', hidePaymentCard);
+  }
+  if (elements.createReminderBtn) {
+    elements.createReminderBtn.addEventListener('click', () => {
+      if (currentPaymentData) {
+        createPaymentReminder(currentPaymentData);
+      }
+    });
+  }
+  if (elements.preparePaymentBtn) {
+    elements.preparePaymentBtn.addEventListener('click', () => {
+      if (currentPaymentData) {
+        preparePayment(currentPaymentData);
+      }
+    });
+  }
+
+  // Conversation Card Actions
+  if (elements.conversationCardClose) {
+    elements.conversationCardClose.addEventListener('click', hideConversationCard);
+  }
+  if (elements.convQuickReplyBtn) {
+    elements.convQuickReplyBtn.addEventListener('click', generateContextualReply);
+  }
+  if (elements.convViewAllBtn) {
+    elements.convViewAllBtn.addEventListener('click', showAllConversationEmails);
+  }
+  if (elements.convArchiveBtn) {
+    elements.convArchiveBtn.addEventListener('click', archiveConversation);
+  }
 
   // Analysis Panel
   elements.closeAnalysisBtn.addEventListener('click', () => {
@@ -1431,7 +1567,18 @@ function createEmailItem(email) {
   let accountHtml = '';
   if (accounts.length > 1 && email.accountEmail) {
     const shortEmail = email.accountEmail.split('@')[0];
-    const accountColor = email.provider === 'gmail' ? '#ea4335' : email.provider === 'outlook' ? '#0078d4' : '#6b7280';
+    // Provider-spezifische Farben (inkl. IMAP-Provider)
+    const providerColors = {
+      'gmail': '#ea4335',      // Google Rot
+      'outlook': '#0078d4',    // Microsoft Blau
+      '1und1': '#0050aa',      // 1&1 Dunkelblau
+      'gmx': '#ff6600',        // GMX Orange
+      'webde': '#ffcc00',      // Web.de Gelb
+      'tonline': '#e20074',    // T-Online Magenta
+      'yahoo': '#6001d2',      // Yahoo Lila
+      'aol': '#ff0000'         // AOL Rot
+    };
+    const accountColor = providerColors[email.provider] || '#6b7280';
     accountHtml = `<span class="email-account-badge" style="background: ${accountColor}20; color: ${accountColor}; border: 1px solid ${accountColor}40;" title="${email.accountEmail}">${shortEmail}</span>`;
   }
 
@@ -1451,6 +1598,1107 @@ function createEmailItem(email) {
   item.addEventListener('click', () => selectEmail(email));
 
   return item;
+}
+
+// =============================================================================
+// IMAGE HANDLING
+// =============================================================================
+
+/**
+ * Prüft ob ein Absender in der Whitelist ist
+ */
+function isSenderWhitelisted(email) {
+  if (!email || !email.from) return false;
+  const senderEmail = email.from.toLowerCase();
+  const senderDomain = senderEmail.split('@')[1];
+  return imageWhitelist.some(entry =>
+    entry === senderEmail || entry === senderDomain
+  );
+}
+
+/**
+ * Fügt Absender zur Whitelist hinzu
+ */
+function addToImageWhitelist(email, useDomain = true) {
+  if (!email || !email.from) return;
+  const senderEmail = email.from.toLowerCase();
+  const entry = useDomain ? senderEmail.split('@')[1] : senderEmail;
+
+  if (!imageWhitelist.includes(entry)) {
+    imageWhitelist.push(entry);
+    localStorage.setItem('imageWhitelist', JSON.stringify(imageWhitelist));
+    console.log(`[IMAGE] Added to whitelist: ${entry}`);
+  }
+}
+
+/**
+ * Verarbeitet E-Mail HTML und blockiert externe Bilder
+ */
+function processEmailHtml(html, allowImages = false) {
+  if (!html) return { html: '', hasBlockedImages: false };
+
+  // Erstelle ein temporäres DOM-Element
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  let hasBlockedImages = false;
+
+  // Finde alle Bilder
+  const images = doc.querySelectorAll('img');
+
+  images.forEach(img => {
+    const src = img.getAttribute('src') || '';
+
+    // Prüfe ob es ein externes Bild ist (http/https)
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      if (!allowImages) {
+        hasBlockedImages = true;
+
+        // Erstelle Platzhalter
+        const placeholder = doc.createElement('div');
+        placeholder.className = 'image-placeholder';
+        placeholder.innerHTML = `
+          <span class="image-placeholder-icon">🖼️</span>
+          <span>Bild blockiert</span>
+        `;
+
+        // Ersetze das Bild mit dem Platzhalter
+        img.parentNode.replaceChild(placeholder, img);
+      }
+    }
+    // data: URLs und cid: (inline attachments) sind erlaubt
+  });
+
+  // Serialisiere zurück zu HTML
+  return {
+    html: doc.body.innerHTML,
+    hasBlockedImages
+  };
+}
+
+/**
+ * Prüft ob Bilder für diese E-Mail-Kategorie blockiert werden sollen
+ * Nur Newsletter, Werbung und Spam werden blockiert
+ */
+function shouldBlockImagesForEmail(email) {
+  if (!email) return false;
+  const kategorie = (email.kategorie || '').toLowerCase();
+  // Nur diese Kategorien blockieren
+  const blockCategories = ['newsletter', 'werbung', 'spam', 'papierkorb'];
+  return blockCategories.includes(kategorie);
+}
+
+/**
+ * Zeigt E-Mail Inhalt mit intelligenter Bildverarbeitung an
+ * Bilder werden nur bei Newsletter/Werbung/Spam blockiert
+ */
+function displayEmailContent(email, forceLoadImages = false) {
+  // Bilder erlauben wenn: erzwungen, whitelisted, oder wichtige Kategorie
+  const shouldBlock = shouldBlockImagesForEmail(email);
+  const allowImages = forceLoadImages || isSenderWhitelisted(email) || !shouldBlock;
+
+  if (email.html) {
+    if (allowImages) {
+      // Bilder normal laden
+      elements.detailBody.innerHTML = email.html;
+      currentEmailHasBlockedImages = false;
+      if (elements.imageBanner) {
+        elements.imageBanner.classList.add('hidden');
+      }
+    } else {
+      // Bilder blockieren (nur Newsletter/Werbung/Spam)
+      const { html, hasBlockedImages } = processEmailHtml(email.html, false);
+      elements.detailBody.innerHTML = html;
+      currentEmailHasBlockedImages = hasBlockedImages;
+      originalEmailHtml = email.html;
+
+      if (hasBlockedImages && elements.imageBanner) {
+        elements.imageBanner.classList.remove('hidden');
+      } else if (elements.imageBanner) {
+        elements.imageBanner.classList.add('hidden');
+      }
+    }
+  } else {
+    elements.detailBody.textContent = email.body || email.snippet || 'Kein Inhalt';
+    currentEmailHasBlockedImages = false;
+    if (elements.imageBanner) {
+      elements.imageBanner.classList.add('hidden');
+    }
+  }
+}
+
+// =============================================================================
+// CONTACT EXTRACTION
+// =============================================================================
+
+/**
+ * Prüft ob ein Kontakt bereits gespeichert oder abgelehnt wurde
+ */
+function isContactKnown(email) {
+  if (!email || !email.from) return true;
+  const emailLower = email.from.toLowerCase();
+  return savedContacts.some(c => c.email?.toLowerCase() === emailLower) ||
+         dismissedContacts.includes(emailLower);
+}
+
+/**
+ * Extrahiert Kontaktdaten aus E-Mail mittels GPT
+ * NUR wenn echte Signatur-Daten gefunden werden (Telefon, Website, Position)
+ */
+async function extractContactFromEmail(email) {
+  if (!email) return null;
+
+  // Bereits bekannt? Nicht erneut extrahieren
+  if (isContactKnown(email)) {
+    console.log('[CONTACT] Kontakt bereits bekannt:', email.from);
+    return null;
+  }
+
+  // Nur bei wichtigen Kategorien extrahieren (nicht Newsletter/Spam)
+  const skipCategories = ['newsletter', 'werbung', 'spam', 'papierkorb'];
+  if (skipCategories.includes(email.kategorie?.toLowerCase())) {
+    console.log('[CONTACT] Überspringe Kategorie:', email.kategorie);
+    return null;
+  }
+
+  // Keine Kontakt-Karte für automatisierte Absender
+  const automatedSenders = [
+    'noreply', 'no-reply', 'newsletter', 'info@', 'support@', 'service@',
+    'notification', 'alert', 'mailer', 'mail@', 'postmaster', 'daemon',
+    'donotreply', 'auto', 'system', 'admin@', 'webmaster'
+  ];
+  const fromLower = (email.from || '').toLowerCase();
+  if (automatedSenders.some(s => fromLower.includes(s))) {
+    console.log('[CONTACT] Automatisierter Absender, überspringe:', email.from);
+    return null;
+  }
+
+  console.log('[CONTACT] Extrahiere Kontakt aus:', email.from);
+
+  try {
+    const result = await ipcRenderer.invoke('contact:extract', {
+      from: email.from,
+      fromName: email.fromName,
+      subject: email.subject,
+      body: email.body || '',
+      html: email.html || ''
+    });
+
+    if (result && result.success && result.contact) {
+      // NUR anzeigen wenn echte Signatur-Daten gefunden wurden
+      const contact = result.contact;
+      const hasRealData = contact.phone || contact.position ||
+                          (contact.website && !contact.website.includes('static-assets') &&
+                           !contact.website.includes('cdn') && !contact.website.includes('mail'));
+
+      if (hasRealData) {
+        console.log('[CONTACT] Echte Signatur-Daten gefunden:', contact);
+        return contact;
+      } else {
+        console.log('[CONTACT] Keine echten Signatur-Daten, überspringe');
+        return null;
+      }
+    }
+  } catch (error) {
+    console.error('[CONTACT] Extraction error:', error);
+  }
+
+  // KEIN Fallback mehr - nur echte Signaturen anzeigen
+  return null;
+}
+
+/**
+ * Zeigt die Kontakt-Karte an
+ */
+function showContactCard(contact) {
+  if (!contact || !elements.contactCard) return;
+
+  currentExtractedContact = contact;
+
+  // Titel
+  const isNew = !savedContacts.some(c => c.email?.toLowerCase() === contact.email?.toLowerCase());
+  elements.contactCardTitle.textContent = isNew ? 'Neuer Kontakt erkannt' : 'Kontakt';
+
+  // Initialen
+  const initials = getInitials(contact.name || contact.email);
+  elements.contactInitials.textContent = initials;
+
+  // Name, Firma, Position
+  elements.contactName.textContent = contact.name || contact.email;
+  elements.contactCompany.textContent = contact.company || '';
+  elements.contactCompany.style.display = contact.company ? 'block' : 'none';
+  elements.contactPosition.textContent = contact.position || '';
+  elements.contactPosition.style.display = contact.position ? 'block' : 'none';
+
+  // Details aufbauen
+  let detailsHtml = '';
+
+  if (contact.email) {
+    detailsHtml += `
+      <div class="contact-detail-row">
+        <span class="contact-detail-icon">📧</span>
+        <span class="contact-detail-value"><a href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a></span>
+        <span class="contact-detail-badge">${contact.emailSource || 'Header'}</span>
+      </div>
+    `;
+  }
+
+  if (contact.phone) {
+    detailsHtml += `
+      <div class="contact-detail-row">
+        <span class="contact-detail-icon">📱</span>
+        <span class="contact-detail-value"><a href="tel:${escapeHtml(contact.phone)}">${escapeHtml(contact.phone)}</a></span>
+        <span class="contact-detail-badge">Signatur</span>
+      </div>
+    `;
+  }
+
+  if (contact.website) {
+    const url = contact.website.startsWith('http') ? contact.website : 'https://' + contact.website;
+    detailsHtml += `
+      <div class="contact-detail-row">
+        <span class="contact-detail-icon">🌐</span>
+        <span class="contact-detail-value"><a href="${escapeHtml(url)}" target="_blank">${escapeHtml(contact.website)}</a></span>
+        <span class="contact-detail-badge">Signatur</span>
+      </div>
+    `;
+  }
+
+  if (contact.address) {
+    detailsHtml += `
+      <div class="contact-detail-row">
+        <span class="contact-detail-icon">📍</span>
+        <span class="contact-detail-value">${escapeHtml(contact.address)}</span>
+        <span class="contact-detail-badge">Signatur</span>
+      </div>
+    `;
+  }
+
+  elements.contactDetails.innerHTML = detailsHtml;
+
+  // Karte anzeigen
+  elements.contactCard.classList.remove('hidden');
+}
+
+/**
+ * Versteckt die Kontakt-Karte
+ */
+function hideContactCard() {
+  if (elements.contactCard) {
+    elements.contactCard.classList.add('hidden');
+  }
+  currentExtractedContact = null;
+}
+
+/**
+ * Speichert den extrahierten Kontakt
+ */
+function saveContact(contact) {
+  if (!contact || !contact.email) return;
+
+  // Prüfen ob bereits vorhanden
+  const existingIndex = savedContacts.findIndex(c =>
+    c.email?.toLowerCase() === contact.email.toLowerCase()
+  );
+
+  if (existingIndex >= 0) {
+    // Aktualisieren
+    savedContacts[existingIndex] = { ...savedContacts[existingIndex], ...contact };
+  } else {
+    // Neu hinzufügen
+    savedContacts.push({
+      ...contact,
+      savedAt: new Date().toISOString()
+    });
+  }
+
+  localStorage.setItem('savedContacts', JSON.stringify(savedContacts));
+  console.log('[CONTACT] Gespeichert:', contact.email);
+}
+
+/**
+ * Lehnt einen Kontakt ab (wird nicht mehr angezeigt)
+ */
+function dismissContact(email) {
+  if (!email) return;
+  const emailLower = email.toLowerCase();
+
+  if (!dismissedContacts.includes(emailLower)) {
+    dismissedContacts.push(emailLower);
+    localStorage.setItem('dismissedContacts', JSON.stringify(dismissedContacts));
+    console.log('[CONTACT] Abgelehnt:', email);
+  }
+}
+
+/**
+ * Generiert Initialen aus einem Namen
+ */
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+}
+
+// =============================================================================
+// PAYMENT/INVOICE EXTRACTION
+// =============================================================================
+
+/**
+ * Prüft ob eine E-Mail eine Rechnung/Zahlungsaufforderung ist
+ */
+function isInvoiceEmail(email) {
+  if (!email) return false;
+
+  // Kategorie-Check
+  if (email.kategorie === 'rechnung' || email.kategorie === 'finanzen') {
+    return true;
+  }
+
+  // Betreff-Keywords
+  const invoiceKeywords = [
+    'rechnung', 'invoice', 'zahlung', 'payment', 'mahnung',
+    'kontoauszug', 'kreditkarte', 'mastercard', 'visa',
+    'abbuchung', 'lastschrift', 'überweisung', 'fällig',
+    'betrag', 'saldo', 'guthaben', 'schulden', 'rate'
+  ];
+
+  const subject = (email.subject || '').toLowerCase();
+  const hasInvoiceSubject = invoiceKeywords.some(kw => subject.includes(kw));
+
+  // Bekannte Rechnungs-Absender
+  const invoiceSenders = [
+    'advanzia', 'barclays', 'paypal', 'klarna', 'amazon',
+    'telekom', 'vodafone', 'o2', '1und1', 'ionos',
+    'netflix', 'spotify', 'apple', 'google', 'microsoft',
+    'versicherung', 'allianz', 'huk', 'ergo', 'axa',
+    'stadtwerke', 'strom', 'gas', 'wasser'
+  ];
+
+  const from = (email.from || '').toLowerCase();
+  const hasInvoiceSender = invoiceSenders.some(s => from.includes(s));
+
+  return hasInvoiceSubject || hasInvoiceSender;
+}
+
+/**
+ * Extrahiert Zahlungsdaten aus E-Mail
+ */
+async function extractPaymentData(email) {
+  if (!email) return null;
+
+  // Nicht bei Newsletter/Spam
+  const skipCategories = ['newsletter', 'werbung', 'spam', 'papierkorb'];
+  if (skipCategories.includes(email.kategorie?.toLowerCase())) {
+    return null;
+  }
+
+  // Prüfen ob Rechnung
+  if (!isInvoiceEmail(email)) {
+    return null;
+  }
+
+  console.log('[PAYMENT] Extrahiere Zahlungsdaten aus:', email.subject);
+
+  try {
+    // Server-basierte Extraktion
+    const result = await ipcRenderer.invoke('payment:extract', {
+      from: email.from,
+      subject: email.subject,
+      body: email.body || '',
+      html: email.html || ''
+    });
+
+    if (result && result.success && result.payment) {
+      console.log('[PAYMENT] Extrahiert:', result.payment);
+      return result.payment;
+    }
+  } catch (error) {
+    console.error('[PAYMENT] Server extraction error:', error);
+  }
+
+  // Fallback: Lokale Extraktion
+  return extractPaymentLocally(email);
+}
+
+/**
+ * Lokale Zahlungsdaten-Extraktion
+ */
+function extractPaymentLocally(email) {
+  const text = email.body || '';
+  const html = email.html || '';
+  const content = text || html.replace(/<[^>]*>/g, ' ');
+
+  const payment = {
+    type: 'Rechnung',
+    recipient: email.fromName || email.from?.split('@')[0] || 'Unbekannt'
+  };
+
+  // IBAN extrahieren (DE, AT, CH, LU, etc.)
+  const ibanMatch = content.match(/[A-Z]{2}\d{2}[\s]?(?:\d{4}[\s]?){4,7}\d{1,4}/i);
+  if (ibanMatch) {
+    payment.iban = ibanMatch[0].replace(/\s/g, '').toUpperCase();
+  }
+
+  // BIC extrahieren
+  const bicMatch = content.match(/[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?/);
+  if (bicMatch && bicMatch[0].length >= 8) {
+    payment.bic = bicMatch[0];
+  }
+
+  // Betrag extrahieren
+  const amountPatterns = [
+    /(?:gesamt|total|betrag|summe|saldo)[:\s]*([0-9.,]+)\s*(?:€|EUR)/i,
+    /([0-9]+[.,][0-9]{2})\s*(?:€|EUR)/g,
+    /(?:€|EUR)\s*([0-9]+[.,][0-9]{2})/g
+  ];
+
+  for (const pattern of amountPatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      const amountStr = match[1] || match[0];
+      const amount = parseFloat(amountStr.replace(/[^\d,.-]/g, '').replace(',', '.'));
+      if (amount > 0 && !payment.amount) {
+        payment.amount = amount;
+        payment.currency = 'EUR';
+      }
+    }
+  }
+
+  // Mindestbetrag (für Kreditkarten)
+  const minMatch = content.match(/(?:mindest|minimum)[:\s]*([0-9.,]+)\s*(?:€|EUR)/i);
+  if (minMatch) {
+    payment.minimumAmount = parseFloat(minMatch[1].replace(',', '.'));
+  }
+
+  // Fälligkeitsdatum
+  const datePatterns = [
+    /(?:fällig|zahlbar|bis zum|spätestens)[:\s]*(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/i,
+    /(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/g
+  ];
+
+  for (const pattern of datePatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      const day = parseInt(match[1]);
+      const month = parseInt(match[2]);
+      let year = parseInt(match[3]);
+      if (year < 100) year += 2000;
+
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        payment.dueDate = new Date(year, month - 1, day);
+        break;
+      }
+    }
+  }
+
+  // Verwendungszweck
+  const refMatch = content.match(/(?:verwendungszweck|referenz|betreff|kundennummer)[:\s]*([^\n]{5,50})/i);
+  if (refMatch) {
+    payment.reference = refMatch[1].trim();
+  }
+
+  // Typ erkennen
+  if (content.toLowerCase().includes('kreditkarte') || content.toLowerCase().includes('mastercard') || content.toLowerCase().includes('visa')) {
+    payment.type = 'Kreditkartenabrechnung';
+  } else if (content.toLowerCase().includes('mahnung')) {
+    payment.type = 'Mahnung';
+  } else if (content.toLowerCase().includes('versicherung')) {
+    payment.type = 'Versicherungsbeitrag';
+  }
+
+  // Nur zurückgeben wenn wir mindestens Betrag oder IBAN haben
+  if (payment.amount || payment.iban) {
+    return payment;
+  }
+
+  return null;
+}
+
+/**
+ * Zeigt die Zahlungskarte an
+ */
+function showPaymentCard(payment) {
+  if (!payment || !elements.paymentCard) return;
+
+  currentPaymentData = payment;
+
+  // Typ
+  elements.paymentType.textContent = payment.type || 'Rechnung';
+
+  // Beträge
+  if (payment.amount) {
+    elements.paymentAmount.textContent = formatCurrency(payment.amount, payment.currency);
+  } else {
+    elements.paymentAmount.textContent = '-';
+  }
+
+  // Fälligkeit
+  if (payment.dueDate) {
+    const daysUntil = Math.ceil((new Date(payment.dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+    if (daysUntil < 0) {
+      elements.paymentDue.textContent = `⚠️ Überfällig!`;
+      elements.paymentDue.style.color = '#ef4444';
+    } else if (daysUntil <= 3) {
+      elements.paymentDue.textContent = `⚠️ Fällig in ${daysUntil} Tag${daysUntil !== 1 ? 'en' : ''}`;
+      elements.paymentDue.style.color = '#ef4444';
+    } else if (daysUntil <= 7) {
+      elements.paymentDue.textContent = `Fällig in ${daysUntil} Tagen`;
+      elements.paymentDue.style.color = '#f59e0b';
+    } else {
+      elements.paymentDue.textContent = `Fällig in ${daysUntil} Tagen`;
+      elements.paymentDue.style.color = '';
+    }
+  } else {
+    elements.paymentDue.textContent = '';
+  }
+
+  // Mindestbetrag
+  if (payment.minimumAmount) {
+    elements.paymentMinAmount.textContent = formatCurrency(payment.minimumAmount, payment.currency);
+    elements.paymentMinBox.style.display = '';
+  } else {
+    elements.paymentMinBox.style.display = 'none';
+  }
+
+  // Details
+  elements.paymentRecipient.textContent = payment.recipient || '-';
+  elements.paymentIban.textContent = payment.iban ? formatIban(payment.iban) : '-';
+  elements.paymentBic.textContent = payment.bic || '-';
+  elements.paymentReference.textContent = payment.reference || '-';
+  elements.paymentDueDate.textContent = payment.dueDate ? formatDateShort(new Date(payment.dueDate)) : '-';
+
+  // Timeline berechnen
+  if (payment.dueDate) {
+    const dueDate = new Date(payment.dueDate);
+    const today = new Date();
+
+    // Erinnerung: 7 Tage vor Fälligkeit
+    const reminderDate = new Date(dueDate);
+    reminderDate.setDate(reminderDate.getDate() - 7);
+    if (reminderDate < today) reminderDate.setTime(today.getTime());
+
+    // Überweisung: 3 Werktage vor Fälligkeit
+    const transferDate = new Date(dueDate);
+    transferDate.setDate(transferDate.getDate() - 3);
+    if (transferDate < today) transferDate.setTime(today.getTime());
+
+    elements.timelineReminderDate.textContent = formatDateShort(reminderDate);
+    elements.timelineTransferDate.textContent = formatDateShort(transferDate);
+    elements.timelineDueDate.textContent = formatDateShort(dueDate);
+  }
+
+  // Karte anzeigen
+  elements.paymentCard.classList.remove('hidden');
+}
+
+/**
+ * Versteckt die Zahlungskarte
+ */
+function hidePaymentCard() {
+  if (elements.paymentCard) {
+    elements.paymentCard.classList.add('hidden');
+  }
+  currentPaymentData = null;
+}
+
+/**
+ * Erstellt eine Erinnerung für die Zahlung
+ */
+function createPaymentReminder(payment) {
+  if (!payment) return;
+
+  const reminderDate = payment.dueDate
+    ? new Date(new Date(payment.dueDate).getTime() - 7 * 24 * 60 * 60 * 1000)
+    : new Date();
+
+  const title = `Zahlung: ${payment.recipient || 'Rechnung'}`;
+  const body = `Betrag: ${formatCurrency(payment.amount || 0, payment.currency)}\n` +
+               `Fällig: ${payment.dueDate ? formatDateShort(new Date(payment.dueDate)) : 'Unbekannt'}\n` +
+               `IBAN: ${payment.iban || '-'}`;
+
+  // Hier könnte eine echte Kalender-Integration erfolgen
+  // Für jetzt: Desktop-Notification
+  ipcRenderer.invoke('notification:show', {
+    title: '🔔 Erinnerung erstellt',
+    body: `${title}\n${body}`
+  }).catch(console.error);
+
+  alert(`Erinnerung erstellt für: ${formatDateShort(reminderDate)}\n\n${title}\n${body}`);
+}
+
+/**
+ * Bereitet eine Überweisung vor (öffnet Banking-Link oder kopiert Daten)
+ */
+function preparePayment(payment) {
+  if (!payment) return;
+
+  // Überweisungsdaten in die Zwischenablage kopieren
+  const paymentText = [
+    `Empfänger: ${payment.recipient || '-'}`,
+    `IBAN: ${payment.iban || '-'}`,
+    `BIC: ${payment.bic || '-'}`,
+    `Betrag: ${formatCurrency(payment.amount || 0, payment.currency)}`,
+    `Verwendungszweck: ${payment.reference || '-'}`
+  ].join('\n');
+
+  navigator.clipboard.writeText(paymentText).then(() => {
+    alert('Überweisungsdaten in die Zwischenablage kopiert:\n\n' + paymentText);
+  }).catch(() => {
+    alert('Überweisungsdaten:\n\n' + paymentText);
+  });
+}
+
+/**
+ * Formatiert einen Betrag als Währung
+ */
+function formatCurrency(amount, currency = 'EUR') {
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: currency
+  }).format(amount);
+}
+
+/**
+ * Formatiert IBAN mit Leerzeichen
+ */
+function formatIban(iban) {
+  return iban.replace(/(.{4})/g, '$1 ').trim();
+}
+
+/**
+ * Formatiert Datum kurz
+ */
+function formatDateShort(date) {
+  return new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit',
+    month: '2-digit'
+  }).format(date);
+}
+
+// =============================================================================
+// CONVERSATION OVERVIEW (Konversations-Übersicht)
+// =============================================================================
+
+// Aktuelle Konversationsdaten
+let currentConversationData = null;
+
+/**
+ * Findet alle E-Mails einer Konversation (gleicher Absender/Empfänger)
+ */
+function getConversationEmails(email) {
+  if (!email || !email.from) return [];
+
+  const contactEmail = email.from.toLowerCase();
+  const contactDomain = contactEmail.split('@')[1];
+
+  // Finde alle E-Mails mit diesem Kontakt
+  return emails.filter(e => {
+    const eFrom = (e.from || '').toLowerCase();
+    // Von diesem Kontakt empfangen
+    if (eFrom === contactEmail || eFrom.endsWith('@' + contactDomain)) {
+      return true;
+    }
+    // An diesen Kontakt gesendet (falls wir gesendete E-Mails haben)
+    if (e.isSent && e.to) {
+      const eTo = (e.to || '').toLowerCase();
+      return eTo === contactEmail || eTo.includes(contactEmail);
+    }
+    return false;
+  }).sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+/**
+ * Analysiert die Konversation und erstellt Statistiken
+ */
+async function analyzeConversation(email) {
+  if (!email) return null;
+
+  const conversationEmails = getConversationEmails(email);
+
+  // Mindestens 2 E-Mails für Konversations-Übersicht
+  if (conversationEmails.length < 2) {
+    console.log('[CONVERSATION] Weniger als 2 E-Mails, keine Übersicht');
+    return null;
+  }
+
+  // Nur bei wichtigen Kategorien anzeigen (nicht Newsletter/Spam)
+  const skipCategories = ['newsletter', 'werbung', 'spam', 'papierkorb'];
+  if (skipCategories.includes(email.kategorie?.toLowerCase())) {
+    return null;
+  }
+
+  console.log('[CONVERSATION] Analysiere Konversation mit', conversationEmails.length, 'E-Mails');
+
+  // Statistiken berechnen
+  const received = conversationEmails.filter(e => !e.isSent).length;
+  const sent = conversationEmails.filter(e => e.isSent).length;
+
+  // Zeitraum
+  const dates = conversationEmails.map(e => new Date(e.date)).filter(d => !isNaN(d));
+  const firstDate = dates.length > 0 ? new Date(Math.min(...dates)) : null;
+  const lastDate = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+
+  let timespan = '-';
+  if (firstDate && lastDate) {
+    const days = Math.ceil((lastDate - firstDate) / (1000 * 60 * 60 * 24));
+    if (days === 0) {
+      timespan = 'Heute';
+    } else if (days === 1) {
+      timespan = '1 Tag';
+    } else if (days < 7) {
+      timespan = `${days} Tage`;
+    } else if (days < 30) {
+      const weeks = Math.round(days / 7);
+      timespan = `${weeks} Woche${weeks > 1 ? 'n' : ''}`;
+    } else {
+      const months = Math.round(days / 30);
+      timespan = `${months} Monat${months > 1 ? 'e' : ''}`;
+    }
+  }
+
+  // Durchschnittliche Antwortzeit berechnen (vereinfacht)
+  let avgResponseTime = '-';
+  if (conversationEmails.length >= 2) {
+    const responseTimes = [];
+    for (let i = 1; i < conversationEmails.length; i++) {
+      const diff = new Date(conversationEmails[i-1].date) - new Date(conversationEmails[i].date);
+      if (diff > 0) {
+        responseTimes.push(diff);
+      }
+    }
+    if (responseTimes.length > 0) {
+      const avgMs = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
+      const avgHours = Math.round(avgMs / (1000 * 60 * 60));
+      if (avgHours < 1) {
+        avgResponseTime = '< 1h';
+      } else if (avgHours < 24) {
+        avgResponseTime = `${avgHours}h`;
+      } else {
+        const avgDays = Math.round(avgHours / 24);
+        avgResponseTime = `${avgDays}d`;
+      }
+    }
+  }
+
+  // Themen extrahieren (aus Betreffzeilen)
+  const topics = extractTopicsFromConversation(conversationEmails);
+
+  // KI-Zusammenfassung (lokal oder via Server)
+  let summary = await generateConversationSummary(conversationEmails, email);
+
+  return {
+    totalEmails: conversationEmails.length,
+    received,
+    sent,
+    timespan,
+    avgResponseTime,
+    topics,
+    summary,
+    emails: conversationEmails.slice(0, 10) // Nur die letzten 10 für Timeline
+  };
+}
+
+/**
+ * Extrahiert Themen aus der Konversation
+ */
+function extractTopicsFromConversation(conversationEmails) {
+  const topics = {};
+
+  // Häufige Stoppwörter
+  const stopWords = new Set([
+    'der', 'die', 'das', 'und', 'oder', 'aber', 'ein', 'eine', 'einer',
+    'den', 'dem', 'des', 'für', 'mit', 'von', 'bei', 'nach', 'aus',
+    'auf', 'ist', 'sind', 'war', 'hat', 'haben', 'wird', 'werden',
+    're:', 'aw:', 'fwd:', 'wg:', 'betr:', 'antw:', 'the', 'and', 'you',
+    'your', 'our', 'we', 'to', 'for', 'with', 'from', 'this', 'that'
+  ]);
+
+  conversationEmails.forEach(email => {
+    // Betreff analysieren
+    const subject = (email.subject || '')
+      .toLowerCase()
+      .replace(/^(re:|aw:|fwd:|wg:|betr:|antw:)\s*/gi, '')
+      .trim();
+
+    // Wörter extrahieren
+    const words = subject
+      .split(/[\s,.:;!?()[\]{}]+/)
+      .filter(w => w.length > 3 && !stopWords.has(w));
+
+    words.forEach(word => {
+      topics[word] = (topics[word] || 0) + 1;
+    });
+
+    // Kategorien als Themen
+    if (email.kategorie && !['info', 'normal'].includes(email.kategorie)) {
+      const katName = KATEGORIE_MAP[email.kategorie]?.name || email.kategorie;
+      topics[katName] = (topics[katName] || 0) + 1;
+    }
+  });
+
+  // Nach Häufigkeit sortieren und Top 5 zurückgeben
+  return Object.entries(topics)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([topic, count]) => ({ topic: topic.charAt(0).toUpperCase() + topic.slice(1), count }));
+}
+
+/**
+ * Generiert eine Zusammenfassung der Konversation
+ */
+async function generateConversationSummary(conversationEmails, currentEmail) {
+  // Versuche Server-basierte Zusammenfassung
+  try {
+    const result = await ipcRenderer.invoke('conversation:summarize', {
+      emails: conversationEmails.slice(0, 5).map(e => ({
+        subject: e.subject,
+        from: e.from,
+        date: e.date,
+        snippet: e.snippet || e.body?.substring(0, 200),
+        isSent: e.isSent
+      })),
+      currentSubject: currentEmail.subject
+    });
+
+    if (result && result.success && result.summary) {
+      return result.summary;
+    }
+  } catch (error) {
+    console.warn('[CONVERSATION] Server summary failed:', error);
+  }
+
+  // Fallback: Lokale Zusammenfassung
+  const count = conversationEmails.length;
+  const contactName = currentEmail.fromName || currentEmail.from?.split('@')[0] || 'Kontakt';
+  const firstEmail = conversationEmails[conversationEmails.length - 1];
+  const lastEmail = conversationEmails[0];
+
+  const firstDate = firstEmail ? formatDateShort(new Date(firstEmail.date)) : '';
+  const lastDate = lastEmail ? formatDateShort(new Date(lastEmail.date)) : '';
+
+  return `${count} E-Mails mit ${contactName} seit ${firstDate}. ` +
+         `Letzte Nachricht: "${lastEmail?.subject || 'Kein Betreff'}"`;
+}
+
+/**
+ * Zeigt die Konversations-Übersicht an (Mockup Design)
+ */
+function showConversationCard(data) {
+  if (!data) return;
+
+  currentConversationData = data;
+
+  const conversationCard = document.getElementById('conversationCard');
+  const conversationSummaryText = document.getElementById('conversationSummaryText');
+  const convStatFirstContact = document.getElementById('convStatFirstContact');
+  const convStatEmailCount = document.getElementById('convStatEmailCount');
+  const convStatResponseTime = document.getElementById('convStatResponseTime');
+  const convStatStatus = document.getElementById('convStatStatus');
+  const topicsList = document.getElementById('topicsList');
+  const convTimelineList = document.getElementById('convTimelineList');
+  const timelineCount = document.getElementById('timelineCount');
+
+  if (!conversationCard) return;
+
+  // Zusammenfassung (mit HTML-Unterstützung für strong-Tags)
+  if (conversationSummaryText) {
+    const summaryHtml = (data.summary || 'Keine Zusammenfassung verfügbar')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    conversationSummaryText.innerHTML = summaryHtml;
+  }
+
+  // Statistiken - Mockup Style
+  if (convStatFirstContact) {
+    // Erster Kontakt aus ältester E-Mail
+    const firstEmail = data.emails?.[data.emails.length - 1];
+    if (firstEmail?.date) {
+      const firstDate = new Date(firstEmail.date);
+      convStatFirstContact.textContent = firstDate.toLocaleDateString('de-DE', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } else {
+      convStatFirstContact.textContent = data.timespan || '-';
+    }
+  }
+
+  if (convStatEmailCount) {
+    // Format: "12 (6↓ 6↑)"
+    const received = data.received || 0;
+    const sent = data.sent || 0;
+    const total = data.totalEmails || (received + sent);
+    convStatEmailCount.textContent = `${total} (${received}↓ ${sent}↑)`;
+  }
+
+  if (convStatResponseTime) {
+    convStatResponseTime.textContent = data.avgResponseTime || '-';
+  }
+
+  if (convStatStatus) {
+    // Status basierend auf letzter E-Mail
+    const lastEmail = data.emails?.[0];
+    if (lastEmail) {
+      if (!lastEmail.isSent) {
+        convStatStatus.textContent = '⏳ Antwort ausstehend';
+        convStatStatus.className = 'conv-stat-value warning';
+      } else {
+        convStatStatus.textContent = '✓ Beantwortet';
+        convStatStatus.className = 'conv-stat-value highlight';
+      }
+    } else {
+      convStatStatus.textContent = '-';
+      convStatStatus.className = 'conv-stat-value';
+    }
+  }
+
+  // Themen - Mockup Style mit Status-Dots
+  if (topicsList) {
+    if (data.topics && data.topics.length > 0) {
+      topicsList.innerHTML = data.topics.map((t, i) => {
+        // Bestimme Status basierend auf Häufigkeit und Position
+        // Neuere/häufigere Themen = pending, ältere = resolved
+        const isResolved = i >= Math.ceil(data.topics.length / 2);
+        const statusClass = isResolved ? 'resolved' : 'pending';
+        const statusText = isResolved ? 'Geklärt' : 'Offen';
+
+        return `
+          <div class="topic-item">
+            <div class="topic-dot ${statusClass}"></div>
+            <span class="topic-text">${escapeHtml(t.topic)}</span>
+            <span class="topic-status ${statusClass}">${statusText}</span>
+          </div>
+        `;
+      }).join('');
+    } else {
+      topicsList.innerHTML = '<div class="topic-item"><span class="topic-text" style="color: var(--text-muted);">Keine Themen erkannt</span></div>';
+    }
+  }
+
+  // Timeline Count
+  if (timelineCount) {
+    timelineCount.textContent = `${data.totalEmails || 0} E-Mails`;
+  }
+
+  // Timeline - Mockup Style
+  if (convTimelineList && data.emails && data.emails.length > 0) {
+    convTimelineList.innerHTML = data.emails.slice(0, 5).map(email => {
+      const isSent = email.isSent;
+      const isCurrent = currentEmail && email.id === currentEmail.id;
+      const date = formatDateShort(new Date(email.date));
+      const preview = (email.snippet || email.body || '').substring(0, 50);
+
+      return `
+        <div class="conv-timeline-item${isCurrent ? ' current' : ''}" data-email-id="${email.id}">
+          <div class="conv-timeline-direction ${isSent ? 'sent' : 'received'}">
+            ${isSent ? '📤' : '📥'}
+          </div>
+          <div class="conv-timeline-content">
+            <div class="conv-timeline-subject">${escapeHtml(email.subject || 'Kein Betreff')}</div>
+            <div class="conv-timeline-preview">${escapeHtml(preview)}...</div>
+          </div>
+          <div class="conv-timeline-date">${date}</div>
+        </div>
+      `;
+    }).join('');
+
+    // Klick-Handler für Timeline-Items
+    convTimelineList.querySelectorAll('.conv-timeline-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const emailId = item.dataset.emailId;
+        const email = emails.find(e => e.id === emailId);
+        if (email) {
+          selectEmail(email);
+        }
+      });
+    });
+  } else if (convTimelineList) {
+    convTimelineList.innerHTML = '<div class="conv-timeline-item" style="justify-content: center; color: var(--text-muted);">Keine E-Mails</div>';
+  }
+
+  // Karte anzeigen
+  conversationCard.classList.remove('hidden');
+}
+
+/**
+ * Versteckt die Konversations-Übersicht
+ */
+function hideConversationCard() {
+  const conversationCard = document.getElementById('conversationCard');
+  if (conversationCard) {
+    conversationCard.classList.add('hidden');
+  }
+  currentConversationData = null;
+}
+
+/**
+ * Zeigt alle E-Mails der Konversation an (filtert die Liste)
+ */
+function showAllConversationEmails() {
+  if (!currentConversationData || !currentConversationData.emails) return;
+
+  // TODO: Implementiere Filter-Modus für Konversation
+  const emailIds = currentConversationData.emails.map(e => e.id);
+  console.log('[CONVERSATION] Show all emails:', emailIds);
+
+  // Für jetzt: Toast-Nachricht
+  if (typeof showToast === 'function') {
+    showToast(`${currentConversationData.totalEmails} E-Mails in dieser Konversation`);
+  }
+}
+
+/**
+ * Archiviert alle E-Mails der Konversation
+ */
+function archiveConversation() {
+  if (!currentConversationData || !currentConversationData.emails) return;
+
+  const count = currentConversationData.totalEmails || currentConversationData.emails.length;
+  console.log('[CONVERSATION] Archive conversation:', currentConversationData.emails.map(e => e.id));
+
+  // TODO: Implementiere Archivierung
+  if (typeof showToast === 'function') {
+    showToast(`📁 ${count} E-Mails archiviert`);
+  }
+
+  // Karte schließen
+  hideConversationCard();
+}
+
+/**
+ * Generiert eine kontextbezogene Antwort basierend auf der Konversation
+ */
+async function generateContextualReply() {
+  if (!currentEmail || !currentConversationData) return;
+
+  // Öffne Reply-Panel
+  openReplyPanel();
+
+  // Generiere Antwort mit Konversationskontext
+  try {
+    const result = await ipcRenderer.invoke('reply:generate', {
+      email: {
+        from: currentEmail.from,
+        subject: currentEmail.subject,
+        body: currentEmail.body || currentEmail.snippet
+      },
+      conversationContext: currentConversationData.emails.slice(0, 3).map(e => ({
+        subject: e.subject,
+        snippet: e.snippet || e.body?.substring(0, 100),
+        isSent: e.isSent
+      })),
+      style: currentReplyType
+    });
+
+    if (result && result.success && result.reply) {
+      elements.replyText.value = result.reply;
+    }
+  } catch (error) {
+    console.error('[CONVERSATION] Contextual reply failed:', error);
+  }
 }
 
 // =============================================================================
@@ -1501,12 +2749,8 @@ async function selectEmail(email) {
         console.log(`[EMAIL] Text preview:`, email.body?.substring(0, 200));
         console.log(`[EMAIL] HTML preview:`, email.html?.substring(0, 500));
 
-        // Zeige HTML wenn vorhanden, sonst Text
-        if (email.html) {
-          elements.detailBody.innerHTML = email.html;
-        } else {
-          elements.detailBody.textContent = email.body || 'Kein Inhalt';
-        }
+        // Zeige Inhalt mit Bildverarbeitung
+        displayEmailContent(email);
 
         // Mark as read
         if (email.isUnread) {
@@ -1522,12 +2766,8 @@ async function selectEmail(email) {
       elements.detailBody.textContent = 'Fehler: ' + err.message;
     }
   } else {
-    // Bereits geladene E-Mail - zeige HTML wenn vorhanden, sonst Text
-    if (email.html) {
-      elements.detailBody.innerHTML = email.html;
-    } else {
-      elements.detailBody.textContent = email.body || email.snippet || 'Kein Inhalt';
-    }
+    // Bereits geladene E-Mail - zeige mit Bildverarbeitung
+    displayEmailContent(email);
   }
 
   // Update action buttons
@@ -1554,6 +2794,38 @@ async function selectEmail(email) {
   document.getElementById('feedbackTextareaNew').value = '';
   document.getElementById('kiAnalyseBox')?.classList.add('hidden');
   document.getElementById('kategorieDropdown')?.classList.add('hidden');
+
+  // KI-Karten verstecken (werden ggf. neu angezeigt)
+  hideContactCard();
+  hidePaymentCard();
+  hideConversationCard();
+
+  // Kontakt-Extraktion (asynchron im Hintergrund)
+  extractContactFromEmail(email).then(contact => {
+    if (contact && currentEmail?.id === email.id) {
+      showContactCard(contact);
+    }
+  }).catch(err => {
+    console.warn('[CONTACT] Extraction failed:', err);
+  });
+
+  // Zahlungsdaten-Extraktion (asynchron im Hintergrund)
+  extractPaymentData(email).then(payment => {
+    if (payment && currentEmail?.id === email.id) {
+      showPaymentCard(payment);
+    }
+  }).catch(err => {
+    console.warn('[PAYMENT] Extraction failed:', err);
+  });
+
+  // Konversations-Übersicht (asynchron im Hintergrund)
+  analyzeConversation(email).then(conversationData => {
+    if (conversationData && currentEmail?.id === email.id) {
+      showConversationCard(conversationData);
+    }
+  }).catch(err => {
+    console.warn('[CONVERSATION] Analysis failed:', err);
+  });
 
   // Zeige KI-Gedanken Box wenn aktiviert (nur bei essenz/wichtig)
   showKIGedankenBox(email);

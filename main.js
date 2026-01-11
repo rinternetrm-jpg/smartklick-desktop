@@ -3985,6 +3985,178 @@ ipcMain.handle('email:analyze', async (_, emailData) => {
   }
 });
 
+// Kontakt-Extraktion aus E-Mail
+ipcMain.handle('contact:extract', async (_, emailData) => {
+  try {
+    // Versuche Server-basierte Extraktion
+    const response = await fetch('http://188.40.97.126:8080/contact-extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: emailData.from,
+        fromName: emailData.fromName,
+        subject: emailData.subject,
+        body: emailData.body,
+        html: emailData.html
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.contact) {
+        return { success: true, contact: result.contact };
+      }
+    }
+
+    // Fallback: Lokale Basis-Extraktion
+    const contact = extractContactLocally(emailData);
+    return { success: true, contact };
+
+  } catch (error) {
+    console.error('[CONTACT] Extraction error:', error);
+    // Bei Fehler: Lokale Extraktion
+    const contact = extractContactLocally(emailData);
+    return { success: true, contact };
+  }
+});
+
+// Zahlungsdaten-Extraktion aus E-Mail
+ipcMain.handle('payment:extract', async (_, emailData) => {
+  try {
+    // Versuche Server-basierte Extraktion
+    const response = await fetch('http://188.40.97.126:8080/payment-extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: emailData.from,
+        subject: emailData.subject,
+        body: emailData.body,
+        html: emailData.html
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.payment) {
+        return { success: true, payment: result.payment };
+      }
+    }
+
+    // Fallback: Lokale Extraktion erfolgt im Renderer
+    return { success: false };
+
+  } catch (error) {
+    console.error('[PAYMENT] Extraction error:', error);
+    return { success: false };
+  }
+});
+
+// Konversations-Zusammenfassung
+ipcMain.handle('conversation:summarize', async (_, data) => {
+  try {
+    // Versuche Server-basierte Zusammenfassung
+    const response = await fetch('http://188.40.97.126:8080/conversation-summarize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        emails: data.emails,
+        currentSubject: data.currentSubject
+      }),
+      timeout: 10000
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.summary) {
+        return { success: true, summary: result.summary };
+      }
+    }
+
+    // Fallback: Lokale Zusammenfassung
+    return { success: false };
+
+  } catch (error) {
+    console.error('[CONVERSATION] Summarize error:', error);
+    return { success: false };
+  }
+});
+
+// Lokale Kontakt-Extraktion (Fallback)
+// Nur echte Signatur-Daten extrahieren, keine Garbage-Daten
+function extractContactLocally(emailData) {
+  const contact = {
+    email: emailData.from,
+    name: emailData.fromName || '',
+    emailSource: 'Header'
+  };
+
+  // Versuche aus HTML/Text Signatur-Daten zu extrahieren
+  const text = emailData.body || '';
+  const html = emailData.html || '';
+  const content = text || html.replace(/<[^>]*>/g, ' ');
+
+  // Suche nach Signatur-Bereich (typischerweise am Ende der E-Mail)
+  // Signatur beginnt oft mit "Mit freundlichen Grüßen", "Best regards", "--" etc.
+  const signaturePatterns = [
+    /(?:mit freundlichen grü[ßs]en|best regards|kind regards|viele grü[ßs]e|liebe grü[ßs]e|regards|cheers|mfg)[,\s\n]*([\s\S]{0,500}?)$/i,
+    /(?:^|\n)--\s*\n([\s\S]{0,500}?)$/m,
+    /(?:^|\n)_{3,}\s*\n([\s\S]{0,500}?)$/m
+  ];
+
+  let signatureText = '';
+  for (const pattern of signaturePatterns) {
+    const match = content.match(pattern);
+    if (match && match[1]) {
+      signatureText = match[1];
+      break;
+    }
+  }
+
+  // Wenn keine Signatur gefunden, nimm die letzten 500 Zeichen
+  if (!signatureText && content.length > 100) {
+    signatureText = content.slice(-500);
+  }
+
+  // Telefonnummer suchen (nur mit Label)
+  const phoneMatch = signatureText.match(/(?:Tel\.?|Telefon|Phone|Mobil|Mobile|Fon|Fax)[:\s]*([+\d\s\-\/()]{8,20})/i);
+  if (phoneMatch) {
+    contact.phone = phoneMatch[1].trim();
+  }
+
+  // Website suchen (nur www. URLs, keine CDNs oder Tracking-URLs)
+  const websiteMatch = signatureText.match(/(?:www\.[a-zA-Z0-9][a-zA-Z0-9\-]*\.[a-zA-Z]{2,6})/i);
+  if (websiteMatch) {
+    const website = websiteMatch[0].toLowerCase();
+    // Keine CDNs, Tracking-URLs, oder Mail-Server
+    const invalidWebsites = ['static', 'cdn', 'assets', 'mail', 'smtp', 'imap', 'tracking', 'click', 'open', 'link'];
+    if (!invalidWebsites.some(inv => website.includes(inv))) {
+      contact.website = website;
+    }
+  }
+
+  // Position/Titel suchen
+  const positionPatterns = [
+    /(?:position|titel|title|rolle|role)[:\s]*([^\n]{5,50})/i,
+    /(?:^|\n)([A-Z][a-zA-ZäöüÄÖÜß\s]+(?:Manager|Director|CEO|CTO|CFO|Lead|Head|Chief|Senior|Junior|Engineer|Developer|Designer|Consultant|Berater|Leiter|Geschäftsführer|Inhaber))/m
+  ];
+  for (const pattern of positionPatterns) {
+    const match = signatureText.match(pattern);
+    if (match && match[1]) {
+      contact.position = match[1].trim();
+      break;
+    }
+  }
+
+  // Firma NICHT aus Domain extrahieren - das ist meistens Quatsch
+  // Nur wenn explizit in Signatur gefunden
+  const companyMatch = signatureText.match(/(?:firma|company|unternehmen|gmbh|ag|kg|ohg)[:\s]*([^\n]{3,50})/i);
+  if (companyMatch) {
+    contact.company = companyMatch[1].trim();
+  }
+
+  return contact;
+}
+
 // =====================================================
 // INTELLIGENTES E-MAIL-KLASSIFIZIERUNGSSYSTEM
 // Mehrstufig, selbstlernend, kostenoptimiert
