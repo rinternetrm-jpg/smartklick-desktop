@@ -1292,6 +1292,12 @@ function createEmailItem(email) {
     tags.push('<span class="email-tag auto">🤖 Auto-Antwort</span>');
   }
 
+  // Anhang-Indikator
+  if (email.hasAttachments || (email.attachments && email.attachments.length > 0)) {
+    const count = email.attachments?.length || 1;
+    tags.push(`<span class="email-tag attachment">📎 ${count}</span>`);
+  }
+
   if (tags.length > 0) {
     tagsHtml = `<div class="email-tags">${tags.join('')}</div>`;
   }
@@ -1405,8 +1411,8 @@ async function selectEmail(email) {
   if (email.attachments && email.attachments.length > 0) {
     elements.attachmentsSection.classList.remove('hidden');
     elements.attachmentsList.innerHTML = email.attachments.map(att => `
-      <div class="attachment-item" onclick="downloadAttachment('${att.id}')">
-        <span class="attachment-icon">📎</span>
+      <div class="attachment-item" onclick="downloadAttachment('${email.id}', '${att.id}', '${escapeHtml(att.filename)}')">
+        <span class="attachment-icon">${getAttachmentIcon(att.mimeType)}</span>
         <div>
           <span class="attachment-name">${escapeHtml(att.filename)}</span>
           <span class="attachment-size">${formatSize(att.size)}</span>
@@ -3460,6 +3466,18 @@ function formatSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+function getAttachmentIcon(mimeType) {
+  if (!mimeType) return '📎';
+  if (mimeType.includes('image')) return '🖼️';
+  if (mimeType.includes('pdf')) return '📄';
+  if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
+  if (mimeType.includes('zip') || mimeType.includes('archive')) return '📦';
+  if (mimeType.includes('video')) return '🎬';
+  if (mimeType.includes('audio')) return '🎵';
+  return '📎';
+}
+
 function extractName(from) {
   if (!from) return 'Unbekannt';
   const match = from.match(/^"?([^"<]+)"?\s*</);
@@ -3549,10 +3567,15 @@ ipcRenderer.on('email-command', (_, command) => {
 // Make functions globally accessible for onclick handlers
 window.syncAccount = syncAccount;
 window.removeAccount = removeAccount;
-window.downloadAttachment = async (attachmentId) => {
+window.downloadAttachment = async (messageId, attachmentId, filename) => {
   try {
-    await ipcRenderer.invoke('email:downloadAttachment', attachmentId);
-    showToast('Anhang heruntergeladen');
+    showToast('Lade Anhang herunter...', 'info');
+    const result = await ipcRenderer.invoke('email:downloadAttachment', messageId, attachmentId, filename);
+    if (result.success) {
+      showToast('Anhang gespeichert: ' + result.path);
+    } else if (result.error !== 'Abgebrochen') {
+      showToast('Fehler: ' + result.error, 'error');
+    }
   } catch (error) {
     showToast('Fehler beim Download', 'error');
   }

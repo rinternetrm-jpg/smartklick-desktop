@@ -268,6 +268,29 @@ class GmailService {
     return { success: true };
   }
 
+  // Anhang herunterladen
+  async getAttachment(messageId, attachmentId) {
+    const gmail = this.getGmail();
+
+    try {
+      const response = await gmail.users.messages.attachments.get({
+        userId: 'me',
+        messageId: messageId,
+        id: attachmentId
+      });
+
+      // Data ist Base64-kodiert
+      return {
+        success: true,
+        data: response.data.data,
+        size: response.data.size
+      };
+    } catch (error) {
+      console.error('[GMAIL] Attachment download error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Format email for display
   formatEmail(message) {
     const headers = message.payload?.headers || [];
@@ -276,25 +299,63 @@ class GmailService {
       return header?.value || '';
     };
 
-    // Get email body
-    let body = '';
-    let snippet = message.snippet || '';
+    // Rekursiv durch alle Parts gehen um Text, HTML und Anhänge zu finden
+    let textBody = '';
+    let htmlBody = '';
+    const attachments = [];
 
+    const extractParts = (part) => {
+      if (!part) return;
+
+      const mimeType = part.mimeType || '';
+      const filename = part.filename || '';
+
+      // Anhang gefunden (hat Dateiname oder ist nicht text/html/plain)
+      if (filename && filename.length > 0) {
+        attachments.push({
+          id: part.body?.attachmentId || part.partId || '',
+          partId: part.partId || '',
+          filename: filename,
+          mimeType: mimeType,
+          size: part.body?.size || 0
+        });
+        return;
+      }
+
+      // Text/Plain
+      if (mimeType === 'text/plain' && part.body?.data) {
+        textBody = Buffer.from(part.body.data, 'base64').toString('utf-8');
+      }
+
+      // Text/HTML
+      if (mimeType === 'text/html' && part.body?.data) {
+        htmlBody = Buffer.from(part.body.data, 'base64').toString('utf-8');
+      }
+
+      // Rekursiv durch verschachtelte Parts (multipart/*)
+      if (part.parts && Array.isArray(part.parts)) {
+        for (const subPart of part.parts) {
+          extractParts(subPart);
+        }
+      }
+    };
+
+    // Haupt-Payload verarbeiten
     if (message.payload?.body?.data) {
-      body = Buffer.from(message.payload.body.data, 'base64').toString('utf-8');
-    } else if (message.payload?.parts) {
-      // Multipart email - find text/plain or text/html
-      const textPart = message.payload.parts.find(p => p.mimeType === 'text/plain');
-      const htmlPart = message.payload.parts.find(p => p.mimeType === 'text/html');
-
-      if (textPart?.body?.data) {
-        body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
-      } else if (htmlPart?.body?.data) {
-        body = Buffer.from(htmlPart.body.data, 'base64').toString('utf-8');
-        // Strip HTML tags for speech
-        body = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      // Einfache E-Mail ohne Parts
+      const content = Buffer.from(message.payload.body.data, 'base64').toString('utf-8');
+      if (message.payload.mimeType === 'text/html') {
+        htmlBody = content;
+      } else {
+        textBody = content;
       }
     }
+
+    // Parts durchsuchen
+    extractParts(message.payload);
+
+    // Body für Text-Anzeige (ohne HTML-Tags)
+    const body = textBody || (htmlBody ? htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : '');
 
     const date = new Date(parseInt(message.internalDate));
     const labels = message.labelIds || [];
@@ -307,14 +368,18 @@ class GmailService {
       fromEmail: this.extractEmail(getHeader('From')),
       to: getHeader('To'),
       subject: getHeader('Subject') || 'Kein Betreff',
-      snippet: snippet,
-      body: body.substring(0, 2000), // Limit body length
+      snippet: message.snippet || '',
+      body: body.substring(0, 2000),
+      html: htmlBody, // HTML-Version für Anzeige
       date: parseInt(message.internalDate),
       dateFormatted: this.formatDate(date),
       isUnread: labels.includes('UNREAD'),
       isImportant: labels.includes('IMPORTANT'),
       isStarred: labels.includes('STARRED'),
-      labels: labels
+      hasAttachments: attachments.length > 0,
+      attachments: attachments,
+      labels: labels,
+      provider: 'gmail'
     };
   }
 

@@ -3879,11 +3879,35 @@ ipcMain.handle('email:archiveNewsletters', async () => {
 });
 
 // Anhang herunterladen
-ipcMain.handle('email:downloadAttachment', async (_, attachmentId) => {
+ipcMain.handle('email:downloadAttachment', async (_, messageId, attachmentId, filename) => {
   try {
-    // TODO: Implement attachment download
-    return { success: false, error: 'Nicht implementiert' };
+    const result = await gmailService.getAttachment(messageId, attachmentId);
+
+    if (!result.success) {
+      return result;
+    }
+
+    // Base64 zu Buffer konvertieren
+    const buffer = Buffer.from(result.data, 'base64');
+
+    // Dialog zum Speichern anzeigen
+    const { dialog } = require('electron');
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      defaultPath: filename || 'anhang',
+      filters: [{ name: 'Alle Dateien', extensions: ['*'] }]
+    });
+
+    if (canceled || !filePath) {
+      return { success: false, error: 'Abgebrochen' };
+    }
+
+    // Datei speichern
+    const fs = require('fs');
+    fs.writeFileSync(filePath, buffer);
+
+    return { success: true, path: filePath };
   } catch (error) {
+    console.error('[EMAIL] Attachment download error:', error);
     return { success: false, error: error.message };
   }
 });

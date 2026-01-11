@@ -670,6 +670,7 @@ body {
 .email-tag.reply { background: rgba(249, 115, 22, 0.2); color: #f59e0b; }
 .email-tag.info { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
 .email-tag.auto { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+.email-tag.attachment { background: rgba(20, 184, 166, 0.2); color: #14b8a6; }
 
 /* Email Detail */
 .email-detail {
