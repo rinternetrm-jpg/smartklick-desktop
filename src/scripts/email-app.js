@@ -2643,35 +2643,66 @@ function showConversationCard(data) {
 
   // Timeline Count
   if (timelineCount) {
-    timelineCount.textContent = `${data.totalEmails || 0} E-Mails`;
+    timelineCount.textContent = data.totalEmails || 0;
   }
 
-  // Timeline - Mit Date-Separators wie im Mockup (kein Scrolling)
+  // Timeline - Mit Date-Separators und expandierbaren E-Mails (Mockup Style)
   if (convTimelineList && data.emails && data.emails.length > 0) {
-    // Gruppiere E-Mails nach Datum
-    const groups = groupEmailsByDate(data.emails);
-    let html = '';
+    renderConversationTimeline(convTimelineList, data.emails, false);
 
-    groups.forEach(group => {
-      // Date Separator
+    // View-Toggle Event-Handler
+    const viewCompact = document.getElementById('viewCompact');
+    const viewDetails = document.getElementById('viewDetails');
+
+    if (viewCompact && viewDetails) {
+      viewCompact.onclick = () => {
+        viewCompact.classList.add('active');
+        viewDetails.classList.remove('active');
+        renderConversationTimeline(convTimelineList, data.emails, false);
+      };
+      viewDetails.onclick = () => {
+        viewDetails.classList.add('active');
+        viewCompact.classList.remove('active');
+        renderConversationTimeline(convTimelineList, data.emails, true);
+      };
+    }
+  } else if (convTimelineList) {
+    convTimelineList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">Keine E-Mails in dieser Konversation</div>';
+  }
+
+  // Karte anzeigen
+  conversationCard.classList.remove('hidden');
+}
+
+/**
+ * Rendert die Konversations-Timeline mit expandierbaren E-Mails
+ */
+function renderConversationTimeline(container, emailList, showAllDetails) {
+  const groups = groupEmailsByDate(emailList);
+  let html = '';
+
+  groups.forEach(group => {
+    // Date Separator
+    html += `
+      <div class="conv-date-separator">
+        <div class="conv-date-line"></div>
+        <span class="conv-date-text">${group.label}</span>
+        <div class="conv-date-line"></div>
+      </div>
+    `;
+
+    // Alle E-Mails in dieser Gruppe
+    group.emails.forEach((email, idx) => {
+      const isSent = email.isSent;
+      const isCurrent = currentEmail && email.id === currentEmail.id;
+      const date = formatDateShort(new Date(email.date));
+      const preview = (email.snippet || email.body || '').substring(0, 60).replace(/\n/g, ' ');
+      const bodyText = (email.body || email.snippet || '').substring(0, 500);
+      const isExpanded = showAllDetails || (idx === 0 && isCurrent);
+
       html += `
-        <div class="conv-date-separator">
-          <div class="conv-date-line"></div>
-          <span class="conv-date-text">${group.label}</span>
-          <div class="conv-date-line"></div>
-        </div>
-      `;
-
-      // E-Mails in dieser Gruppe (max 2 pro Gruppe, Rest zusammenfassen)
-      const emailsToShow = group.emails.slice(0, 2);
-      emailsToShow.forEach(email => {
-        const isSent = email.isSent;
-        const isCurrent = currentEmail && email.id === currentEmail.id;
-        const date = formatDateShort(new Date(email.date));
-        const preview = (email.snippet || email.body || '').substring(0, 50).replace(/\n/g, ' ');
-
-        html += `
-          <div class="conv-timeline-item${isCurrent ? ' current' : ''}" data-email-id="${email.id}">
+        <div class="conv-timeline-item${isCurrent ? ' current' : ''}${isExpanded ? ' expanded' : ''}" data-email-id="${email.id}">
+          <div class="conv-timeline-item-header">
             <div class="conv-timeline-direction ${isSent ? 'sent' : 'received'}">
               ${isSent ? '📤' : '📥'}
             </div>
@@ -2680,29 +2711,36 @@ function showConversationCard(data) {
               <div class="conv-timeline-preview">${escapeHtml(preview)}...</div>
             </div>
             <div class="conv-timeline-date">${date}</div>
+            <div class="conv-timeline-expand">▼</div>
           </div>
-        `;
-      });
+          <div class="conv-timeline-body">
+            <div class="conv-timeline-body-text">${escapeHtml(bodyText)}${bodyText.length >= 500 ? '...' : ''}</div>
+          </div>
+        </div>
+      `;
     });
+  });
 
-    convTimelineList.innerHTML = html;
+  container.innerHTML = html;
 
-    // Klick-Handler für Timeline-Items
-    convTimelineList.querySelectorAll('.conv-timeline-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const emailId = item.dataset.emailId;
-        const email = emails.find(e => e.id === emailId);
-        if (email) {
-          selectEmail(email);
-        }
-      });
+  // Klick-Handler für Timeline-Item-Headers (expand/collapse)
+  container.querySelectorAll('.conv-timeline-item-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      const item = header.closest('.conv-timeline-item');
+      item.classList.toggle('expanded');
     });
-  } else if (convTimelineList) {
-    convTimelineList.innerHTML = '<div class="conv-timeline-item" style="justify-content: center; color: var(--text-muted);">Keine E-Mails</div>';
-  }
+  });
 
-  // Karte anzeigen
-  conversationCard.classList.remove('hidden');
+  // Doppelklick öffnet die E-Mail
+  container.querySelectorAll('.conv-timeline-item').forEach(item => {
+    item.addEventListener('dblclick', () => {
+      const emailId = item.dataset.emailId;
+      const email = emails.find(e => e.id === emailId);
+      if (email) {
+        selectEmail(email);
+      }
+    });
+  });
 }
 
 /**

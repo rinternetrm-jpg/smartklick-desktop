@@ -407,15 +407,21 @@
                 </div>
               </div>
 
-              <!-- E-Mail Timeline - Mockup Style -->
+              <!-- E-Mail Timeline - Mockup Style mit View-Toggle -->
               <div class="conversation-timeline" id="conversationTimeline">
                 <div class="conv-timeline-header">
-                  <span class="timeline-icon">📧</span>
-                  <span class="timeline-title">E-Mail Verlauf</span>
-                  <span class="conversation-count" id="timelineCount">0 E-Mails</span>
+                  <div class="timeline-left">
+                    <span class="timeline-icon">📧</span>
+                    <span class="timeline-title">E-Mail Verlauf</span>
+                    <span class="email-count-badge" id="timelineCount">0</span>
+                  </div>
+                  <div class="view-toggle">
+                    <button class="view-btn active" id="viewCompact">Kompakt</button>
+                    <button class="view-btn" id="viewDetails">Alle Details</button>
+                  </div>
                 </div>
                 <div class="conv-timeline-list" id="convTimelineList">
-                  <!-- Dynamisch gefüllt -->
+                  <!-- Dynamisch gefüllt mit expandierbaren E-Mails -->
                 </div>
               </div>
 
