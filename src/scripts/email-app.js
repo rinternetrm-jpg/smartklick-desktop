@@ -255,7 +255,7 @@ function setupEventListeners() {
   }
 
   // Header Actions
-  elements.refreshBtn.addEventListener('click', loadEmails);
+  elements.refreshBtn.addEventListener('click', () => loadEmails(true)); // Force reload
   elements.composeBtn.addEventListener('click', composeNewEmail);
 
   // Email Actions
@@ -563,8 +563,8 @@ function hideLoadingProgress() {
   }
 }
 
-async function loadEmails() {
-  console.log('[EMAIL] loadEmails() gestartet, accounts:', accounts.length, 'limit:', emailLimit, 'selectedAccount:', selectedAccountId);
+async function loadEmails(forceReload = false) {
+  console.log('[EMAIL] loadEmails() gestartet, accounts:', accounts.length, 'limit:', emailLimit, 'selectedAccount:', selectedAccountId, 'forceReload:', forceReload);
   showLoading();
 
   try {
@@ -601,23 +601,33 @@ async function loadEmails() {
       return;
     }
 
+    // Inkrementelles Laden: Wenn wir bereits E-Mails haben und das Limit erhöht wurde
+    const existingIds = (!forceReload && emails.length > 0) ? emails.map(e => e.id) : [];
+    const isIncremental = existingIds.length > 0;
+
+    if (isIncremental) {
+      console.log('[EMAIL] Inkrementelles Laden: ${existingIds.length} E-Mails bereits vorhanden, lade bis ${emailLimit}');
+    }
+
     // Standard-Loading (mit Limit)
     console.log('[EMAIL] Standard-Loading mit Limit:', emailLimit);
     let result;
     if (selectedAccountId === 'all') {
       console.log('[EMAIL] Rufe getUnifiedInbox auf...');
-      result = await ipcRenderer.invoke('email:getUnifiedInbox', emailLimit);
+      result = await ipcRenderer.invoke('email:getUnifiedInbox', emailLimit, existingIds);
     } else {
       console.log('[EMAIL] Rufe getEmailsFromAccount auf für:', selectedAccountId);
-      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, emailLimit);
+      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, emailLimit, existingIds);
     }
 
-    console.log('[EMAIL] Ergebnis:', result?.success, 'E-Mails:', result?.emails?.length || 0);
+    console.log('[EMAIL] Ergebnis:', result?.success, 'E-Mails:', result?.emails?.length || 0, 'isIncremental:', result?.isIncremental);
 
     // Kein Fallback mehr - wenn keine Konten, keine E-Mails
     if (!result || !result.success) {
       console.log('[EMAIL] Keine E-Mails:', result?.error || 'Kein Ergebnis');
-      emails = [];
+      if (!isIncremental) {
+        emails = [];
+      }
       updateStats();
       updateCategoryCounts();
       renderEmailList();
@@ -626,11 +636,22 @@ async function loadEmails() {
     }
 
     if (result.success) {
-      emails = result.emails || [];
-      console.log('[EMAIL] E-Mails geladen:', emails.length);
+      const newEmails = result.emails || [];
 
-      // Automatische Klassifizierung wenn aktiviert
-      if (autoClassifyEnabled && emails.length > 0) {
+      // Bei inkrementellem Laden: Neue E-Mails anhängen
+      if (result.isIncremental && isIncremental) {
+        console.log('[EMAIL] Inkrementell: ${newEmails.length} neue E-Mails hinzugefügt');
+        emails = [...emails, ...newEmails];
+        // Nach Datum sortieren (neueste zuerst)
+        emails.sort((a, b) => b.date - a.date);
+      } else {
+        emails = newEmails;
+      }
+
+      console.log('[EMAIL] E-Mails geladen: ${emails.length} (${newEmails.length} neu)');
+
+      // Automatische Klassifizierung nur für neue E-Mails
+      if (autoClassifyEnabled && newEmails.length > 0) {
         await classifyAllEmails();
       }
 
@@ -640,10 +661,12 @@ async function loadEmails() {
     }
   } catch (error) {
     console.error('[EMAIL] Error loading emails:', error);
-    emails = [];
-    updateStats();
-    updateCategoryCounts();
-    renderEmailList();
+    if (emails.length === 0) {
+      emails = [];
+      updateStats();
+      updateCategoryCounts();
+      renderEmailList();
+    }
   } finally {
     hideLoading();
   }

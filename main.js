@@ -4941,17 +4941,24 @@ ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 0
   }
 });
 
-ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 0) => {
-  console.log('[IPC] email:getUnifiedInbox aufgerufen, maxResults:', maxResults);
+ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 0, existingIds = []) => {
+  console.log('[IPC] email:getUnifiedInbox aufgerufen, maxResults:', maxResults, 'existingIds:', existingIds.length);
   if (!emailProviderManager) {
     console.log('[IPC] Provider manager nicht initialisiert');
     return { success: false, error: 'Provider manager not initialized' };
   }
   try {
     console.log('[IPC] Rufe emailProviderManager.getEmails auf...');
-    const emails = await emailProviderManager.getEmails({ unified: true, maxResults });
-    console.log('[IPC] E-Mails erhalten:', emails?.length || 0);
-    return { success: true, emails };
+    const result = await emailProviderManager.getEmails({ unified: true, maxResults, existingIds });
+
+    // Inkrementelles Ergebnis verarbeiten
+    if (result && result.isIncremental) {
+      console.log('[IPC] Inkrementell: ${result.emails.length} neue E-Mails, ${result.skipped} übersprungen');
+      return { success: true, emails: result.emails, isIncremental: true, skipped: result.skipped };
+    }
+
+    console.log('[IPC] E-Mails erhalten:', result?.length || 0);
+    return { success: true, emails: result };
   } catch (error) {
     console.error('[IPC] Fehler bei getUnifiedInbox:', error);
     return { success: false, error: error.message };

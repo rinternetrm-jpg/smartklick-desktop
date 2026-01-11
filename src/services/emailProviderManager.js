@@ -247,9 +247,10 @@ class EmailProviderManager {
 
   /**
    * E-Mails von allen oder einem bestimmten Konto abrufen
+   * existingIds: Array von E-Mail-IDs die bereits geladen sind (für inkrementelles Laden)
    */
   async getEmails(options = {}) {
-    const { accountId, accountName, unified = false, ...emailOptions } = options;
+    const { accountId, accountName, unified = false, existingIds = [], ...emailOptions } = options;
     // 0 bedeutet "alle E-Mails", daher nicht mit || ersetzen
     const maxResults = emailOptions.maxResults !== undefined ? emailOptions.maxResults : 100;
 
@@ -257,8 +258,8 @@ class EmailProviderManager {
     if (accountId) {
       const provider = this.providers.get(accountId);
       if (!provider) throw new Error('Account not found');
-      const emails = await provider.getRecentEmails(maxResults);
-      return this.addAccountInfo(emails, accountId);
+      const result = await provider.getRecentEmails(maxResults, existingIds);
+      return this.handleIncrementalResult(result, accountId);
     }
 
     // Konto nach Name?
@@ -267,13 +268,13 @@ class EmailProviderManager {
       if (!account) throw new Error(`Account "${accountName}" not found`);
       const provider = this.providers.get(account.id);
       if (!provider) throw new Error('Provider not initialized');
-      const emails = await provider.getRecentEmails(maxResults);
-      return this.addAccountInfo(emails, account.id);
+      const result = await provider.getRecentEmails(maxResults, existingIds);
+      return this.handleIncrementalResult(result, account.id);
     }
 
     // Unified Inbox (alle Konten)?
     if (unified) {
-      return await this.getUnifiedInbox(emailOptions);
+      return await this.getUnifiedInbox({ ...emailOptions, existingIds });
     }
 
     // Standard: Default Account
@@ -283,21 +284,45 @@ class EmailProviderManager {
     const provider = this.providers.get(defaultAccount.id);
     if (!provider) throw new Error('Default provider not initialized');
 
-    const emails = await provider.getRecentEmails(maxResults);
-    return this.addAccountInfo(emails, defaultAccount.id);
+    const result = await provider.getRecentEmails(maxResults, existingIds);
+    return this.handleIncrementalResult(result, defaultAccount.id);
+  }
+
+  // Hilfsfunktion für inkrementelle Ergebnisse
+  handleIncrementalResult(result, accountId) {
+    // Wenn inkrementelles Laden, Struktur beibehalten
+    if (result && result.isIncremental) {
+      return {
+        emails: this.addAccountInfo(result.emails, accountId),
+        skipped: result.skipped,
+        isIncremental: true
+      };
+    }
+    // Normales Laden (Array)
+    return this.addAccountInfo(result, accountId);
   }
 
   async getUnifiedInbox(options = {}) {
     // 0 bedeutet "alle E-Mails"
     const maxResults = options.maxResults !== undefined ? options.maxResults : 100;
+    const existingIds = options.existingIds || [];
     const allEmails = [];
+    let totalSkipped = 0;
+    let isIncremental = existingIds.length > 0;
 
     for (const [accountId, provider] of this.providers) {
       try {
         // Bei 0 (alle) pro Provider viele abrufen, sonst aufteilen
         const perProvider = maxResults === 0 ? 500 : Math.ceil(maxResults / this.providers.size) + 5;
-        const emails = await provider.getRecentEmails(perProvider);
-        allEmails.push(...this.addAccountInfo(emails, accountId));
+        const result = await provider.getRecentEmails(perProvider, existingIds);
+
+        // Inkrementelles Ergebnis verarbeiten
+        if (result && result.isIncremental) {
+          allEmails.push(...this.addAccountInfo(result.emails, accountId));
+          totalSkipped += result.skipped;
+        } else {
+          allEmails.push(...this.addAccountInfo(result, accountId));
+        }
       } catch (error) {
         console.error(`[EMAIL] Error fetching from ${accountId}:`, error);
       }
@@ -305,6 +330,15 @@ class EmailProviderManager {
 
     // Nach Datum sortieren
     allEmails.sort((a, b) => b.date - a.date);
+
+    // Bei inkrementellem Laden: Metadaten zurückgeben
+    if (isIncremental) {
+      return {
+        emails: maxResults === 0 ? allEmails : allEmails.slice(0, maxResults),
+        skipped: totalSkipped,
+        isIncremental: true
+      };
+    }
 
     // Bei 0 alle zurückgeben, sonst limitieren
     return maxResults === 0 ? allEmails : allEmails.slice(0, maxResults);

@@ -60,13 +60,15 @@ class GmailService {
 
   // Get recent emails (inbox)
   // maxResults: 0 = alle, sonst die gewünschte Anzahl (10, 50, 100, 250, 500, etc.)
-  async getRecentEmails(maxResults = 100) {
+  // existingIds: Array von IDs die bereits geladen sind (für inkrementelles Laden)
+  async getRecentEmails(maxResults = 100, existingIds = []) {
     const gmail = this.getGmail();
 
     // 0 bedeutet "alle E-Mails"
     const limit = maxResults === 0 ? Infinity : maxResults;
+    const existingIdSet = new Set(existingIds);
 
-    console.log(`[GMAIL] Lade ${maxResults === 0 ? 'ALLE' : maxResults} E-Mails...`);
+    console.log(`[GMAIL] Lade ${maxResults === 0 ? 'ALLE' : maxResults} E-Mails... (${existingIds.length} bereits vorhanden)`);
 
     const allMessages = [];
     let pageToken = null;
@@ -100,24 +102,38 @@ class GmailService {
     // Auf gewünschte Anzahl begrenzen
     const messagesToLoad = maxResults === 0 ? allMessages : allMessages.slice(0, maxResults);
 
-    console.log(`[GMAIL] ${messagesToLoad.length} E-Mail-IDs, lade Details...`);
+    // Nur neue E-Mails laden (die wir noch nicht haben)
+    const newMessages = messagesToLoad.filter(msg => !existingIdSet.has(msg.id));
 
-    // E-Mail-Details laden
+    console.log(`[GMAIL] ${messagesToLoad.length} E-Mail-IDs, davon ${newMessages.length} neu zu laden`);
+
+    if (newMessages.length === 0) {
+      console.log(`[GMAIL] Keine neuen E-Mails zu laden`);
+      return { emails: [], skipped: existingIds.length, isIncremental: true };
+    }
+
+    // E-Mail-Details laden (nur für neue)
     const emails = [];
-    for (let i = 0; i < messagesToLoad.length; i++) {
-      const msg = messagesToLoad[i];
+    for (let i = 0; i < newMessages.length; i++) {
+      const msg = newMessages[i];
       const email = await this.getEmail(msg.id);
       if (email) {
         emails.push(email);
       }
 
       // Progress alle 50 E-Mails loggen
-      if ((i + 1) % 50 === 0 || i + 1 === messagesToLoad.length) {
-        console.log(`[GMAIL] Details geladen: ${i + 1}/${messagesToLoad.length}`);
+      if ((i + 1) % 50 === 0 || i + 1 === newMessages.length) {
+        console.log(`[GMAIL] Details geladen: ${i + 1}/${newMessages.length}`);
       }
     }
 
-    console.log(`[GMAIL] Fertig: ${emails.length} E-Mails geladen`);
+    console.log(`[GMAIL] Fertig: ${emails.length} neue E-Mails geladen`);
+
+    // Bei inkrementellem Laden: Rückgabe mit Metadaten
+    if (existingIds.length > 0) {
+      return { emails, skipped: existingIds.length, isIncremental: true };
+    }
+
     return emails;
   }
 
