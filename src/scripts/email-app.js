@@ -2583,13 +2583,13 @@ function showConversationCard(data) {
     timelineCount.textContent = `${data.totalEmails || 0} E-Mails`;
   }
 
-  // Timeline - Mockup Style
+  // Timeline - Alle E-Mails mit Preview (wie Mockup)
   if (convTimelineList && data.emails && data.emails.length > 0) {
-    convTimelineList.innerHTML = data.emails.slice(0, 5).map(email => {
+    convTimelineList.innerHTML = data.emails.map(email => {
       const isSent = email.isSent;
       const isCurrent = currentEmail && email.id === currentEmail.id;
       const date = formatDateShort(new Date(email.date));
-      const preview = (email.snippet || email.body || '').substring(0, 50);
+      const preview = (email.snippet || email.body || '').substring(0, 60).replace(/\n/g, ' ');
 
       return `
         <div class="conv-timeline-item${isCurrent ? ' current' : ''}" data-email-id="${email.id}">

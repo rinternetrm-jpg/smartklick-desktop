@@ -1328,8 +1328,6 @@ body {
   border: 1px solid var(--accent);
   border-radius: 12px;
   overflow: hidden;
-  max-height: 500px;
-  overflow-y: auto;
   box-shadow: 0 2px 8px rgba(20, 184, 166, 0.1);
 }
 
@@ -1602,12 +1600,26 @@ body {
   border-radius: 6px;
 }
 
-/* E-Mail Timeline - Mockup Style */
+/* E-Mail Timeline - Mockup Style (scrollbar) */
 .conversation-timeline {
   padding: 16px;
   border-bottom: 1px solid var(--border-color);
-  max-height: 180px;
+  max-height: 300px;
   overflow-y: auto;
+}
+
+.conversation-timeline::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversation-timeline::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+}
+
+.conversation-timeline::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 3px;
 }
 
 .conv-timeline-header {
