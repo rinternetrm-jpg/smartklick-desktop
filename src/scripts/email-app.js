@@ -3480,6 +3480,14 @@ function updateStats() {
   // Update header subtitle
   const unreadCount = emails.filter(e => e.isUnread).length;
   elements.headerSubtitle.textContent = `${emails.length} E-Mails, ${unreadCount} ungelesen`;
+
+  // Update "Alle" option im Pagination-Dropdown mit aktueller Anzahl
+  if (elements.paginationSelect) {
+    const allOption = elements.paginationSelect.querySelector('option[value="all"]');
+    if (allOption) {
+      allOption.textContent = `Alle ${emails.length.toLocaleString()}`;
+    }
+  }
 }
 
 function updateCategoryCounts() {
