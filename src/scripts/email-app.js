@@ -4046,12 +4046,18 @@ async function connectImap() {
     const result = await ipcRenderer.invoke('imap:configure', settings);
 
     if (result.success) {
-      selectedAccountId = 'imap';
       showToast('IMAP-Konto verbunden!');
       closeAddAccountModal();
+
       // Wichtig: Konten neu laden damit das neue Konto erscheint
       await loadAccounts();
-      await loadEmails();
+
+      // Account ID bestimmen
+      const accountId = `imap-${settings.user}`;
+      selectedAccountId = accountId;
+
+      // Sync-Modal für IMAP anzeigen
+      showSyncModalImap(accountId, settings.user);
     } else {
       showToast('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'), 'error');
       elements.accountLoadingState.classList.add('hidden');
@@ -4062,6 +4068,100 @@ async function connectImap() {
     showToast('Fehler: ' + error.message, 'error');
     elements.accountLoadingState.classList.add('hidden');
     elements.imapSetup.classList.remove('hidden');
+  }
+}
+
+/**
+ * Zeigt das Sync-Modal für IMAP-Konten
+ */
+async function showSyncModalImap(accountId, accountEmail) {
+  // Verhindere doppelten Sync
+  if (isSyncing) {
+    console.log('[SYNC] Sync läuft bereits, überspringe');
+    return;
+  }
+
+  console.log('[SYNC-IMAP] Starte Sync für Account:', accountId, accountEmail);
+
+  // Reset state
+  isSyncing = true;
+  syncCancelled = false;
+  syncAccountId = accountId;
+  syncStartTime = Date.now();
+
+  // E-Mail-Limit aus Einstellungen
+  const syncLimit = emailLimit > 0 ? emailLimit : 1000;
+  syncTotalEmails = syncLimit;
+  syncLoadedEmails = 0;
+
+  // UI zurücksetzen
+  elements.syncAccountName.textContent = accountEmail || 'IMAP-Konto';
+  elements.syncProgressFill.style.width = '0%';
+  elements.syncLoadedCount.textContent = '0';
+  elements.syncTotalCount.textContent = syncLimit.toLocaleString();
+  elements.syncTimeText.textContent = 'Lade E-Mails...';
+  elements.syncIndexing.classList.add('hidden');
+  elements.syncFinishBtn.disabled = true;
+
+  // Status
+  updateSyncStatus('📥', `Lade ${syncLimit.toLocaleString()} E-Mails...`);
+
+  // Modal anzeigen
+  elements.syncModal.style.display = 'flex';
+
+  try {
+    // IMAP lädt alle E-Mails auf einmal
+    const result = await ipcRenderer.invoke('imap:getEmails', syncLimit);
+
+    if (syncCancelled) {
+      closeSyncModal();
+      return;
+    }
+
+    if (result.success) {
+      const loadedEmails = result.emails || [];
+      syncLoadedEmails = loadedEmails.length;
+
+      // UI aktualisieren
+      elements.syncLoadedCount.textContent = syncLoadedEmails.toLocaleString();
+      elements.syncProgressFill.style.width = '100%';
+
+      // E-Mails verarbeiten
+      emails = loadedEmails.map(email => ({
+        id: email.uid.toString(),
+        uid: email.uid,
+        accountId: email.accountId || accountId,
+        folder: email.folder || 'INBOX',
+        from: email.from,
+        fromName: extractName(email.from),
+        subject: email.subject,
+        date: email.date ? new Date(email.date).getTime() : Date.now(),
+        dateFormatted: formatDate(email.date ? new Date(email.date).getTime() : Date.now()),
+        snippet: '',
+        body: '',
+        isUnread: !email.isRead,
+        isStarred: email.isStarred,
+        provider: 'imap'
+      }));
+
+      // In DB speichern
+      if (emails.length > 0) {
+        console.log(`[SYNC-IMAP] Speichere ${emails.length} E-Mails in DB...`);
+        await saveEmailsToDatabase(emails, accountId);
+      }
+
+      // Fertig
+      completeSyncLoading();
+    } else {
+      updateSyncStatus('❌', 'Fehler: ' + (result.error || 'Laden fehlgeschlagen'));
+      elements.syncFinishBtn.disabled = false;
+      elements.syncFinishBtn.textContent = 'Schließen';
+    }
+  } catch (error) {
+    console.error('[SYNC-IMAP] Fehler:', error);
+    updateSyncStatus('❌', 'Fehler: ' + error.message);
+    elements.syncFinishBtn.disabled = false;
+    elements.syncFinishBtn.textContent = 'Schließen';
   }
 }
 
