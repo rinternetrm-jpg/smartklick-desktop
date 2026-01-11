@@ -59,47 +59,28 @@ class GmailService {
   }
 
   // Get recent emails (inbox)
-  async getRecentEmails(maxResults = 10) {
+  // maxResults: 0 = alle, sonst die gewünschte Anzahl (10, 50, 100, 250, 500, etc.)
+  async getRecentEmails(maxResults = 100) {
     const gmail = this.getGmail();
 
-    // 0 bedeutet "alle E-Mails" - mit Pagination
-    if (maxResults === 0) {
-      return await this.getAllEmails();
-    }
+    // 0 bedeutet "alle E-Mails"
+    const limit = maxResults === 0 ? Infinity : maxResults;
 
-    const response = await gmail.users.messages.list({
-      userId: 'me',
-      labelIds: ['INBOX'],
-      maxResults: maxResults
-    });
+    console.log(`[GMAIL] Lade ${maxResults === 0 ? 'ALLE' : maxResults} E-Mails...`);
 
-    const messages = response.data.messages || [];
-    const emails = [];
-
-    for (const msg of messages) {
-      const email = await this.getEmail(msg.id);
-      if (email) {
-        emails.push(email);
-      }
-    }
-
-    return emails;
-  }
-
-  // Alle E-Mails mit Pagination abrufen
-  async getAllEmails() {
-    const gmail = this.getGmail();
     const allMessages = [];
     let pageToken = null;
     let pageCount = 0;
 
-    console.log('[GMAIL] Starte Abruf aller E-Mails...');
-
+    // Pagination: Solange laden bis genug E-Mails oder keine mehr
     do {
+      // Pro Request maximal 500 (Gmail API Limit)
+      const perPage = Math.min(500, limit - allMessages.length);
+
       const response = await gmail.users.messages.list({
         userId: 'me',
         labelIds: ['INBOX'],
-        maxResults: 500, // Maximum pro Request
+        maxResults: perPage,
         pageToken: pageToken
       });
 
@@ -109,26 +90,34 @@ class GmailService {
       pageCount++;
 
       console.log(`[GMAIL] Seite ${pageCount}: ${messages.length} E-Mails (Gesamt: ${allMessages.length})`);
-    } while (pageToken);
 
-    console.log(`[GMAIL] ${allMessages.length} E-Mail-IDs geladen, lade Details...`);
+      // Aufhören wenn genug E-Mails oder keine weiteren Seiten
+      if (allMessages.length >= limit || !pageToken) {
+        break;
+      }
+    } while (true);
 
-    // Jetzt alle E-Mail-Details laden
+    // Auf gewünschte Anzahl begrenzen
+    const messagesToLoad = maxResults === 0 ? allMessages : allMessages.slice(0, maxResults);
+
+    console.log(`[GMAIL] ${messagesToLoad.length} E-Mail-IDs, lade Details...`);
+
+    // E-Mail-Details laden
     const emails = [];
-    for (let i = 0; i < allMessages.length; i++) {
-      const msg = allMessages[i];
+    for (let i = 0; i < messagesToLoad.length; i++) {
+      const msg = messagesToLoad[i];
       const email = await this.getEmail(msg.id);
       if (email) {
         emails.push(email);
       }
 
       // Progress alle 50 E-Mails loggen
-      if ((i + 1) % 50 === 0) {
-        console.log(`[GMAIL] Details geladen: ${i + 1}/${allMessages.length}`);
+      if ((i + 1) % 50 === 0 || i + 1 === messagesToLoad.length) {
+        console.log(`[GMAIL] Details geladen: ${i + 1}/${messagesToLoad.length}`);
       }
     }
 
-    console.log(`[GMAIL] Fertig: ${emails.length} E-Mails vollständig geladen`);
+    console.log(`[GMAIL] Fertig: ${emails.length} E-Mails geladen`);
     return emails;
   }
 

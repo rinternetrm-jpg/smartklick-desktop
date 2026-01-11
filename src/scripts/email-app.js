@@ -13,6 +13,7 @@ let accounts = [];
 let selectedAccountId = 'all';
 let autoReplyEnabled = false;
 let autoClassifyEnabled = true;
+let emailLimit = parseInt(localStorage.getItem('emailLimit')) || 100; // Standard: 100
 let classifierStats = null;
 let isClassifying = false;  // Flag um doppelte Klassifizierung zu verhindern
 let stopAnalysisRequested = false;  // Flag um Analyse zu stoppen
@@ -147,6 +148,7 @@ function initializeElements() {
     accountCardsContainer: document.getElementById('accountCardsContainer'),
     addAccountBtn: document.getElementById('addAccountBtn'),
     autoClassifyToggle: document.getElementById('autoClassifyToggle'),
+    emailLimitSelect: document.getElementById('emailLimitSelect'),
     autoReplySettingToggle: document.getElementById('autoReplySettingToggle'),
 
     // Add Account Modal
@@ -297,6 +299,18 @@ function setupEventListeners() {
     autoClassifyEnabled = !autoClassifyEnabled;
     elements.autoClassifyToggle.classList.toggle('active', autoClassifyEnabled);
   });
+
+  // Email Limit Select
+  if (elements.emailLimitSelect) {
+    elements.emailLimitSelect.value = emailLimit.toString();
+    elements.emailLimitSelect.addEventListener('change', (e) => {
+      emailLimit = parseInt(e.target.value);
+      localStorage.setItem('emailLimit', emailLimit.toString());
+      console.log('[SETTINGS] E-Mail Limit geändert:', emailLimit === 0 ? 'Alle' : emailLimit);
+      // Neu laden mit neuem Limit
+      loadEmails();
+    });
+  }
 
   elements.autoReplySettingToggle.addEventListener('click', () => {
     autoReplyEnabled = !autoReplyEnabled;
@@ -495,11 +509,11 @@ async function loadEmails() {
     }
 
     if (selectedAccountId === 'all') {
-      result = await ipcRenderer.invoke('email:getUnifiedInbox', 0);
+      result = await ipcRenderer.invoke('email:getUnifiedInbox', emailLimit);
     } else if (selectedAccountId === 'imap' || selectedAccountId?.startsWith('imap-')) {
       return loadImapEmails();
     } else {
-      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, 0);
+      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, emailLimit);
     }
 
     // Kein Fallback mehr - wenn keine Konten, keine E-Mails
@@ -1017,7 +1031,7 @@ async function animateSorting(classifications) {
 
 async function loadImapEmails() {
   try {
-    const result = await ipcRenderer.invoke('imap:getEmails', 0);
+    const result = await ipcRenderer.invoke('imap:getEmails', emailLimit);
 
     if (result.success) {
       emails = (result.emails || []).map(email => ({
