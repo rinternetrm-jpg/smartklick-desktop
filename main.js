@@ -4344,6 +4344,99 @@ ipcMain.handle('email:getEmailCount', async (_, accountId) => {
   }
 });
 
+// Schnelle Gesamtanzahl der E-Mails (ohne Pagination)
+ipcMain.handle('email:getMessageCount', async (_, accountId) => {
+  try {
+    console.log('[EMAIL] Ermittle Gesamtanzahl für Account:', accountId);
+
+    if (accountId?.includes('gmail') || accountId?.includes('google')) {
+      if (!emailProviderManager) {
+        return { success: false, count: 0, error: 'EmailProviderManager nicht initialisiert' };
+      }
+
+      const provider = emailProviderManager.providers.get(accountId);
+      if (!provider) {
+        return { success: false, count: 0, error: 'Provider nicht gefunden' };
+      }
+
+      const gmail = provider.getGmail ? provider.getGmail() : provider.gmail;
+      if (!gmail) {
+        return { success: false, count: 0, error: 'Gmail nicht initialisiert' };
+      }
+
+      // Nutze resultSizeEstimate für schnelle Schätzung
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        labelIds: ['INBOX'],
+        maxResults: 1 // Nur 1 Ergebnis, aber wir bekommen resultSizeEstimate
+      });
+
+      const count = response.data.resultSizeEstimate || 0;
+      console.log('[EMAIL] Geschätzte Gesamtanzahl:', count);
+
+      return { success: true, count };
+    }
+
+    return { success: false, count: 0, error: 'Nicht unterstützter Provider' };
+  } catch (error) {
+    console.error('[EMAIL] getMessageCount error:', error);
+    return { success: false, count: 0, error: error.message };
+  }
+});
+
+// Anzahl E-Mails in einer Kategorie
+ipcMain.handle('email:getCategoryCount', async (_, accountId, category) => {
+  try {
+    console.log('[EMAIL] Ermittle Anzahl für Kategorie:', category, 'Account:', accountId);
+
+    if (accountId?.includes('gmail') || accountId?.includes('google')) {
+      if (!emailProviderManager) {
+        return { success: false, count: 0, error: 'EmailProviderManager nicht initialisiert' };
+      }
+
+      const provider = emailProviderManager.providers.get(accountId);
+      if (!provider) {
+        return { success: false, count: 0, error: 'Provider nicht gefunden' };
+      }
+
+      const gmail = provider.getGmail ? provider.getGmail() : provider.gmail;
+      if (!gmail) {
+        return { success: false, count: 0, error: 'Gmail nicht initialisiert' };
+      }
+
+      // Query für die Kategorie
+      const categoryLabelMap = {
+        'promotions': 'CATEGORY_PROMOTIONS',
+        'social': 'CATEGORY_SOCIAL',
+        'forums': 'CATEGORY_FORUMS',
+        'updates': 'CATEGORY_UPDATES'
+      };
+
+      const labelId = categoryLabelMap[category];
+      if (!labelId) {
+        return { success: false, count: 0, error: 'Unbekannte Kategorie' };
+      }
+
+      // Nutze Label-basierte Suche
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        labelIds: [labelId],
+        maxResults: 1
+      });
+
+      const count = response.data.resultSizeEstimate || 0;
+      console.log(`[EMAIL] Kategorie ${category}: ${count} E-Mails`);
+
+      return { success: true, count };
+    }
+
+    return { success: false, count: 0, error: 'Nicht unterstützter Provider' };
+  } catch (error) {
+    console.error('[EMAIL] getCategoryCount error:', error);
+    return { success: false, count: 0, error: error.message };
+  }
+});
+
 // Alle E-Mails laden mit Progress (für Sync)
 // options: { categoryQuery, resumeToken, startCount, startBatch }
 ipcMain.handle('email:loadAllEmails', async (event, accountId, limit = 1000, options = {}) => {

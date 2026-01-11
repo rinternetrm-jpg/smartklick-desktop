@@ -2949,7 +2949,36 @@ body {
 .import-options-subtitle {
   font-size: 14px;
   color: var(--text-secondary);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+}
+
+/* Total Count */
+.import-total-count {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.import-total-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.import-total-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+.import-total-value .loading-dots {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-tertiary);
 }
 
 .import-section {
@@ -2997,7 +3026,11 @@ body {
 }
 
 .import-checkbox input {
-  display: none;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
 .checkbox-mark {
@@ -3038,6 +3071,23 @@ body {
   font-size: 14px;
 }
 
+.checkbox-count {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  min-width: 24px;
+  text-align: center;
+}
+
+.import-checkbox input:checked ~ .checkbox-count {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
 /* Radio Buttons */
 .import-limit-options {
   display: flex;
@@ -3062,7 +3112,11 @@ body {
 }
 
 .import-radio input {
-  display: none;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
 .radio-mark {

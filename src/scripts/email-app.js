@@ -313,10 +313,15 @@ function initializeElements() {
     importOptionsModal: document.getElementById('importOptionsModal'),
     optionsProviderIcon: document.getElementById('optionsProviderIcon'),
     optionsAccountName: document.getElementById('optionsAccountName'),
+    optionsTotalCount: document.getElementById('optionsTotalCount'),
     optionExcludePromotions: document.getElementById('optionExcludePromotions'),
     optionExcludeSocial: document.getElementById('optionExcludeSocial'),
     optionExcludeForums: document.getElementById('optionExcludeForums'),
     optionExcludeUpdates: document.getElementById('optionExcludeUpdates'),
+    countPromotions: document.getElementById('countPromotions'),
+    countSocial: document.getElementById('countSocial'),
+    countForums: document.getElementById('countForums'),
+    countUpdates: document.getElementById('countUpdates'),
     cancelImportOptionsBtn: document.getElementById('cancelImportOptionsBtn'),
     startImportBtn: document.getElementById('startImportBtn'),
 
@@ -5524,6 +5529,15 @@ function showImportOptionsModal(accountId, accountName) {
     elements.optionsAccountName.textContent = accountName || 'E-Mail Konto';
   }
 
+  // Counts auf "Loading" zurücksetzen
+  if (elements.optionsTotalCount) {
+    elements.optionsTotalCount.innerHTML = '<span class="loading-dots">Wird geladen...</span>';
+  }
+  if (elements.countPromotions) elements.countPromotions.textContent = '...';
+  if (elements.countSocial) elements.countSocial.textContent = '...';
+  if (elements.countForums) elements.countForums.textContent = '...';
+  if (elements.countUpdates) elements.countUpdates.textContent = '...';
+
   // Checkboxen auf Standard zurücksetzen (Werbung, Soziales, Foren standardmäßig ausgeschlossen)
   if (elements.optionExcludePromotions) elements.optionExcludePromotions.checked = true;
   if (elements.optionExcludeSocial) elements.optionExcludeSocial.checked = true;
@@ -5536,6 +5550,71 @@ function showImportOptionsModal(accountId, accountName) {
 
   // Modal anzeigen
   elements.importOptionsModal?.classList.remove('hidden');
+
+  // E-Mail Counts laden (nur für Gmail, da wir dort Labels haben)
+  if (isGmail) {
+    loadEmailCounts(accountId);
+  } else {
+    // Für andere Provider keine Kategorien-Counts
+    if (elements.optionsTotalCount) {
+      elements.optionsTotalCount.textContent = 'Nicht verfügbar';
+    }
+    if (elements.countPromotions) elements.countPromotions.textContent = '-';
+    if (elements.countSocial) elements.countSocial.textContent = '-';
+    if (elements.countForums) elements.countForums.textContent = '-';
+    if (elements.countUpdates) elements.countUpdates.textContent = '-';
+  }
+}
+
+/**
+ * Lädt die E-Mail Counts für die Kategorien
+ */
+async function loadEmailCounts(accountId) {
+  console.log('[IMPORT] Lade E-Mail Counts für:', accountId);
+
+  try {
+    // Gesamt-Anzahl laden
+    const totalResult = await ipcRenderer.invoke('email:getMessageCount', accountId);
+    console.log('[IMPORT] Gesamt-Count:', totalResult);
+
+    if (totalResult.success && elements.optionsTotalCount) {
+      elements.optionsTotalCount.textContent = totalResult.count.toLocaleString();
+    }
+
+    // Kategorien-Counts laden (parallel)
+    const [promotions, social, forums, updates] = await Promise.all([
+      ipcRenderer.invoke('email:getCategoryCount', accountId, 'promotions'),
+      ipcRenderer.invoke('email:getCategoryCount', accountId, 'social'),
+      ipcRenderer.invoke('email:getCategoryCount', accountId, 'forums'),
+      ipcRenderer.invoke('email:getCategoryCount', accountId, 'updates')
+    ]);
+
+    console.log('[IMPORT] Kategorie-Counts:', { promotions, social, forums, updates });
+
+    if (elements.countPromotions) {
+      elements.countPromotions.textContent = promotions.success ? promotions.count.toLocaleString() : '-';
+    }
+    if (elements.countSocial) {
+      elements.countSocial.textContent = social.success ? social.count.toLocaleString() : '-';
+    }
+    if (elements.countForums) {
+      elements.countForums.textContent = forums.success ? forums.count.toLocaleString() : '-';
+    }
+    if (elements.countUpdates) {
+      elements.countUpdates.textContent = updates.success ? updates.count.toLocaleString() : '-';
+    }
+
+  } catch (error) {
+    console.error('[IMPORT] Fehler beim Laden der Counts:', error);
+
+    if (elements.optionsTotalCount) {
+      elements.optionsTotalCount.textContent = 'Fehler';
+    }
+    if (elements.countPromotions) elements.countPromotions.textContent = '-';
+    if (elements.countSocial) elements.countSocial.textContent = '-';
+    if (elements.countForums) elements.countForums.textContent = '-';
+    if (elements.countUpdates) elements.countUpdates.textContent = '-';
+  }
 }
 
 /**

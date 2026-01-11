@@ -1272,6 +1272,14 @@
       <div class="import-options-title">Import-Einstellungen</div>
       <div class="import-options-subtitle" id="optionsAccountName">example@gmail.com</div>
 
+      <!-- Gesamtanzahl -->
+      <div class="import-total-count">
+        <div class="import-total-label">Gesamt im Postfach:</div>
+        <div class="import-total-value" id="optionsTotalCount">
+          <span class="loading-dots">Wird geladen...</span>
+        </div>
+      </div>
+
       <!-- Kategorien Filter -->
       <div class="import-section">
         <div class="import-section-title">Kategorien ausschließen</div>
@@ -1285,6 +1293,7 @@
               <span class="checkbox-icon">🏷️</span>
               Werbung
             </span>
+            <span class="checkbox-count" id="countPromotions">--</span>
           </label>
 
           <label class="import-checkbox">
@@ -1294,6 +1303,7 @@
               <span class="checkbox-icon">👥</span>
               Soziale Netzwerke
             </span>
+            <span class="checkbox-count" id="countSocial">--</span>
           </label>
 
           <label class="import-checkbox">
@@ -1303,6 +1313,7 @@
               <span class="checkbox-icon">💬</span>
               Foren
             </span>
+            <span class="checkbox-count" id="countForums">--</span>
           </label>
 
           <label class="import-checkbox">
@@ -1310,8 +1321,9 @@
             <span class="checkbox-mark"></span>
             <span class="checkbox-label">
               <span class="checkbox-icon">🔔</span>
-              Updates & Benachrichtigungen
+              Updates
             </span>
+            <span class="checkbox-count" id="countUpdates">--</span>
           </label>
         </div>
       </div>
