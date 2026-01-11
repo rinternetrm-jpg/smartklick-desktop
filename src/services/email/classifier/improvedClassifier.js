@@ -225,9 +225,12 @@ const WERBUNG_DOMAINS = [
 // WERBUNG-Keywords im Betreff - überschreibt alles außer RECHNUNG/TERMIN!
 const WERBUNG_KEYWORDS = [
   // Rabatte & Deals
-  /\d+%\s*(rabatt|off|sparen)/i,  // "10% Rabatt", "50% off"
+  /\d+\s*%\s*(rabatt|off|sparen|bonus|reduktion|vorteil)/i,  // "10% Rabatt", "30 % Bonus"
+  /\d+\s*%\s+auf\s/i,             // "25% auf alle..."
+  /bis\s*zu\s*\d+\s*%/i,          // "bis zu 30%" (egal was danach kommt)
   /rabatt/i,                      // Rabatt allgemein
-  /\d+\s*€\s*(sparen|rabatt)/i,   // "200 € sparen"
+  /\d+\s*€\s*(sparen|rabatt|geschenk|gutschein)/i,   // "200 € sparen", "10€ Gutschein"
+  /bonus/i,                       // "Bonus" allgemein = Marketing
   /bonuspunkte/i,                 // "3.000 Bonuspunkte"
   /aktionscode/i,                 // "8 neue Aktionscodes"
   /gutschein/i,                   // Gutschein
@@ -280,7 +283,15 @@ const WERBUNG_KEYWORDS = [
   // Sonstiges
   /kostümideen/i,                 // "Kostümideen für dich"
   /rhythm/i,                      // "Find your winter rhythm"
-  /highlights\s*\d{4}/i           // "Highlights 2026"
+  /highlights\s*\d{4}/i,          // "Highlights 2026"
+  // Social Media Benachrichtigungen
+  /du\s*hast\s*\d+\s*benachrichtigung/i,  // "Du hast 27 Benachrichtigungen"
+  /\d+\s*neue?\s*benachrichtigung/i,      // "5 neue Benachrichtigungen"
+  /ist\s*ein\s*neuer\s*freund/i,          // "Tyra ist ein neuer Freund"
+  /hat\s*gepostet/i,                       // "hat gepostet"
+  /hat\s*kommentiert/i,                    // "hat kommentiert"
+  /hat\s*dich\s*erwähnt/i,                // "hat dich erwähnt"
+  /mit\s*\d+k?\s*follower/i               // "mit 10K Followern"
 ];
 
 // NEWSLETTER-Domains
@@ -401,6 +412,37 @@ function hasExcessiveEmojis(subject) {
   const emojis = subject.match(emojiRegex) || [];
   // 2+ Emojis = Marketing
   return emojis.length >= 2;
+}
+
+/**
+ * Erkennt einzelne Marketing-Emojis
+ * Bestimmte Emojis am Anfang = fast immer Marketing
+ */
+function hasMarketingEmoji(subject) {
+  if (!subject) return false;
+  // Marketing-Emojis die fast immer Werbung signalisieren
+  const marketingEmojis = [
+    '✈️', '🎁', '🎉', '🎄', '🎅', '🎟️', '🎫',  // Reise/Geschenke/Events
+    '🔥', '⚡', '💥', '🚀', '⏰', '⏳', '⌛',      // Dringlichkeit
+    '💰', '💵', '💸', '🤑', '💎',                // Geld
+    '🛒', '🛍️', '🏷️', '💳',                     // Shopping
+    '🆕', '🆓', '🔴', '🟢', '❗', '‼️', '❌',     // Aufmerksamkeit
+    '👉', '👆', '👇', '➡️', '⬇️',                // Call-to-action
+    '🎊', '🥳', '🎈', '🪅',                      // Party/Feier
+    '☀️', '❄️', '🌟', '✨', '⭐', '💫',           // Dekoration
+    '🧥', '👗', '👠', '👜', '👢',                // Fashion
+    '🧖', '💆', '💅', '💇',                      // Wellness
+    '🏨', '🏖️', '🌴', '🗺️',                     // Reise
+  ];
+
+  // Prüfe ob Betreff mit Marketing-Emoji beginnt
+  const trimmed = subject.trim();
+  for (const emoji of marketingEmojis) {
+    if (trimmed.startsWith(emoji)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // =============================================================================
@@ -920,13 +962,26 @@ class ImprovedClassifier {
       };
     }
 
-    // Emoji-Spam = Marketing
+    // Emoji-Spam = Marketing (2+ Emojis)
     if (hasExcessiveEmojis(subject)) {
       console.log(`[CLASSIFY] → WERBUNG (Stufe 7 - Emoji-Spam)`);
       return {
         kategorie: 'werbung',
         confidence: 90,
         gedanken: `Mehrere Emojis im Betreff = Marketing.`,
+        stufe: 7,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // Einzelne Marketing-Emojis am Anfang = Werbung
+    if (hasMarketingEmoji(subject)) {
+      console.log(`[CLASSIFY] → WERBUNG (Stufe 7 - Marketing-Emoji)`);
+      return {
+        kategorie: 'werbung',
+        confidence: 88,
+        gedanken: `Marketing-Emoji am Anfang des Betreffs.`,
         stufe: 7,
         schnell: true,
         final: true
