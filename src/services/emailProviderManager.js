@@ -2,7 +2,7 @@
 const { v4: uuidv4 } = require('uuid');
 const Store = require('electron-store');
 
-const GmailService = require('./gmailService');
+const { GmailService, createGmailService } = require('./gmailService');
 const OutlookProvider = require('./outlookProvider');
 const googleAuth = require('./googleAuth');
 
@@ -12,40 +12,62 @@ class EmailProviderManager {
     this.store = new Store({ name: 'email-accounts' });
     this.providers = new Map();  // accountId -> Provider
     this.accounts = [];
-    this.gmailService = null;  // Existing Gmail service reference
+    this.gmailServices = new Map();  // accountId -> GmailService (Multi-Account)
   }
 
   // ==================== INITIALISIERUNG ====================
 
   async initialize(gmailService = null) {
-    // Referenz zum bestehenden Gmail Service
-    this.gmailService = gmailService;
-
     // Gespeicherte Konten laden
     this.accounts = this.store.get('accounts', []);
 
-    // Gmail als erstes Konto hinzufuegen (wenn verbunden)
-    if (this.gmailService && googleAuth.isConnected()) {
-      const gmailAccount = this.accounts.find(a => a.provider === 'gmail');
-      if (!gmailAccount) {
-        // Gmail-Konto aus bestehendem Service erstellen
-        const userInfo = googleAuth.getUserInfo();
-        if (userInfo?.email) {
-          const account = {
-            id: 'gmail-default',
-            name: 'Gmail',
-            email: userInfo.email,
-            provider: 'gmail',
-            isDefault: true,
-            isActive: true,
-            createdAt: new Date().toISOString()
-          };
-          this.accounts.push(account);
-          this.saveAccounts();
-        }
+    // Alle Gmail-Konten von googleAuth laden
+    const gmailAccounts = googleAuth.getAllAccounts();
+    console.log(`[EMAIL] Found ${gmailAccounts.length} Gmail accounts in googleAuth`);
+
+    for (const gmailAccount of gmailAccounts) {
+      // Prüfe ob Account bereits in accounts-Liste
+      let existingAccount = this.accounts.find(a => a.id === gmailAccount.id);
+
+      if (!existingAccount) {
+        // Neues Gmail-Konto hinzufügen
+        existingAccount = {
+          id: gmailAccount.id,
+          name: gmailAccount.name || 'Gmail',
+          email: gmailAccount.email,
+          provider: 'gmail',
+          isDefault: this.accounts.filter(a => a.provider === 'gmail').length === 0,
+          isActive: true,
+          createdAt: new Date().toISOString()
+        };
+        this.accounts.push(existingAccount);
+        console.log(`[EMAIL] Added Gmail account: ${gmailAccount.email}`);
+      } else {
+        // Email/Name aktualisieren falls geändert
+        existingAccount.email = gmailAccount.email;
+        existingAccount.name = gmailAccount.name || existingAccount.name;
       }
-      this.providers.set('gmail-default', this.gmailService);
+
+      // GmailService-Instanz erstellen
+      const service = createGmailService(gmailAccount.id);
+      this.gmailServices.set(gmailAccount.id, service);
+      this.providers.set(gmailAccount.id, service);
+      console.log(`[EMAIL] Gmail provider registered: ${gmailAccount.id}`);
     }
+
+    // Alte Gmail-Accounts entfernen die nicht mehr in googleAuth sind
+    const validGmailIds = new Set(gmailAccounts.map(a => a.id));
+    this.accounts = this.accounts.filter(a => {
+      if (a.provider === 'gmail' && !validGmailIds.has(a.id)) {
+        console.log(`[EMAIL] Removing orphaned Gmail account: ${a.email}`);
+        this.providers.delete(a.id);
+        this.gmailServices.delete(a.id);
+        return false;
+      }
+      return true;
+    });
+
+    this.saveAccounts();
 
     // Outlook-Konten initialisieren
     for (const account of this.accounts) {
@@ -57,53 +79,65 @@ class EmailProviderManager {
     console.log(`[EMAIL] Initialized ${this.providers.size} email providers`);
   }
 
-  // Gmail-Konto nach Verbindung hinzufügen/aktualisieren
-  refreshGmailAccount() {
-    if (!this.gmailService) {
-      console.log('[EMAIL] No Gmail service available');
+  // Gmail-Konten nach Verbindung aktualisieren (Multi-Account)
+  refreshGmailAccounts() {
+    const gmailAccounts = googleAuth.getAllAccounts();
+    console.log(`[EMAIL] Refreshing ${gmailAccounts.length} Gmail accounts`);
+
+    if (gmailAccounts.length === 0) {
+      console.log('[EMAIL] No Gmail accounts connected');
       return false;
     }
 
-    if (!googleAuth.isConnected()) {
-      console.log('[EMAIL] Gmail not connected');
-      return false;
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    for (const gmailAccount of gmailAccounts) {
+      // Prüfe ob Gmail-Konto bereits existiert
+      let existingAccount = this.accounts.find(a => a.id === gmailAccount.id);
+
+      if (!existingAccount) {
+        // Neues Gmail-Konto erstellen
+        existingAccount = {
+          id: gmailAccount.id,
+          name: gmailAccount.name || 'Gmail',
+          email: gmailAccount.email,
+          provider: 'gmail',
+          isDefault: this.accounts.filter(a => a.provider === 'gmail').length === 0,
+          isActive: true,
+          createdAt: new Date().toISOString()
+        };
+        this.accounts.push(existingAccount);
+        addedCount++;
+        console.log(`[EMAIL] Gmail account added: ${gmailAccount.email}`);
+      } else if (existingAccount.email !== gmailAccount.email) {
+        // E-Mail aktualisieren falls geändert
+        existingAccount.email = gmailAccount.email;
+        existingAccount.name = gmailAccount.name || existingAccount.name;
+        updatedCount++;
+        console.log(`[EMAIL] Gmail account updated: ${gmailAccount.email}`);
+      }
+
+      // GmailService erstellen falls noch nicht vorhanden
+      if (!this.gmailServices.has(gmailAccount.id)) {
+        const service = createGmailService(gmailAccount.id);
+        this.gmailServices.set(gmailAccount.id, service);
+        this.providers.set(gmailAccount.id, service);
+        console.log(`[EMAIL] Gmail provider registered: ${gmailAccount.id}`);
+      }
     }
 
-    const userInfo = googleAuth.getUserInfo();
-    if (!userInfo?.email) {
-      console.log('[EMAIL] No Gmail user info');
-      return false;
-    }
-
-    // Prüfe ob Gmail-Konto bereits existiert
-    let gmailAccount = this.accounts.find(a => a.provider === 'gmail');
-
-    if (!gmailAccount) {
-      // Neues Gmail-Konto erstellen
-      gmailAccount = {
-        id: 'gmail-default',
-        name: 'Gmail',
-        email: userInfo.email,
-        provider: 'gmail',
-        isDefault: true,
-        isActive: true,
-        createdAt: new Date().toISOString()
-      };
-      this.accounts.push(gmailAccount);
+    if (addedCount > 0 || updatedCount > 0) {
       this.saveAccounts();
-      console.log(`[EMAIL] Gmail account added: ${userInfo.email}`);
-    } else if (gmailAccount.email !== userInfo.email) {
-      // E-Mail aktualisieren falls geändert
-      gmailAccount.email = userInfo.email;
-      this.saveAccounts();
-      console.log(`[EMAIL] Gmail account updated: ${userInfo.email}`);
     }
 
-    // Provider registrieren
-    this.providers.set('gmail-default', this.gmailService);
-    console.log(`[EMAIL] Gmail provider registered, total providers: ${this.providers.size}`);
-
+    console.log(`[EMAIL] Gmail refresh complete: ${addedCount} added, ${updatedCount} updated, total providers: ${this.providers.size}`);
     return true;
+  }
+
+  // Legacy-Alias für Abwärtskompatibilität
+  refreshGmailAccount() {
+    return this.refreshGmailAccounts();
   }
 
   async initializeOutlookProvider(account) {
@@ -169,22 +203,87 @@ class EmailProviderManager {
   }
 
   async removeAccount(accountId) {
-    // Gmail kann nicht entfernt werden (wird ueber Google-Einstellungen verwaltet)
-    if (accountId === 'gmail-default') {
-      return { success: false, error: 'Gmail account cannot be removed here' };
+    const account = this.accounts.find(a => a.id === accountId);
+    if (!account) {
+      return { success: false, error: 'Account not found' };
+    }
+
+    // Gmail-Account über googleAuth entfernen
+    if (account.provider === 'gmail') {
+      const result = await googleAuth.removeAccount(accountId);
+      if (!result.success) {
+        return result;
+      }
+      // GmailService entfernen
+      this.gmailServices.delete(accountId);
+    } else {
+      // Outlook: Credentials loeschen
+      this.store.delete(`credentials_${accountId}`);
     }
 
     // Provider stoppen
     this.providers.delete(accountId);
 
-    // Credentials loeschen
-    this.store.delete(`credentials_${accountId}`);
-
     // Aus Liste entfernen
     this.accounts = this.accounts.filter(a => a.id !== accountId);
     this.saveAccounts();
 
+    console.log(`[EMAIL] Account removed: ${accountId}`);
     return { success: true };
+  }
+
+  // Neues Gmail-Konto hinzufügen (startet OAuth-Flow)
+  async addGmailAccount() {
+    try {
+      console.log('[EMAIL] Starting Gmail OAuth flow for new account...');
+      const result = await googleAuth.startAuthFlow();
+
+      if (result.success) {
+        // Account-Info erstellen
+        const account = {
+          id: result.accountId,
+          name: result.user.name || 'Gmail',
+          email: result.user.email,
+          provider: 'gmail',
+          isDefault: this.accounts.filter(a => a.provider === 'gmail').length === 0,
+          isActive: true,
+          createdAt: new Date().toISOString()
+        };
+
+        // Prüfen ob schon vorhanden (re-auth)
+        const existingIndex = this.accounts.findIndex(a => a.id === result.accountId);
+        if (existingIndex >= 0) {
+          this.accounts[existingIndex] = account;
+          console.log(`[EMAIL] Gmail account re-authenticated: ${account.email}`);
+        } else {
+          this.accounts.push(account);
+          console.log(`[EMAIL] Gmail account added: ${account.email}`);
+        }
+
+        // GmailService erstellen
+        const service = createGmailService(result.accountId);
+        this.gmailServices.set(result.accountId, service);
+        this.providers.set(result.accountId, service);
+
+        this.saveAccounts();
+
+        return {
+          success: true,
+          account,
+          isNew: result.isNew
+        };
+      }
+
+      return { success: false, error: 'OAuth flow failed' };
+    } catch (error) {
+      console.error('[EMAIL] Gmail OAuth error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Alle Gmail-Konten abrufen
+  getGmailAccounts() {
+    return this.accounts.filter(a => a.provider === 'gmail');
   }
 
   setDefaultAccount(accountId) {

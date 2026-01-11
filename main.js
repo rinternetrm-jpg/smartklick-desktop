@@ -2964,12 +2964,22 @@ ipcMain.handle('extension-clear-all', () => {
 
 // ============ Google Services IPC Handlers ============
 
-// Auth
+// Auth - Multi-Account Support
 ipcMain.handle('google-auth-status', () => {
   return {
     connected: googleAuth.isConnected(),
     configured: googleAuth.isConfigured(),
-    user: googleAuth.getUserInfo()
+    user: googleAuth.getUserInfo(),
+    accounts: googleAuth.getAllAccounts(),
+    hasMultipleAccounts: googleAuth.getAllAccounts().length > 1
+  };
+});
+
+// Alle Gmail-Konten abrufen
+ipcMain.handle('google-auth-accounts', () => {
+  return {
+    success: true,
+    accounts: googleAuth.getAllAccounts()
   };
 });
 
@@ -2977,15 +2987,17 @@ ipcMain.handle('google-auth-connect', async () => {
   try {
     const result = await googleAuth.startAuthFlow();
     if (result.success) {
-      // Gmail-Konto zum Provider Manager hinzufügen
+      // Alle Gmail-Konten zum Provider Manager hinzufügen
       if (emailProviderManager) {
-        emailProviderManager.refreshGmailAccount();
+        emailProviderManager.refreshGmailAccounts();
       }
     }
     if (mainWindow) {
       mainWindow.webContents.send('google-auth-changed', {
         connected: true,
-        user: result.user
+        user: result.user,
+        accountId: result.accountId,
+        accounts: googleAuth.getAllAccounts()
       });
     }
     return result;
@@ -2995,13 +3007,44 @@ ipcMain.handle('google-auth-connect', async () => {
   }
 });
 
+// Einzelnes Gmail-Konto entfernen
+ipcMain.handle('google-auth-remove-account', async (_, accountId) => {
+  try {
+    const result = await googleAuth.removeAccount(accountId);
+    if (result.success && emailProviderManager) {
+      await emailProviderManager.removeAccount(accountId);
+    }
+    if (mainWindow) {
+      mainWindow.webContents.send('google-auth-changed', {
+        connected: googleAuth.hasAnyAccount(),
+        accounts: googleAuth.getAllAccounts()
+      });
+    }
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Aktives Gmail-Konto setzen
+ipcMain.handle('google-auth-set-active', (_, accountId) => {
+  try {
+    const success = googleAuth.setActiveAccount(accountId);
+    return { success };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Alle Gmail-Konten trennen (Legacy)
 ipcMain.handle('google-auth-disconnect', async () => {
   try {
     const result = await googleAuth.disconnect();
     if (mainWindow) {
       mainWindow.webContents.send('google-auth-changed', {
         connected: false,
-        user: null
+        user: null,
+        accounts: []
       });
     }
     return result;
@@ -5247,7 +5290,8 @@ app.whenReady().then(() => {
       clientId: store.get('outlook_client_id') || OUTLOOK_CONFIG.clientId
     }
   });
-  emailProviderManager.initialize(gmailService).catch(err => {
+  // Multi-Account: kein gmailService Parameter mehr nötig
+  emailProviderManager.initialize().catch(err => {
     console.error('[EMAIL] Provider manager init error:', err);
   });
 
