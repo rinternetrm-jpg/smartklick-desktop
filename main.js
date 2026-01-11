@@ -4953,6 +4953,31 @@ ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 0) => {
   }
 });
 
+// Progressive Loading: E-Mails in Batches laden und per Event senden
+ipcMain.handle('email:startProgressiveLoading', async (event, batchSize = 30) => {
+  if (!emailProviderManager) {
+    return { success: false, error: 'Provider manager not initialized' };
+  }
+
+  try {
+    // Finde das Fenster das die Anfrage gesendet hat
+    const webContents = event.sender;
+
+    await emailProviderManager.getEmailsProgressive(async (batchData) => {
+      // Sende jeden Batch als Event an den Renderer
+      webContents.send('email:progressiveBatch', batchData);
+    }, batchSize);
+
+    // Signal dass alles fertig ist
+    webContents.send('email:progressiveComplete');
+
+    return { success: true };
+  } catch (error) {
+    console.error('[EMAIL] Progressive loading error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // =============================================================================
 // IMAP EMAIL HANDLERS
 // =============================================================================

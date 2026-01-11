@@ -121,6 +121,75 @@ class GmailService {
     return emails;
   }
 
+  // Progressive Loading: Lädt E-Mails in Batches und ruft onBatch für jeden Batch auf
+  async getRecentEmailsProgressive(onBatch, batchSize = 30) {
+    const gmail = this.getGmail();
+
+    console.log(`[GMAIL] Progressive Loading gestartet (Batch-Größe: ${batchSize})`);
+
+    let pageToken = null;
+    let totalLoaded = 0;
+    let batchNumber = 0;
+
+    // Pagination: Alle E-Mail-IDs laden
+    const allMessageIds = [];
+    do {
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        labelIds: ['INBOX'],
+        maxResults: 500,
+        pageToken: pageToken
+      });
+
+      const messages = response.data.messages || [];
+      allMessageIds.push(...messages);
+      pageToken = response.data.nextPageToken;
+
+      console.log(`[GMAIL] IDs geladen: ${allMessageIds.length}`);
+    } while (pageToken);
+
+    console.log(`[GMAIL] Gesamt ${allMessageIds.length} E-Mail-IDs, starte Progressive Loading...`);
+
+    // E-Mails in Batches laden
+    for (let i = 0; i < allMessageIds.length; i += batchSize) {
+      const batchIds = allMessageIds.slice(i, i + batchSize);
+      const batchEmails = [];
+
+      // Details für diesen Batch laden
+      for (const msg of batchIds) {
+        const email = await this.getEmail(msg.id);
+        if (email) {
+          batchEmails.push(email);
+        }
+      }
+
+      totalLoaded += batchEmails.length;
+      batchNumber++;
+
+      console.log(`[GMAIL] Batch ${batchNumber}: ${batchEmails.length} E-Mails (Gesamt: ${totalLoaded}/${allMessageIds.length})`);
+
+      // Callback mit dem Batch aufrufen
+      if (onBatch && batchEmails.length > 0) {
+        const isFirst = batchNumber === 1;
+        const isLast = i + batchSize >= allMessageIds.length;
+        const progress = Math.round((totalLoaded / allMessageIds.length) * 100);
+
+        await onBatch({
+          emails: batchEmails,
+          batchNumber,
+          totalLoaded,
+          totalCount: allMessageIds.length,
+          progress,
+          isFirst,
+          isLast
+        });
+      }
+    }
+
+    console.log(`[GMAIL] Progressive Loading abgeschlossen: ${totalLoaded} E-Mails`);
+    return { success: true, totalLoaded };
+  }
+
   // Get single email details
   async getEmail(messageId) {
     const gmail = this.getGmail();

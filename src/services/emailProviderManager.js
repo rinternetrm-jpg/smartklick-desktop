@@ -310,6 +310,55 @@ class EmailProviderManager {
     return maxResults === 0 ? allEmails : allEmails.slice(0, maxResults);
   }
 
+  // Progressive Loading: Lädt E-Mails in Batches und sendet sie via Callback
+  async getEmailsProgressive(onBatch, batchSize = 30) {
+    console.log('[EMAIL] Progressive Loading gestartet...');
+
+    // Für jeden Provider progressive laden
+    for (const [accountId, provider] of this.providers) {
+      try {
+        // Gmail hat eigene progressive Methode
+        if (provider.getRecentEmailsProgressive) {
+          await provider.getRecentEmailsProgressive(async (batchData) => {
+            // Account-Info hinzufügen
+            const emailsWithAccount = this.addAccountInfo(batchData.emails, accountId);
+
+            // Callback aufrufen
+            await onBatch({
+              ...batchData,
+              emails: emailsWithAccount,
+              accountId
+            });
+          }, batchSize);
+        } else {
+          // Fallback: Alle E-Mails auf einmal laden (für andere Provider)
+          const emails = await provider.getRecentEmails(0);
+          const emailsWithAccount = this.addAccountInfo(emails, accountId);
+
+          // In Batches aufteilen
+          for (let i = 0; i < emailsWithAccount.length; i += batchSize) {
+            const batch = emailsWithAccount.slice(i, i + batchSize);
+            await onBatch({
+              emails: batch,
+              batchNumber: Math.floor(i / batchSize) + 1,
+              totalLoaded: i + batch.length,
+              totalCount: emailsWithAccount.length,
+              progress: Math.round(((i + batch.length) / emailsWithAccount.length) * 100),
+              isFirst: i === 0,
+              isLast: i + batchSize >= emailsWithAccount.length,
+              accountId
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`[EMAIL] Progressive loading error for ${accountId}:`, error);
+      }
+    }
+
+    console.log('[EMAIL] Progressive Loading abgeschlossen');
+    return { success: true };
+  }
+
   addAccountInfo(emails, accountId) {
     const account = this.getAccountById(accountId);
     return emails.map(email => ({

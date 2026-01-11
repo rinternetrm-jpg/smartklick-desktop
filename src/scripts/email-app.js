@@ -56,6 +56,7 @@ let elements = {};
 document.addEventListener('DOMContentLoaded', async () => {
   initializeElements();
   setupEventListeners();
+  setupProgressiveLoadingListeners();
   initKIFeedback();
   setupKIFeedbackListeners();
   setupKIRegelnListeners();
@@ -491,12 +492,81 @@ function updateAccountDropdown() {
 // EMAIL LOADING
 // =============================================================================
 
+let isProgressiveLoading = false;
+let progressiveLoadingTotal = 0;
+
+// Progressive Loading Event Listener einrichten
+function setupProgressiveLoadingListeners() {
+  // Batch empfangen
+  ipcRenderer.on('email:progressiveBatch', (_, batchData) => {
+    console.log(`[EMAIL] Batch ${batchData.batchNumber}: ${batchData.emails.length} E-Mails (${batchData.progress}%)`);
+
+    // E-Mails hinzufügen (nicht ersetzen!)
+    emails.push(...batchData.emails);
+    progressiveLoadingTotal = batchData.totalCount;
+
+    // UI nach jedem Batch aktualisieren
+    updateStats();
+    updateCategoryCounts();
+    renderEmailList();
+
+    // Progress anzeigen
+    updateLoadingProgress(batchData.totalLoaded, batchData.totalCount, batchData.progress);
+
+    // Beim ersten Batch Loading-Overlay ausblenden (E-Mails sind jetzt sichtbar)
+    if (batchData.isFirst) {
+      hideLoading();
+    }
+  });
+
+  // Loading abgeschlossen
+  ipcRenderer.on('email:progressiveComplete', () => {
+    console.log(`[EMAIL] Progressive Loading abgeschlossen: ${emails.length} E-Mails`);
+    isProgressiveLoading = false;
+    hideLoadingProgress();
+
+    // Automatische Klassifizierung wenn aktiviert
+    if (autoClassifyEnabled && emails.length > 0) {
+      classifyAllEmails();
+    }
+  });
+}
+
+// Progress-Anzeige aktualisieren
+function updateLoadingProgress(loaded, total, percent) {
+  let progressBar = document.getElementById('emailLoadingProgress');
+
+  if (!progressBar) {
+    // Progress-Bar erstellen
+    progressBar = document.createElement('div');
+    progressBar.id = 'emailLoadingProgress';
+    progressBar.className = 'email-loading-progress';
+    progressBar.innerHTML = `
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill"></div>
+      </div>
+      <span class="progress-text"></span>
+    `;
+    document.querySelector('.email-list-header')?.appendChild(progressBar);
+  }
+
+  progressBar.querySelector('.progress-bar-fill').style.width = `${percent}%`;
+  progressBar.querySelector('.progress-text').textContent = `${loaded} / ${total} E-Mails (${percent}%)`;
+  progressBar.classList.add('visible');
+}
+
+function hideLoadingProgress() {
+  const progressBar = document.getElementById('emailLoadingProgress');
+  if (progressBar) {
+    progressBar.classList.remove('visible');
+    setTimeout(() => progressBar.remove(), 300);
+  }
+}
+
 async function loadEmails() {
   showLoading();
 
   try {
-    let result;
-
     // Prüfe zuerst ob Konten vorhanden sind
     if (accounts.length === 0) {
       console.log('[EMAIL] Keine Konten konfiguriert');
@@ -508,10 +578,31 @@ async function loadEmails() {
       return;
     }
 
+    // IMAP separat behandeln
+    if (selectedAccountId === 'imap' || selectedAccountId?.startsWith('imap-')) {
+      return loadImapEmails();
+    }
+
+    // Progressive Loading wenn "Alle E-Mails" (0) gewählt
+    if (emailLimit === 0 && selectedAccountId === 'all') {
+      console.log('[EMAIL] Starte Progressive Loading...');
+      emails = []; // Reset
+      isProgressiveLoading = true;
+
+      // Starte Progressive Loading (läuft async, Events kommen über Listener)
+      const result = await ipcRenderer.invoke('email:startProgressiveLoading', 30);
+
+      if (!result.success) {
+        console.error('[EMAIL] Progressive Loading fehlgeschlagen:', result.error);
+        hideLoading();
+      }
+      return;
+    }
+
+    // Standard-Loading (mit Limit)
+    let result;
     if (selectedAccountId === 'all') {
       result = await ipcRenderer.invoke('email:getUnifiedInbox', emailLimit);
-    } else if (selectedAccountId === 'imap' || selectedAccountId?.startsWith('imap-')) {
-      return loadImapEmails();
     } else {
       result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, emailLimit);
     }
@@ -545,6 +636,8 @@ async function loadEmails() {
     updateStats();
     updateCategoryCounts();
     renderEmailList();
+  } finally {
+    hideLoading();
   }
 }
 
