@@ -225,7 +225,7 @@ class EmailLearner {
     const scores = {
       essenz: 0,
       wichtig: 0,
-      normal: 0,
+      info: 0,
       info: 0,
       newsletter: 0,
       spam: 0
@@ -268,14 +268,14 @@ class EmailLearner {
     const combined = {
       essenz: (betreffScore.essenz || 0) + (absenderScore.wichtigkeit > 50 ? 30 : 0),
       wichtig: (betreffScore.wichtig || 0) + (absenderScore.wichtigkeit > 20 ? 20 : 0),
-      normal: betreffScore.normal || 0,
+      info: betreffScore.info || 0,
       info: betreffScore.info || 0,
       newsletter: betreffScore.newsletter || 0,
       spam: (betreffScore.spam || 0) + (absenderScore.spam > 30 ? 40 : 0)
     };
 
     // Finde höchsten Score
-    let maxKat = 'normal';
+    let maxKat = 'info';
     let maxScore = 0;
 
     for (const [kat, score] of Object.entries(combined)) {

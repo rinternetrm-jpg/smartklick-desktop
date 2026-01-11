@@ -30,13 +30,19 @@ const KATEGORIE_MAP = {
   wichtig: { name: 'Wichtig', icon: '🟠', color: '#f97316' },
   termine: { name: 'Termine', icon: '📅', color: '#0ea5e9' },
   rechnung: { name: 'Rechnung', icon: '📄', color: '#10b981' },
-  normal: { name: 'Normal', icon: '🔵', color: '#3b82f6' },
   info: { name: 'Info', icon: 'ℹ️', color: '#6b7280' },
   newsletter: { name: 'Newsletter', icon: '📰', color: '#8b5cf6' },
   werbung: { name: 'Werbung', icon: '📢', color: '#f59e0b' },
-  papierkorb: { name: 'Papierkorb', icon: '🗑️', color: '#71717a' },
+  spam: { name: 'Spam', icon: '🗑️', color: '#71717a' },
   veraltet: { name: 'Veraltet', icon: '⏰', color: '#a1a1aa' }
 };
+
+// Kategorie-Normalisierung (normal → info)
+function normalizeKategorie(kategorie) {
+  if (kategorie === 'normal') return 'info';
+  if (kategorie === 'papierkorb') return 'spam';
+  return kategorie;
+}
 
 // IMAP presets
 const IMAP_PRESETS = {
@@ -714,7 +720,7 @@ async function classifyAllEmails() {
 
         if (email && classification) {
           emailClassifications[email.id] = classification;
-          email.kategorie = classification.kategorie;
+          email.kategorie = normalizeKategorie(classification.kategorie);
           email.confidence = classification.confidence;
           email.tags = classification.tags || [];
           email.zusammenfassung = classification.zusammenfassung;
@@ -886,7 +892,7 @@ class EmailAnalysisAnimation {
         emailClassifications[email.id] = classification;
 
         // Update E-Mail Daten
-        email.kategorie = classification.kategorie;
+        email.kategorie = normalizeKategorie(classification.kategorie);
         email.confidence = classification.confidence;
         email.tags = classification.tags || [];
         email.zusammenfassung = classification.zusammenfassung;
@@ -950,10 +956,9 @@ class EmailAnalysisAnimation {
     const titles = {
       inbox: 'Posteingang',
       important: 'Wichtig',
-      action: 'Aktion erforderlich',
       newsletter: 'Newsletter',
       sent: 'Gesendet',
-      papierkorb: 'Papierkorb'
+      spam: 'Spam'
     };
 
     if (elements.headerTitle) {
@@ -1330,31 +1335,9 @@ function filterByCategory(emailList) {
         e.kategorie === 'wichtig' ||
         e.isStarred
       );
-    case 'action':
-      // Aktion nötig (aus Tags)
-      return emailList.filter(e =>
-        e.needsAction ||
-        e.tags?.includes('ANTWORT_NÖTIG') ||
-        e.aktion === 'antworten' ||
-        e.aktion === 'entscheiden'
-      );
     case 'inbox':
-      // Nur unkategorisierte E-Mails (oder normal/veraltet)
-      return emailList.filter(e =>
-        !e.kategorie ||
-        e.kategorie === 'normal' ||
-        e.kategorie === 'veraltet' ||
-        (e.kategorie !== 'papierkorb' &&
-         e.kategorie !== 'newsletter' &&
-         e.kategorie !== 'info' &&
-         e.kategorie !== 'werbung' &&
-         e.kategorie !== 'essenz' &&
-         e.kategorie !== 'wichtig' &&
-         e.kategorie !== 'termine' &&
-         e.kategorie !== 'rechnung' &&
-         !e.isPapierkorb &&
-         !e.isNewsletter)
-      );
+      // Nur noch nicht klassifizierte E-Mails
+      return emailList.filter(e => !e.kategorie);
     case 'info':
       return emailList.filter(e => e.kategorie === 'info');
     case 'werbung':
@@ -1363,8 +1346,9 @@ function filterByCategory(emailList) {
       return emailList.filter(e => e.kategorie === 'newsletter' || e.isNewsletter);
     case 'sent':
       return emailList.filter(e => e.isSent);
+    case 'spam':
     case 'papierkorb':
-      return emailList.filter(e => e.kategorie === 'papierkorb' || e.isPapierkorb);
+      return emailList.filter(e => e.kategorie === 'spam' || e.kategorie === 'papierkorb' || e.isPapierkorb);
     case 'essenz':
       return emailList.filter(e => e.kategorie === 'essenz');
     case 'termine':
@@ -1884,21 +1868,6 @@ function updateCategoryCounts() {
     document.getElementById('badgeImportant').classList.add('hidden');
   }
 
-  // Action (Antwort nötig, Entscheidung)
-  const actionCount = emails.filter(e =>
-    e.needsAction ||
-    e.tags?.includes('ANTWORT_NÖTIG') ||
-    e.aktion === 'antworten' ||
-    e.aktion === 'entscheiden'
-  ).length;
-  document.getElementById('catAction').textContent = `${actionCount} E-Mails`;
-  if (actionCount > 0) {
-    document.getElementById('badgeAction').textContent = actionCount;
-    document.getElementById('badgeAction').classList.remove('hidden');
-  } else {
-    document.getElementById('badgeAction').classList.add('hidden');
-  }
-
   // Termine
   const termineCount = emails.filter(e => e.kategorie === 'termine').length;
   const catTermine = document.getElementById('catTermine');
@@ -1948,14 +1917,13 @@ function updateHeader() {
   const titles = {
     inbox: 'Posteingang',
     important: 'Wichtig',
-    action: 'Aktion erforderlich',
     termine: 'Termine',
     rechnung: 'Rechnungen',
     info: 'Info',
     werbung: 'Werbung',
     newsletter: 'Newsletter',
     sent: 'Gesendet',
-    papierkorb: 'Papierkorb'
+    spam: 'Spam'
   };
   elements.headerTitle.textContent = titles[currentCategory] || 'Posteingang';
 }
@@ -2203,7 +2171,7 @@ async function analyzeAllEmails() {
         emailClassifications[email.id] = classification;
 
         // Update E-Mail Daten
-        email.kategorie = classification.kategorie;
+        email.kategorie = normalizeKategorie(classification.kategorie);
         email.confidence = classification.confidence;
         email.tags = classification.tags || [];
         email.zusammenfassung = classification.zusammenfassung;

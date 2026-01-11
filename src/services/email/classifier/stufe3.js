@@ -143,7 +143,7 @@ KATEGORIEN:
 - wichtig = Sollte heute gelesen werden (NUR wenn < 14 Tage alt!)
 - termine = Zoom/Teams/Kalender Einladungen
 - rechnung = Rechnungen und Zahlungsbestätigungen (ignoriert Alter)
-- normal = Kann gelesen werden
+- info = Allgemeine E-Mails und Benachrichtigungen
 - info = System-Mails, Bestätigungen, automatisch
 - werbung = Shops, Social Media, Marketing
 - newsletter = Abonnierte Updates

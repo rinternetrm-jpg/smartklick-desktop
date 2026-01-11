@@ -58,21 +58,13 @@ const KATEGORIEN = {
     sichtbar: true,
     beschreibung: 'Alle Rechnungen'
   },
-  NORMAL: {
-    id: 'normal',
-    name: 'Normal',
-    icon: '🔵',
-    color: '#3b82f6',
-    sichtbar: true,
-    beschreibung: 'Kann gelesen werden'
-  },
   INFO: {
     id: 'info',
     name: 'Info',
     icon: 'ℹ️',
     color: '#6b7280',
     sichtbar: true,
-    beschreibung: 'Automatische Benachrichtigungen'
+    beschreibung: 'Allgemeine E-Mails und Benachrichtigungen'
   },
   NEWSLETTER: {
     id: 'newsletter',

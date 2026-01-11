@@ -31,7 +31,7 @@ const AGE_LIMITS = {
   ARCHIV: 90,      // > 90 Tage: PAPIERKORB
   VERALTET: 30,    // > 30 Tage: Max. VERALTET
   INFO_MAX: 7,     // > 7 Tage: INFO → PAPIERKORB
-  ALT: 14,         // > 14 Tage: Max. NORMAL
+  ALT: 14,         // > 14 Tage: Max. INFO
   AKTUELL: 7       // > 7 Tage: Max. WICHTIG
 };
 
@@ -717,7 +717,7 @@ function applyAgeLimit(kategorie, emailDate) {
       newKategorie = 'veraltet';
       wasLimited = true;
     } else if (age > 14) {
-      newKategorie = 'normal';
+      newKategorie = 'info';
       wasLimited = true;
     } else if (age > 7) {
       newKategorie = 'wichtig';
@@ -731,13 +731,13 @@ function applyAgeLimit(kategorie, emailDate) {
       newKategorie = 'veraltet';
       wasLimited = true;
     } else if (age > 14) {
-      newKategorie = 'normal';
+      newKategorie = 'info';
       wasLimited = true;
     }
   }
 
   // NORMAL
-  if (kategorie === 'normal') {
+  if (kategorie === 'info') {
     if (age > 30) {
       newKategorie = 'veraltet';
       wasLimited = true;
@@ -788,7 +788,7 @@ PRÜFE GENAU - WER schreibt wirklich?
 Kategorien:
 - essenz: Echter Mensch wartet, Rechtliches, echte Geldprobleme
 - wichtig: Sollte heute gelesen werden
-- normal: Kann gelesen werden
+- info: Allgemeine E-Mails und Benachrichtigungen
 - info: Echte System-Benachrichtigung (max 7 Tage relevant!)
 - newsletter: Abonnierte Updates
 - werbung: Marketing
@@ -814,7 +814,7 @@ Wer schreibt - Mensch oder Maschine?
 Kategorien:
 - essenz: Echter Mensch wartet, dringend
 - wichtig: Sollte heute gelesen werden
-- normal: Kann gelesen werden
+- info: Allgemeine E-Mails und Benachrichtigungen
 - info: System-Benachrichtigung (nur wenn aktuell!)
 - newsletter: Abonnierte Updates
 - werbung: Marketing
@@ -880,7 +880,7 @@ class ImprovedClassifier {
     if (signalResult.hasSignal) {
       // RECHTLICH oder PERSOENLICH = ESSENZ (wenn < 14 Tage alt)
       if (signalResult.typ === 'RECHTLICH' || signalResult.typ === 'PERSOENLICH') {
-        const kategorie = age <= 14 ? 'essenz' : (age <= 30 ? 'wichtig' : 'normal');
+        const kategorie = age <= 14 ? 'essenz' : (age <= 30 ? 'wichtig' : 'info');
         console.log(`[CLASSIFY] ⚠️ SIGNAL RECHTLICH/PERSOENLICH → ${kategorie.toUpperCase()}`);
         return {
           kategorie: kategorie,
@@ -895,7 +895,7 @@ class ImprovedClassifier {
 
       // FINANZIELL oder FRISTEN = WICHTIG (wenn < 14 Tage alt)
       if (signalResult.typ === 'FINANZIELL' || signalResult.typ === 'FRISTEN') {
-        const kategorie = age <= 14 ? 'wichtig' : (age <= 30 ? 'normal' : 'veraltet');
+        const kategorie = age <= 14 ? 'wichtig' : (age <= 30 ? 'info' : 'veraltet');
         console.log(`[CLASSIFY] ⚠️ SIGNAL FINANZIELL/FRISTEN → ${kategorie.toUpperCase()}`);
         return {
           kategorie: kategorie,

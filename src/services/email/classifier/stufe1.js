@@ -311,7 +311,7 @@ class Stufe1Classifier {
     const score = {
       essenz: 0,
       wichtig: 0,
-      normal: 0,
+      info: 0,
       info: 0,
       newsletter: 0,
       spam: 0,
@@ -426,7 +426,7 @@ class Stufe1Classifier {
 
     // Ist Weiterleitung (Fwd:) → +20 Normal
     if (/^fwd:/i.test(subject)) {
-      score.normal += 20;
+      score.info += 20;
       score.reasons.push('Weiterleitung');
     }
 
@@ -456,7 +456,7 @@ class Stufe1Classifier {
     const scores = [
       { cat: 'essenz', val: score.essenz },
       { cat: 'wichtig', val: score.wichtig },
-      { cat: 'normal', val: score.normal },
+      { cat: 'info', val: score.info },
       { cat: 'info', val: score.info },
       { cat: 'newsletter', val: score.newsletter },
       { cat: 'spam', val: score.spam }
