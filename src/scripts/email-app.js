@@ -73,6 +73,9 @@ let elements = {};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
+  // Email-Datenbank initialisieren
+  await initEmailDatabase();
+
   initializeElements();
   setupEventListeners();
   setupProgressiveLoadingListeners();
@@ -721,6 +724,59 @@ function hideLoadingProgress() {
   }
 }
 
+// =============================================================================
+// EMAIL DATABASE FUNCTIONS
+// =============================================================================
+
+/**
+ * Initialisiert die Email-Datenbank
+ */
+async function initEmailDatabase() {
+  try {
+    const result = await ipcRenderer.invoke('emaildb:init');
+    if (result.success) {
+      console.log('[EMAIL-DB] Datenbank initialisiert');
+    } else {
+      console.error('[EMAIL-DB] Init fehlgeschlagen:', result.error);
+    }
+  } catch (error) {
+    console.error('[EMAIL-DB] Init error:', error);
+  }
+}
+
+/**
+ * Speichert E-Mails in der lokalen Datenbank
+ */
+async function saveEmailsToDatabase(emailList, accountId) {
+  if (!emailList || emailList.length === 0) return;
+
+  try {
+    const result = await ipcRenderer.invoke('emaildb:saveEmails', emailList, accountId);
+    if (result.success) {
+      console.log(`[EMAIL-DB] ${result.count} E-Mails gespeichert`);
+    }
+  } catch (error) {
+    console.error('[EMAIL-DB] Save error:', error);
+  }
+}
+
+/**
+ * Holt Konversations-E-Mails aus der Datenbank
+ */
+async function getConversationFromDatabase(contactEmail, accountId = null) {
+  try {
+    const result = await ipcRenderer.invoke('emaildb:getConversation', contactEmail, accountId);
+    if (result.success) {
+      console.log(`[EMAIL-DB] Konversation geladen: ${result.emails.length} E-Mails`);
+      return result;
+    }
+    return { emails: [], stats: {} };
+  } catch (error) {
+    console.error('[EMAIL-DB] Conversation error:', error);
+    return { emails: [], stats: {} };
+  }
+}
+
 async function loadEmails(forceReload = false) {
   console.log('[EMAIL] loadEmails() gestartet, accounts:', accounts.length, 'limit:', emailLimit, 'selectedAccount:', selectedAccountId, 'forceReload:', forceReload);
   showLoading();
@@ -811,6 +867,11 @@ async function loadEmails(forceReload = false) {
       // Automatische Klassifizierung nur für neue E-Mails
       if (autoClassifyEnabled && newEmails.length > 0) {
         await classifyAllEmails();
+      }
+
+      // E-Mails in lokaler Datenbank speichern für Konversations-Übersicht
+      if (newEmails.length > 0) {
+        saveEmailsToDatabase(newEmails, selectedAccountId || 'all');
       }
 
       updateStats();
@@ -1324,6 +1385,13 @@ async function loadImapEmails() {
         isStarred: email.isStarred,
         provider: 'imap'
       }));
+
+      // E-Mails in Datenbank speichern für Konversations-Verlauf
+      if (emails.length > 0) {
+        const accountId = selectedAccountId || 'imap';
+        console.log(`[EMAIL-DB] Speichere ${emails.length} IMAP E-Mails in DB...`);
+        saveEmailsToDatabase(emails, accountId);
+      }
 
       updateStats();
       updateCategoryCounts();
@@ -2312,21 +2380,50 @@ function getConversationEmails(email) {
 
 /**
  * Analysiert die Konversation und erstellt Statistiken
+ * Nutzt zuerst die Datenbank, dann Fallback auf In-Memory
  */
 async function analyzeConversation(email) {
   if (!email) return null;
 
-  const conversationEmails = getConversationEmails(email);
+  // Nur bei wichtigen Kategorien anzeigen (nicht Newsletter/Spam)
+  const skipCategories = ['newsletter', 'werbung', 'spam', 'papierkorb'];
+  if (skipCategories.includes(email.kategorie?.toLowerCase())) {
+    return null;
+  }
+
+  // Extrahiere Kontakt-Email
+  let contactEmail = email.from || '';
+  if (contactEmail.includes('<')) {
+    const match = contactEmail.match(/<(.+?)>/);
+    if (match) contactEmail = match[1];
+  }
+  contactEmail = contactEmail.toLowerCase().trim();
+
+  if (!contactEmail) return null;
+
+  // Versuche zuerst aus der Datenbank zu laden (enthält ALLE E-Mails)
+  let conversationEmails = [];
+  let dbStats = null;
+
+  try {
+    const dbResult = await getConversationFromDatabase(contactEmail, selectedAccountId);
+    if (dbResult.emails && dbResult.emails.length > 0) {
+      conversationEmails = dbResult.emails;
+      dbStats = dbResult.stats;
+      console.log('[CONVERSATION] DB: ${conversationEmails.length} E-Mails gefunden');
+    }
+  } catch (error) {
+    console.log('[CONVERSATION] DB-Abfrage fehlgeschlagen, nutze In-Memory');
+  }
+
+  // Fallback: In-Memory Array (nur aktuell geladene E-Mails)
+  if (conversationEmails.length === 0) {
+    conversationEmails = getConversationEmails(email);
+  }
 
   // Mindestens 2 E-Mails für Konversations-Übersicht
   if (conversationEmails.length < 2) {
     console.log('[CONVERSATION] Weniger als 2 E-Mails, keine Übersicht');
-    return null;
-  }
-
-  // Nur bei wichtigen Kategorien anzeigen (nicht Newsletter/Spam)
-  const skipCategories = ['newsletter', 'werbung', 'spam', 'papierkorb'];
-  if (skipCategories.includes(email.kategorie?.toLowerCase())) {
     return null;
   }
 

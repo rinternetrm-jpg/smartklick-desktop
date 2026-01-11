@@ -63,6 +63,9 @@ const imapAccountManager = require('./src/services/imapAccountManager');
 // Intelligentes E-Mail-Klassifizierungssystem
 const emailClassifier = require('./src/services/email/classifierService');
 
+// Email-Datenbank für Konversationen und Offline-Zugriff
+const emailDatabase = require('./src/services/emailDatabase');
+
 // Multi-Provider Email
 const EmailProviderManager = require('./src/services/emailProviderManager');
 let emailProviderManager = null;
@@ -4078,6 +4081,119 @@ ipcMain.handle('conversation:summarize', async (_, data) => {
   } catch (error) {
     console.error('[CONVERSATION] Summarize error:', error);
     return { success: false };
+  }
+});
+
+// ============================================
+// EMAIL DATABASE IPC HANDLERS
+// ============================================
+
+// Initialisiere DB beim Start
+ipcMain.handle('emaildb:init', () => {
+  try {
+    emailDatabase.initDatabase();
+    return { success: true };
+  } catch (error) {
+    console.error('[EMAIL-DB] Init error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// E-Mails speichern
+ipcMain.handle('emaildb:saveEmails', (_, emails, accountId) => {
+  try {
+    const count = emailDatabase.saveEmails(emails, accountId);
+    return { success: true, count };
+  } catch (error) {
+    console.error('[EMAIL-DB] Save error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Konversation abrufen
+ipcMain.handle('emaildb:getConversation', (_, contactEmail, accountId) => {
+  try {
+    const emails = emailDatabase.getConversationEmails(contactEmail, accountId);
+    const stats = emailDatabase.getContactStats(contactEmail, accountId);
+    return {
+      success: true,
+      emails,
+      stats: {
+        total: stats?.total || 0,
+        received: stats?.received || 0,
+        sent: stats?.sent || 0,
+        firstContact: stats?.first_contact,
+        lastContact: stats?.last_contact
+      }
+    };
+  } catch (error) {
+    console.error('[EMAIL-DB] Conversation error:', error);
+    return { success: false, emails: [], error: error.message };
+  }
+});
+
+// E-Mail nach ID abrufen
+ipcMain.handle('emaildb:getEmail', (_, emailId) => {
+  try {
+    const email = emailDatabase.getEmailById(emailId);
+    return { success: true, email };
+  } catch (error) {
+    console.error('[EMAIL-DB] GetEmail error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Kategorie aktualisieren
+ipcMain.handle('emaildb:updateCategory', (_, emailId, kategorie) => {
+  try {
+    emailDatabase.updateEmailCategory(emailId, kategorie);
+    return { success: true };
+  } catch (error) {
+    console.error('[EMAIL-DB] UpdateCategory error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// E-Mails suchen
+ipcMain.handle('emaildb:search', (_, searchTerm, accountId, limit) => {
+  try {
+    const results = emailDatabase.searchEmails(searchTerm, accountId, limit);
+    return { success: true, results };
+  } catch (error) {
+    console.error('[EMAIL-DB] Search error:', error);
+    return { success: false, results: [], error: error.message };
+  }
+});
+
+// DB Statistiken
+ipcMain.handle('emaildb:stats', () => {
+  try {
+    const stats = emailDatabase.getDbStats();
+    return { success: true, stats };
+  } catch (error) {
+    console.error('[EMAIL-DB] Stats error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Prüfen ob E-Mail existiert
+ipcMain.handle('emaildb:exists', (_, emailId) => {
+  try {
+    const exists = emailDatabase.emailExists(emailId);
+    return { success: true, exists };
+  } catch (error) {
+    return { success: false, exists: false };
+  }
+});
+
+// Alte E-Mails löschen
+ipcMain.handle('emaildb:cleanup', (_, daysToKeep) => {
+  try {
+    const deleted = emailDatabase.cleanupOldEmails(daysToKeep || 90);
+    return { success: true, deleted };
+  } catch (error) {
+    console.error('[EMAIL-DB] Cleanup error:', error);
+    return { success: false, error: error.message };
   }
 });
 
