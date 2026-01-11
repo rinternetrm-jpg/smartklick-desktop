@@ -2250,7 +2250,7 @@ async function connectGmail() {
   elements.accountLoadingState.classList.remove('hidden');
 
   try {
-    const result = await ipcRenderer.invoke('google:startAuth');
+    const result = await ipcRenderer.invoke('google-auth-connect');
 
     if (result.success) {
       showToast('Gmail-Konto verbunden!');

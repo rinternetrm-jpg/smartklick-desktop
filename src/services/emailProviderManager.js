@@ -4,6 +4,7 @@ const Store = require('electron-store');
 
 const GmailService = require('./gmailService');
 const OutlookProvider = require('./outlookProvider');
+const googleAuth = require('./googleAuth');
 
 class EmailProviderManager {
   constructor(config = {}) {
@@ -24,11 +25,11 @@ class EmailProviderManager {
     this.accounts = this.store.get('accounts', []);
 
     // Gmail als erstes Konto hinzufuegen (wenn verbunden)
-    if (this.gmailService) {
+    if (this.gmailService && googleAuth.isConnected()) {
       const gmailAccount = this.accounts.find(a => a.provider === 'gmail');
       if (!gmailAccount) {
         // Gmail-Konto aus bestehendem Service erstellen
-        const userInfo = this.gmailService.googleAuth?.getUserInfo?.();
+        const userInfo = googleAuth.getUserInfo();
         if (userInfo?.email) {
           const account = {
             id: 'gmail-default',
