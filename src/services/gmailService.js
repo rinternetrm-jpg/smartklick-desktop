@@ -61,11 +61,13 @@ class GmailService {
   // Get recent emails (inbox)
   async getRecentEmails(maxResults = 10) {
     const gmail = this.getGmail();
+    // 0 bedeutet "alle" - Gmail API max ist 500
+    const limit = maxResults === 0 ? 500 : maxResults;
 
     const response = await gmail.users.messages.list({
       userId: 'me',
       labelIds: ['INBOX'],
-      maxResults: maxResults
+      maxResults: limit
     });
 
     const messages = response.data.messages || [];

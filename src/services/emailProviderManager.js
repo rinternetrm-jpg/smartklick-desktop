@@ -250,12 +250,14 @@ class EmailProviderManager {
    */
   async getEmails(options = {}) {
     const { accountId, accountName, unified = false, ...emailOptions } = options;
+    // 0 bedeutet "alle E-Mails", daher nicht mit || ersetzen
+    const maxResults = emailOptions.maxResults !== undefined ? emailOptions.maxResults : 100;
 
     // Bestimmtes Konto nach ID?
     if (accountId) {
       const provider = this.providers.get(accountId);
       if (!provider) throw new Error('Account not found');
-      const emails = await provider.getRecentEmails(emailOptions.maxResults || 20);
+      const emails = await provider.getRecentEmails(maxResults);
       return this.addAccountInfo(emails, accountId);
     }
 
@@ -265,7 +267,7 @@ class EmailProviderManager {
       if (!account) throw new Error(`Account "${accountName}" not found`);
       const provider = this.providers.get(account.id);
       if (!provider) throw new Error('Provider not initialized');
-      const emails = await provider.getRecentEmails(emailOptions.maxResults || 20);
+      const emails = await provider.getRecentEmails(maxResults);
       return this.addAccountInfo(emails, account.id);
     }
 
@@ -281,17 +283,20 @@ class EmailProviderManager {
     const provider = this.providers.get(defaultAccount.id);
     if (!provider) throw new Error('Default provider not initialized');
 
-    const emails = await provider.getRecentEmails(emailOptions.maxResults || 20);
+    const emails = await provider.getRecentEmails(maxResults);
     return this.addAccountInfo(emails, defaultAccount.id);
   }
 
   async getUnifiedInbox(options = {}) {
-    const { maxResults = 20 } = options;
+    // 0 bedeutet "alle E-Mails"
+    const maxResults = options.maxResults !== undefined ? options.maxResults : 100;
     const allEmails = [];
 
     for (const [accountId, provider] of this.providers) {
       try {
-        const emails = await provider.getRecentEmails(Math.ceil(maxResults / this.providers.size) + 5);
+        // Bei 0 (alle) pro Provider viele abrufen, sonst aufteilen
+        const perProvider = maxResults === 0 ? 500 : Math.ceil(maxResults / this.providers.size) + 5;
+        const emails = await provider.getRecentEmails(perProvider);
         allEmails.push(...this.addAccountInfo(emails, accountId));
       } catch (error) {
         console.error(`[EMAIL] Error fetching from ${accountId}:`, error);
@@ -301,7 +306,8 @@ class EmailProviderManager {
     // Nach Datum sortieren
     allEmails.sort((a, b) => b.date - a.date);
 
-    return allEmails.slice(0, maxResults);
+    // Bei 0 alle zurückgeben, sonst limitieren
+    return maxResults === 0 ? allEmails : allEmails.slice(0, maxResults);
   }
 
   addAccountInfo(emails, accountId) {
