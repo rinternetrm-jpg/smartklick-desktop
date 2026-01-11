@@ -153,34 +153,49 @@ class GmailService {
   // @param {Function} onBatch - Callback für jeden Batch, return false zum Stoppen
   // @param {number} batchSize - Anzahl E-Mails pro Batch
   // @param {number} limit - Maximale Anzahl E-Mails (0 = alle)
-  async getRecentEmailsProgressive(onBatch, batchSize = 30, limit = 0) {
+  // @param {Object} options - Zusätzliche Optionen (categoryQuery, resumeToken, etc.)
+  async getRecentEmailsProgressive(onBatch, batchSize = 30, limit = 0, options = {}) {
     const gmail = this.getGmail();
 
     const accountInfo = this.getAccountInfo();
     const accountEmail = accountInfo?.email || this.accountId;
     const effectiveLimit = limit > 0 ? limit : Infinity;
-    console.log(`[GMAIL:${accountEmail}] Progressive Loading gestartet (Batch: ${batchSize}, Limit: ${limit || 'alle'})`);
 
-    let pageToken = null;
-    let totalLoaded = 0;
-    let batchNumber = 0;
+    // Kategorie-Filter Query (z.B. "-category:promotions -category:social")
+    const categoryQuery = options.categoryQuery || '';
+    const resumeToken = options.resumeToken || null;
+
+    console.log(`[GMAIL:${accountEmail}] Progressive Loading gestartet (Batch: ${batchSize}, Limit: ${limit || 'alle'}, Query: "${categoryQuery}")`);
+
+    let pageToken = resumeToken;
+    let totalLoaded = options.startCount || 0;
+    let batchNumber = options.startBatch || 0;
     let shouldStop = false;
 
     // Pagination: E-Mail-IDs laden (nur bis zum Limit)
     const allMessageIds = [];
     do {
-      const response = await gmail.users.messages.list({
+      // Query-Parameter aufbauen
+      const listParams = {
         userId: 'me',
-        labelIds: ['INBOX'],
         maxResults: Math.min(500, effectiveLimit - allMessageIds.length),
         pageToken: pageToken
-      });
+      };
+
+      // Kategorie-Filter via q Parameter (wichtig: nur wenn query vorhanden)
+      if (categoryQuery) {
+        listParams.q = `in:inbox ${categoryQuery}`;
+      } else {
+        listParams.labelIds = ['INBOX'];
+      }
+
+      const response = await gmail.users.messages.list(listParams);
 
       const messages = response.data.messages || [];
       allMessageIds.push(...messages);
       pageToken = response.data.nextPageToken;
 
-      console.log(`[GMAIL:${accountEmail}] IDs geladen: ${allMessageIds.length}${limit > 0 ? '/' + limit : ''}`);
+      console.log(`[GMAIL:${accountEmail}] IDs geladen: ${allMessageIds.length}${limit > 0 ? '/' + limit : ''}${categoryQuery ? ' (gefiltert)' : ''}`);
 
       // Stoppe wenn Limit erreicht
       if (limit > 0 && allMessageIds.length >= limit) {
@@ -236,7 +251,13 @@ class GmailService {
     }
 
     console.log(`[GMAIL:${accountEmail}] Progressive Loading abgeschlossen: ${totalLoaded} E-Mails`);
-    return { success: true, totalLoaded };
+    return {
+      success: true,
+      totalLoaded,
+      lastPageToken: pageToken,
+      wasInterrupted: shouldStop,
+      categoryQuery: categoryQuery
+    };
   }
 
   // Get single email details

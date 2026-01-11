@@ -736,6 +736,62 @@
         </button>
       </div>
 
+      <!-- Gmail Sync Einstellungen -->
+      <div class="settings-section" id="gmailSyncSection">
+        <div class="settings-section-title">
+          📥 Gmail Sync-Filter
+        </div>
+
+        <div class="sync-filter-info">
+          Wähle welche E-Mail-Kategorien beim Sync übersprungen werden sollen.
+          Dies reduziert die Anzahl der zu ladenden E-Mails erheblich.
+        </div>
+
+        <div class="setting-card">
+          <div class="setting-card-header">
+            <div class="setting-card-avatar orange">📢</div>
+            <div class="setting-card-info">
+              <h4>Werbung ausschließen</h4>
+              <p>Gmail "Promotions" Kategorie überspringen</p>
+            </div>
+          </div>
+          <div class="setting-toggle active" id="excludePromotionsToggle"></div>
+        </div>
+
+        <div class="setting-card">
+          <div class="setting-card-header">
+            <div class="setting-card-avatar blue">👥</div>
+            <div class="setting-card-info">
+              <h4>Soziales ausschließen</h4>
+              <p>Gmail "Social" Kategorie überspringen</p>
+            </div>
+          </div>
+          <div class="setting-toggle active" id="excludeSocialToggle"></div>
+        </div>
+
+        <div class="setting-card">
+          <div class="setting-card-header">
+            <div class="setting-card-avatar purple">💬</div>
+            <div class="setting-card-info">
+              <h4>Foren ausschließen</h4>
+              <p>Gmail "Forums" Kategorie überspringen</p>
+            </div>
+          </div>
+          <div class="setting-toggle active" id="excludeForumsToggle"></div>
+        </div>
+
+        <div class="setting-card">
+          <div class="setting-card-header">
+            <div class="setting-card-avatar teal">🔔</div>
+            <div class="setting-card-info">
+              <h4>Updates ausschließen</h4>
+              <p>Gmail "Updates" Kategorie überspringen</p>
+            </div>
+          </div>
+          <div class="setting-toggle" id="excludeUpdatesToggle"></div>
+        </div>
+      </div>
+
       <!-- KI-Einstellungen -->
       <div class="settings-section">
         <div class="settings-section-title">
@@ -1264,6 +1320,44 @@
       <div class="modal-actions">
         <button class="btn-secondary" id="syncCancelBtn">Abbrechen</button>
         <button class="btn-primary" id="syncFinishBtn" disabled>Fertig</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resume Import Modal -->
+  <div class="modal-overlay hidden" id="resumeImportModal">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <div class="modal-icon">⏸️</div>
+        <div>
+          <div class="modal-title">Unterbrochener Import</div>
+          <div class="modal-subtitle" id="resumeImportAccount">E-Mails wurden nicht vollständig geladen</div>
+        </div>
+        <button class="modal-close" id="closeResumeImportBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="resume-import-info">
+          <div class="resume-stat">
+            <span class="resume-stat-label">Bereits geladen:</span>
+            <span class="resume-stat-value" id="resumeImportedCount">0</span>
+          </div>
+          <div class="resume-stat">
+            <span class="resume-stat-label">Geplant:</span>
+            <span class="resume-stat-value" id="resumeTotalCount">0</span>
+          </div>
+          <div class="resume-stat">
+            <span class="resume-stat-label">Unterbrochen am:</span>
+            <span class="resume-stat-value" id="resumeInterruptedAt">-</span>
+          </div>
+        </div>
+        <p class="resume-import-question">
+          Möchtest du den Import fortsetzen oder neu starten?
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="discardImportBtn">Verwerfen</button>
+        <button class="btn-secondary" id="restartImportBtn">Neu starten</button>
+        <button class="btn-primary" id="resumeImportBtn">Fortsetzen</button>
       </div>
     </div>
   </div>

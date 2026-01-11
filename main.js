@@ -4209,6 +4209,80 @@ ipcMain.handle('emaildb:indexConversations', async (_, accountId) => {
   }
 });
 
+// ========================================
+// SYNC SETTINGS & IMPORT STATUS HANDLERS
+// ========================================
+
+// Sync-Einstellungen speichern
+ipcMain.handle('emaildb:saveSyncSettings', async (_, accountId, settings) => {
+  try {
+    console.log('[EMAIL-DB] Speichere Sync-Einstellungen für Account:', accountId);
+    const result = emailDatabase.saveSyncSettings(accountId, settings);
+    return { success: result };
+  } catch (error) {
+    console.error('[EMAIL-DB] saveSyncSettings error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Sync-Einstellungen abrufen
+ipcMain.handle('emaildb:getSyncSettings', async (_, accountId) => {
+  try {
+    console.log('[EMAIL-DB] Lade Sync-Einstellungen für Account:', accountId);
+    const settings = emailDatabase.getSyncSettings(accountId);
+    return { success: true, settings };
+  } catch (error) {
+    console.error('[EMAIL-DB] getSyncSettings error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Gmail Kategorie-Query erstellen
+ipcMain.handle('emaildb:buildCategoryQuery', async (_, settings) => {
+  try {
+    const query = emailDatabase.buildGmailCategoryQuery(settings);
+    return { success: true, query };
+  } catch (error) {
+    console.error('[EMAIL-DB] buildCategoryQuery error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Import-Status speichern
+ipcMain.handle('emaildb:saveImportStatus', async (_, accountId, status) => {
+  try {
+    console.log('[EMAIL-DB] Speichere Import-Status für Account:', accountId, status.status);
+    const result = emailDatabase.saveImportStatus(accountId, status);
+    return { success: result };
+  } catch (error) {
+    console.error('[EMAIL-DB] saveImportStatus error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Import-Status abrufen
+ipcMain.handle('emaildb:getImportStatus', async (_, accountId) => {
+  try {
+    const status = emailDatabase.getImportStatus(accountId);
+    return { success: true, status };
+  } catch (error) {
+    console.error('[EMAIL-DB] getImportStatus error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Import-Status löschen
+ipcMain.handle('emaildb:clearImportStatus', async (_, accountId) => {
+  try {
+    console.log('[EMAIL-DB] Lösche Import-Status für Account:', accountId);
+    const result = emailDatabase.clearImportStatus(accountId);
+    return { success: result };
+  } catch (error) {
+    console.error('[EMAIL-DB] clearImportStatus error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // E-Mail Anzahl abrufen (schnelle Methode über Message-IDs)
 ipcMain.handle('email:getEmailCount', async (_, accountId) => {
   try {
@@ -4271,12 +4345,17 @@ ipcMain.handle('email:getEmailCount', async (_, accountId) => {
 });
 
 // Alle E-Mails laden mit Progress (für Sync)
-ipcMain.handle('email:loadAllEmails', async (event, accountId, limit = 1000) => {
+// options: { categoryQuery, resumeToken, startCount, startBatch }
+ipcMain.handle('email:loadAllEmails', async (event, accountId, limit = 1000, options = {}) => {
   try {
-    console.log('[EMAIL] Starte Progressive Loading für Account:', accountId, 'Limit:', limit);
+    const categoryQuery = options.categoryQuery || '';
+    const resumeToken = options.resumeToken || null;
+
+    console.log('[EMAIL] Starte Progressive Loading für Account:', accountId, 'Limit:', limit, 'Query:', categoryQuery);
 
     let allEmails = [];
     let shouldStop = false;
+    let lastPageToken = null;
 
     // Google Account - nutze Progressive Loading mit Callback
     if (accountId?.includes('gmail') || accountId?.includes('google')) {
@@ -4342,7 +4421,8 @@ ipcMain.handle('email:loadAllEmails', async (event, accountId, limit = 1000) => 
             batchNumber: batchData.batchNumber,
             emails: preparedEmails,
             isFirst: batchData.isFirst,
-            isLast: allEmails.length >= limit
+            isLast: allEmails.length >= limit,
+            categoryQuery: categoryQuery
           });
         }
 
@@ -4356,10 +4436,27 @@ ipcMain.handle('email:loadAllEmails', async (event, accountId, limit = 1000) => 
       };
 
       // Progressive Loading über den Provider starten (mit höherer Batch-Größe für Geschwindigkeit)
-      const result = await provider.getRecentEmailsProgressive(onBatch, 50, limit);
+      // Jetzt mit Kategorie-Filter und Resume-Optionen
+      const progressiveOptions = {
+        categoryQuery: categoryQuery,
+        resumeToken: resumeToken,
+        startCount: options.startCount || 0,
+        startBatch: options.startBatch || 0
+      };
 
-      console.log('[EMAIL] Sync abgeschlossen:', allEmails.length, 'E-Mails');
-      return { success: true, emails: allEmails, totalLoaded: allEmails.length };
+      const result = await provider.getRecentEmailsProgressive(onBatch, 50, limit, progressiveOptions);
+
+      lastPageToken = result.lastPageToken;
+
+      console.log('[EMAIL] Sync abgeschlossen:', allEmails.length, 'E-Mails', categoryQuery ? '(gefiltert)' : '');
+      return {
+        success: true,
+        emails: allEmails,
+        totalLoaded: allEmails.length,
+        lastPageToken: lastPageToken,
+        wasInterrupted: result.wasInterrupted,
+        categoryQuery: categoryQuery
+      };
     }
 
     return { success: true, emails: allEmails, totalLoaded: allEmails.length };

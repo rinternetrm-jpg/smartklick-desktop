@@ -292,7 +292,25 @@ function initializeElements() {
     syncIndexing: document.getElementById('syncIndexing'),
     syncIndexingStats: document.getElementById('syncIndexingStats'),
     syncCancelBtn: document.getElementById('syncCancelBtn'),
-    syncFinishBtn: document.getElementById('syncFinishBtn')
+    syncFinishBtn: document.getElementById('syncFinishBtn'),
+
+    // Gmail Sync Filter Toggles
+    excludePromotionsToggle: document.getElementById('excludePromotionsToggle'),
+    excludeSocialToggle: document.getElementById('excludeSocialToggle'),
+    excludeForumsToggle: document.getElementById('excludeForumsToggle'),
+    excludeUpdatesToggle: document.getElementById('excludeUpdatesToggle'),
+    gmailSyncSection: document.getElementById('gmailSyncSection'),
+
+    // Resume Import Modal
+    resumeImportModal: document.getElementById('resumeImportModal'),
+    resumeImportAccount: document.getElementById('resumeImportAccount'),
+    resumeImportedCount: document.getElementById('resumeImportedCount'),
+    resumeTotalCount: document.getElementById('resumeTotalCount'),
+    resumeInterruptedAt: document.getElementById('resumeInterruptedAt'),
+    closeResumeImportBtn: document.getElementById('closeResumeImportBtn'),
+    discardImportBtn: document.getElementById('discardImportBtn'),
+    restartImportBtn: document.getElementById('restartImportBtn'),
+    resumeImportBtn: document.getElementById('resumeImportBtn')
   };
 }
 
@@ -551,6 +569,15 @@ function setupEventListeners() {
   // Sync Modal
   elements.syncCancelBtn?.addEventListener('click', cancelSync);
   elements.syncFinishBtn?.addEventListener('click', finishSync);
+
+  // Gmail Sync Filter Toggles
+  setupSyncFilterToggles();
+
+  // Resume Import Modal
+  elements.closeResumeImportBtn?.addEventListener('click', closeResumeImportModal);
+  elements.discardImportBtn?.addEventListener('click', discardInterruptedImport);
+  elements.restartImportBtn?.addEventListener('click', restartImport);
+  elements.resumeImportBtn?.addEventListener('click', resumeImport);
 
   // Click outside to close dropdowns
   document.addEventListener('click', (e) => {
@@ -1447,6 +1474,9 @@ async function loadAccounts() {
       console.log('[ACCOUNTS] Loaded accounts:', accounts.length, accounts);
       updateAccountDropdown();
 
+      // Gmail Sync-Filter Sektion anzeigen/verstecken basierend auf vorhandenen Gmail-Konten
+      updateGmailSyncSectionVisibility();
+
       // Wenn nur 1 Konto → direkt dieses Konto auswählen
       if (accounts.length === 1) {
         selectedAccountId = accounts[0].id;
@@ -1455,6 +1485,9 @@ async function loadAccounts() {
         // Bei mehreren oder keinen Konten → "Alle Konten" anzeigen
         updateAccountSelectorDisplay();
       }
+
+      // Prüfe ob ein unterbrochener Import vorliegt
+      await checkForInterruptedImport();
     }
   } catch (error) {
     console.error('Error loading accounts:', error);
@@ -5446,23 +5479,55 @@ function showSyncModal(accountId, accountName) {
  * @param {number} limit - Maximale Anzahl E-Mails (aus Einstellungen)
  */
 async function startFullSync(accountId, limit = 1000) {
-  console.log('[SYNC] Starte Synchronisation für Account:', accountId, 'Limit:', limit);
+  // Kategorie-Filter anwenden
+  const categoryQuery = buildCategoryFilterQuery();
+  await startFullSyncWithOptions(accountId, limit, { categoryQuery });
+}
+
+/**
+ * Startet die vollständige Synchronisation mit erweiterten Optionen
+ * @param {string} accountId - Account ID
+ * @param {number} limit - Maximale Anzahl E-Mails
+ * @param {Object} options - Optionen (categoryQuery, resumeToken, startCount)
+ */
+async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
+  const categoryQuery = options.categoryQuery || '';
+  const resumeToken = options.resumeToken || null;
+  const startCount = options.startCount || 0;
+
+  console.log('[SYNC] Starte Synchronisation für Account:', accountId, 'Limit:', limit, 'Query:', categoryQuery);
 
   // Das Limit ist unsere Zielanzahl
   syncTotalEmails = limit;
+
+  // Import-Status speichern (für Resume-Funktion)
+  try {
+    await ipcRenderer.invoke('emaildb:saveImportStatus', accountId, {
+      status: 'in_progress',
+      totalCount: limit,
+      importedCount: startCount,
+      lastPageToken: resumeToken,
+      excludedCategories: categoryQuery ? categoryQuery.split(' ') : [],
+      startedAt: syncStartTime
+    });
+  } catch (e) {
+    console.warn('[SYNC] Import-Status konnte nicht gespeichert werden:', e);
+  }
 
   try {
     if (syncCancelled) return;
 
     // Direkt mit Laden starten (kein Zählen nötig, wir kennen das Limit)
-    updateSyncStatus('📥', `Lade ${limit.toLocaleString()} E-Mails...`);
+    const filterInfo = categoryQuery ? ' (gefiltert)' : '';
+    updateSyncStatus('📥', `Lade ${limit.toLocaleString()} E-Mails${filterInfo}...`);
 
     // Zeitschätzung (ca. 1-2 E-Mails pro Sekunde)
-    const estimatedMinutes = Math.ceil(limit / 60);
+    const remaining = limit - startCount;
+    const estimatedMinutes = Math.ceil(remaining / 60);
     elements.syncTimeText.textContent = `Geschätzt: ~${estimatedMinutes} Min.`;
 
     // Listener für Progress-Updates
-    const progressHandler = (event, data) => {
+    const progressHandler = async (event, data) => {
       if (syncCancelled) return;
 
       console.log('[SYNC] Progress Update:', data.loaded, '/', limit, `(${Math.round(data.loaded / limit * 100)}%)`);
@@ -5475,10 +5540,11 @@ async function startFullSync(accountId, limit = 1000) {
 
       // Zeit berechnen
       const elapsed = (Date.now() - syncStartTime) / 1000;
-      if (syncLoadedEmails > 0 && elapsed > 2) {
-        const emailsPerSecond = syncLoadedEmails / elapsed;
-        const remaining = limit - syncLoadedEmails;
-        const secondsLeft = remaining / emailsPerSecond;
+      if (syncLoadedEmails > startCount && elapsed > 2) {
+        const loadedSinceStart = syncLoadedEmails - startCount;
+        const emailsPerSecond = loadedSinceStart / elapsed;
+        const remainingEmails = limit - syncLoadedEmails;
+        const secondsLeft = remainingEmails / emailsPerSecond;
 
         if (secondsLeft < 60) {
           elements.syncTimeText.textContent = `Noch ca. ${Math.ceil(secondsLeft)} Sekunden`;
@@ -5491,20 +5557,52 @@ async function startFullSync(accountId, limit = 1000) {
       if (data.emails && data.emails.length > 0) {
         saveEmailsToDatabase(data.emails, accountId);
       }
+
+      // Import-Status aktualisieren (für Resume bei Unterbrechung)
+      try {
+        await ipcRenderer.invoke('emaildb:saveImportStatus', accountId, {
+          status: 'in_progress',
+          totalCount: limit,
+          importedCount: syncLoadedEmails,
+          excludedCategories: categoryQuery ? categoryQuery.split(' ') : [],
+          startedAt: syncStartTime
+        });
+      } catch (e) {
+        // Ignorieren
+      }
     };
 
     console.log('[SYNC] Registriere Progress-Listener...');
     ipcRenderer.on('email:syncProgress', progressHandler);
 
-    // Starte das Laden mit Limit
-    console.log('[SYNC] Starte email:loadAllEmails mit Limit:', limit);
-    const result = await ipcRenderer.invoke('email:loadAllEmails', accountId, limit);
+    // Starte das Laden mit Limit und Kategorie-Filter
+    console.log('[SYNC] Starte email:loadAllEmails mit Limit:', limit, 'Query:', categoryQuery);
+    const result = await ipcRenderer.invoke('email:loadAllEmails', accountId, limit, {
+      categoryQuery,
+      resumeToken,
+      startCount
+    });
     console.log('[SYNC] LoadAllEmails Result:', result?.success, 'Emails:', result?.emails?.length || 0, 'Total:', result?.totalLoaded);
 
     // Listener entfernen
     ipcRenderer.removeListener('email:syncProgress', progressHandler);
 
-    if (syncCancelled) return;
+    if (syncCancelled) {
+      // Import-Status als unterbrochen markieren
+      try {
+        await ipcRenderer.invoke('emaildb:saveImportStatus', accountId, {
+          status: 'interrupted',
+          totalCount: limit,
+          importedCount: syncLoadedEmails,
+          lastPageToken: result?.lastPageToken,
+          excludedCategories: categoryQuery ? categoryQuery.split(' ') : [],
+          startedAt: syncStartTime
+        });
+      } catch (e) {
+        console.warn('[SYNC] Import-Status konnte nicht gespeichert werden:', e);
+      }
+      return;
+    }
 
     if (result.success) {
       syncLoadedEmails = result.totalLoaded || syncTotalEmails;
@@ -5518,12 +5616,33 @@ async function startFullSync(accountId, limit = 1000) {
         await saveEmailsToDatabase(result.emails, accountId);
       }
 
+      // Import-Status als erfolgreich markieren und löschen
+      try {
+        await ipcRenderer.invoke('emaildb:clearImportStatus', accountId);
+      } catch (e) {
+        console.warn('[SYNC] Import-Status konnte nicht gelöscht werden:', e);
+      }
+
       completeSyncLoading();
     } else {
       console.error('[SYNC] LoadAllEmails failed:', result.error);
       updateSyncStatus('❌', 'Fehler: ' + (result.error || 'Unbekannt'));
       elements.syncFinishBtn.disabled = false;
       elements.syncFinishBtn.textContent = 'Schließen';
+
+      // Import-Status als fehlgeschlagen markieren
+      try {
+        await ipcRenderer.invoke('emaildb:saveImportStatus', accountId, {
+          status: 'failed',
+          totalCount: limit,
+          importedCount: syncLoadedEmails,
+          errorMessage: result.error,
+          excludedCategories: categoryQuery ? categoryQuery.split(' ') : [],
+          startedAt: syncStartTime
+        });
+      } catch (e) {
+        console.warn('[SYNC] Import-Status konnte nicht gespeichert werden:', e);
+      }
     }
 
   } catch (error) {
@@ -5531,6 +5650,20 @@ async function startFullSync(accountId, limit = 1000) {
     updateSyncStatus('❌', 'Fehler: ' + error.message);
     elements.syncFinishBtn.disabled = false;
     elements.syncFinishBtn.textContent = 'Schließen';
+
+    // Import-Status als fehlgeschlagen markieren
+    try {
+      await ipcRenderer.invoke('emaildb:saveImportStatus', accountId, {
+        status: 'failed',
+        totalCount: limit,
+        importedCount: syncLoadedEmails,
+        errorMessage: error.message,
+        excludedCategories: categoryQuery ? categoryQuery.split(' ') : [],
+        startedAt: syncStartTime
+      });
+    } catch (e) {
+      console.warn('[SYNC] Import-Status konnte nicht gespeichert werden:', e);
+    }
   }
 }
 
@@ -5653,4 +5786,266 @@ function finishSync() {
 function closeSyncModal() {
   elements.syncModal.style.display = 'none';
   elements.syncModal.querySelector('.sync-modal')?.classList.remove('sync-complete');
+}
+
+// ========================================
+// GMAIL SYNC FILTER FUNKTIONEN
+// ========================================
+
+// Sync Filter State
+let syncFilterSettings = {
+  excludePromotions: true,
+  excludeSocial: true,
+  excludeForums: true,
+  excludeUpdates: false
+};
+
+// Aktueller Account für Resume
+let pendingResumeStatus = null;
+
+/**
+ * Initialisiert die Sync-Filter Toggles
+ */
+function setupSyncFilterToggles() {
+  // Lade gespeicherte Einstellungen aus localStorage als Fallback
+  const savedSettings = JSON.parse(localStorage.getItem('syncFilterSettings') || 'null');
+  if (savedSettings) {
+    syncFilterSettings = { ...syncFilterSettings, ...savedSettings };
+  }
+
+  // Toggles initialisieren
+  updateSyncFilterToggle(elements.excludePromotionsToggle, syncFilterSettings.excludePromotions);
+  updateSyncFilterToggle(elements.excludeSocialToggle, syncFilterSettings.excludeSocial);
+  updateSyncFilterToggle(elements.excludeForumsToggle, syncFilterSettings.excludeForums);
+  updateSyncFilterToggle(elements.excludeUpdatesToggle, syncFilterSettings.excludeUpdates);
+
+  // Event Listeners
+  elements.excludePromotionsToggle?.addEventListener('click', () => toggleSyncFilter('excludePromotions'));
+  elements.excludeSocialToggle?.addEventListener('click', () => toggleSyncFilter('excludeSocial'));
+  elements.excludeForumsToggle?.addEventListener('click', () => toggleSyncFilter('excludeForums'));
+  elements.excludeUpdatesToggle?.addEventListener('click', () => toggleSyncFilter('excludeUpdates'));
+}
+
+function updateSyncFilterToggle(toggle, isActive) {
+  if (!toggle) return;
+  toggle.classList.toggle('active', isActive);
+}
+
+function toggleSyncFilter(filterName) {
+  syncFilterSettings[filterName] = !syncFilterSettings[filterName];
+
+  // UI aktualisieren
+  const toggleMap = {
+    excludePromotions: elements.excludePromotionsToggle,
+    excludeSocial: elements.excludeSocialToggle,
+    excludeForums: elements.excludeForumsToggle,
+    excludeUpdates: elements.excludeUpdatesToggle
+  };
+
+  updateSyncFilterToggle(toggleMap[filterName], syncFilterSettings[filterName]);
+
+  // In localStorage speichern
+  localStorage.setItem('syncFilterSettings', JSON.stringify(syncFilterSettings));
+
+  console.log('[SYNC-FILTER] Einstellung geändert:', filterName, '=', syncFilterSettings[filterName]);
+}
+
+/**
+ * Baut den Gmail Kategorie-Query basierend auf den Filter-Einstellungen
+ */
+function buildCategoryFilterQuery() {
+  const excludes = [];
+
+  if (syncFilterSettings.excludePromotions) excludes.push('-category:promotions');
+  if (syncFilterSettings.excludeSocial) excludes.push('-category:social');
+  if (syncFilterSettings.excludeForums) excludes.push('-category:forums');
+  if (syncFilterSettings.excludeUpdates) excludes.push('-category:updates');
+
+  const query = excludes.join(' ');
+  console.log('[SYNC-FILTER] Query:', query || '(keine Filter)');
+  return query;
+}
+
+/**
+ * Zeigt/versteckt die Gmail-Sync-Filter Sektion basierend auf verfügbaren Gmail-Konten
+ */
+function updateGmailSyncSectionVisibility() {
+  const hasGmailAccount = accounts.some(a =>
+    a.provider === 'gmail' || a.provider === 'google' ||
+    a.id?.includes('gmail') || a.id?.includes('google')
+  );
+
+  if (elements.gmailSyncSection) {
+    elements.gmailSyncSection.style.display = hasGmailAccount ? 'block' : 'none';
+  }
+}
+
+// ========================================
+// RESUME IMPORT FUNKTIONEN
+// ========================================
+
+/**
+ * Prüft beim Start ob ein unterbrochener Import vorliegt
+ */
+async function checkForInterruptedImport() {
+  // Nur für Gmail-Accounts prüfen
+  for (const account of accounts) {
+    if (account.provider !== 'gmail' && account.provider !== 'google' &&
+        !account.id?.includes('gmail') && !account.id?.includes('google')) {
+      continue;
+    }
+
+    try {
+      const result = await ipcRenderer.invoke('emaildb:getImportStatus', account.id);
+      if (result.success && result.status) {
+        const status = result.status;
+
+        // Nur wenn Status 'in_progress' oder 'interrupted' ist
+        if (status.status === 'in_progress' || status.status === 'interrupted') {
+          console.log('[RESUME] Unterbrochener Import gefunden:', account.email, status);
+          pendingResumeStatus = { ...status, accountEmail: account.email };
+          showResumeImportModal(status, account.email);
+          return; // Nur ersten unterbrochenen Import anzeigen
+        }
+      }
+    } catch (error) {
+      console.error('[RESUME] Fehler beim Prüfen des Import-Status:', error);
+    }
+  }
+}
+
+/**
+ * Zeigt das Resume-Import Modal an
+ */
+function showResumeImportModal(status, accountEmail) {
+  if (!elements.resumeImportModal) return;
+
+  // Modal befüllen
+  elements.resumeImportAccount.textContent = accountEmail;
+  elements.resumeImportedCount.textContent = status.importedCount.toLocaleString();
+  elements.resumeTotalCount.textContent = status.totalCount.toLocaleString();
+
+  // Zeitpunkt der Unterbrechung
+  if (status.updatedAt) {
+    const date = new Date(status.updatedAt * 1000);
+    elements.resumeInterruptedAt.textContent = date.toLocaleString('de-DE');
+  } else {
+    elements.resumeInterruptedAt.textContent = '-';
+  }
+
+  // Modal anzeigen
+  elements.resumeImportModal.classList.remove('hidden');
+}
+
+function closeResumeImportModal() {
+  if (elements.resumeImportModal) {
+    elements.resumeImportModal.classList.add('hidden');
+  }
+  pendingResumeStatus = null;
+}
+
+/**
+ * Verwirft den unterbrochenen Import und schließt das Modal
+ */
+async function discardInterruptedImport() {
+  if (!pendingResumeStatus) {
+    closeResumeImportModal();
+    return;
+  }
+
+  try {
+    await ipcRenderer.invoke('emaildb:clearImportStatus', pendingResumeStatus.accountId);
+    console.log('[RESUME] Import-Status gelöscht');
+  } catch (error) {
+    console.error('[RESUME] Fehler beim Löschen des Import-Status:', error);
+  }
+
+  closeResumeImportModal();
+}
+
+/**
+ * Startet den Import neu (von Anfang an)
+ */
+async function restartImport() {
+  if (!pendingResumeStatus) {
+    closeResumeImportModal();
+    return;
+  }
+
+  const accountId = pendingResumeStatus.accountId;
+  const accountEmail = pendingResumeStatus.accountEmail;
+
+  // Import-Status löschen
+  try {
+    await ipcRenderer.invoke('emaildb:clearImportStatus', accountId);
+  } catch (error) {
+    console.error('[RESUME] Fehler beim Löschen des Import-Status:', error);
+  }
+
+  closeResumeImportModal();
+
+  // Sync-Modal mit neuem Import starten
+  showSyncModal(accountId, accountEmail);
+}
+
+/**
+ * Setzt den unterbrochenen Import fort
+ */
+async function resumeImport() {
+  if (!pendingResumeStatus) {
+    closeResumeImportModal();
+    return;
+  }
+
+  const status = pendingResumeStatus;
+  const accountId = status.accountId;
+  const accountEmail = status.accountEmail;
+
+  closeResumeImportModal();
+
+  // Sync-Modal mit Resume-Parametern starten
+  showSyncModalWithResume(accountId, accountEmail, status);
+}
+
+/**
+ * Zeigt das Sync-Modal mit Resume-Parametern
+ */
+async function showSyncModalWithResume(accountId, accountName, resumeStatus) {
+  // Verhindere doppelten Sync
+  if (isSyncing) {
+    console.log('[SYNC] Sync läuft bereits, überspringe');
+    return;
+  }
+
+  console.log('[SYNC] Fortsetzen des Imports für Account:', accountId, 'Ab:', resumeStatus.importedCount);
+
+  // Reset state mit Resume-Werten
+  isSyncing = true;
+  syncCancelled = false;
+  syncAccountId = accountId;
+  syncStartTime = Date.now();
+  syncLoadedEmails = resumeStatus.importedCount;
+  syncTotalEmails = resumeStatus.totalCount;
+
+  // UI initialisieren
+  elements.syncAccountName.textContent = accountName + ' (Fortgesetzt)';
+  elements.syncProgressFill.style.width = `${(syncLoadedEmails / syncTotalEmails) * 100}%`;
+  elements.syncLoadedCount.textContent = syncLoadedEmails.toLocaleString();
+  elements.syncTotalCount.textContent = syncTotalEmails.toLocaleString();
+  elements.syncTimeText.textContent = 'Setze fort...';
+  elements.syncIndexing.classList.add('hidden');
+  elements.syncFinishBtn.disabled = true;
+
+  // Status
+  updateSyncStatus('⏳', 'Setze Import fort...');
+
+  // Modal anzeigen
+  elements.syncModal.style.display = 'flex';
+
+  // Import fortsetzen
+  startFullSyncWithOptions(accountId, syncTotalEmails, {
+    categoryQuery: resumeStatus.excludedCategories ? resumeStatus.excludedCategories.join(' ') : buildCategoryFilterQuery(),
+    resumeToken: resumeStatus.lastPageToken,
+    startCount: resumeStatus.importedCount
+  });
 }

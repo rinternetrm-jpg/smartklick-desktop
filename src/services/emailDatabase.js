@@ -79,6 +79,32 @@ function initDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_conv_contact ON conversations(contact_email);
     CREATE INDEX IF NOT EXISTS idx_conv_account ON conversations(account_id);
+
+    -- Import Status Tabelle (für Resume-Funktion)
+    CREATE TABLE IF NOT EXISTS import_status (
+      account_id TEXT PRIMARY KEY,
+      status TEXT DEFAULT 'idle',
+      total_count INTEGER DEFAULT 0,
+      imported_count INTEGER DEFAULT 0,
+      last_page_token TEXT,
+      last_message_id TEXT,
+      excluded_categories TEXT,
+      started_at INTEGER,
+      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+      error_message TEXT
+    );
+
+    -- Sync Settings Tabelle (für Kategorie-Filter)
+    CREATE TABLE IF NOT EXISTS sync_settings (
+      account_id TEXT PRIMARY KEY,
+      exclude_promotions INTEGER DEFAULT 1,
+      exclude_social INTEGER DEFAULT 1,
+      exclude_forums INTEGER DEFAULT 1,
+      exclude_updates INTEGER DEFAULT 0,
+      email_limit INTEGER DEFAULT 1000,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
   `);
 
   console.log('[EMAIL-DB] Datenbank initialisiert');
@@ -525,6 +551,185 @@ function closeDatabase() {
   }
 }
 
+// ========================================
+// IMPORT STATUS FUNCTIONS
+// ========================================
+
+/**
+ * Speichert/aktualisiert den Import-Status für einen Account
+ */
+function saveImportStatus(accountId, status) {
+  if (!db) initDatabase();
+
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO import_status (
+      account_id, status, total_count, imported_count,
+      last_page_token, last_message_id, excluded_categories,
+      started_at, updated_at, error_message
+    ) VALUES (
+      @account_id, @status, @total_count, @imported_count,
+      @last_page_token, @last_message_id, @excluded_categories,
+      @started_at, strftime('%s', 'now'), @error_message
+    )
+  `);
+
+  try {
+    stmt.run({
+      account_id: accountId,
+      status: status.status || 'idle',
+      total_count: status.totalCount || 0,
+      imported_count: status.importedCount || 0,
+      last_page_token: status.lastPageToken || null,
+      last_message_id: status.lastMessageId || null,
+      excluded_categories: status.excludedCategories ? JSON.stringify(status.excludedCategories) : null,
+      started_at: status.startedAt || Date.now(),
+      error_message: status.errorMessage || null
+    });
+    return true;
+  } catch (error) {
+    console.error('[EMAIL-DB] Fehler beim Speichern des Import-Status:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Holt den Import-Status für einen Account
+ */
+function getImportStatus(accountId) {
+  if (!db) initDatabase();
+
+  try {
+    const stmt = db.prepare('SELECT * FROM import_status WHERE account_id = ?');
+    const row = stmt.get(accountId);
+
+    if (!row) return null;
+
+    return {
+      accountId: row.account_id,
+      status: row.status,
+      totalCount: row.total_count,
+      importedCount: row.imported_count,
+      lastPageToken: row.last_page_token,
+      lastMessageId: row.last_message_id,
+      excludedCategories: row.excluded_categories ? JSON.parse(row.excluded_categories) : [],
+      startedAt: row.started_at,
+      updatedAt: row.updated_at,
+      errorMessage: row.error_message
+    };
+  } catch (error) {
+    console.error('[EMAIL-DB] Fehler beim Abrufen des Import-Status:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Löscht den Import-Status für einen Account
+ */
+function clearImportStatus(accountId) {
+  if (!db) initDatabase();
+
+  try {
+    const stmt = db.prepare('DELETE FROM import_status WHERE account_id = ?');
+    stmt.run(accountId);
+    return true;
+  } catch (error) {
+    console.error('[EMAIL-DB] Fehler beim Löschen des Import-Status:', error.message);
+    return false;
+  }
+}
+
+// ========================================
+// SYNC SETTINGS FUNCTIONS
+// ========================================
+
+/**
+ * Speichert die Sync-Einstellungen für einen Account
+ */
+function saveSyncSettings(accountId, settings) {
+  if (!db) initDatabase();
+
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO sync_settings (
+      account_id, exclude_promotions, exclude_social,
+      exclude_forums, exclude_updates, email_limit, updated_at
+    ) VALUES (
+      @account_id, @exclude_promotions, @exclude_social,
+      @exclude_forums, @exclude_updates, @email_limit, strftime('%s', 'now')
+    )
+  `);
+
+  try {
+    stmt.run({
+      account_id: accountId,
+      exclude_promotions: settings.excludePromotions ? 1 : 0,
+      exclude_social: settings.excludeSocial ? 1 : 0,
+      exclude_forums: settings.excludeForums ? 1 : 0,
+      exclude_updates: settings.excludeUpdates ? 1 : 0,
+      email_limit: settings.emailLimit || 1000
+    });
+    return true;
+  } catch (error) {
+    console.error('[EMAIL-DB] Fehler beim Speichern der Sync-Einstellungen:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Holt die Sync-Einstellungen für einen Account
+ */
+function getSyncSettings(accountId) {
+  if (!db) initDatabase();
+
+  try {
+    const stmt = db.prepare('SELECT * FROM sync_settings WHERE account_id = ?');
+    const row = stmt.get(accountId);
+
+    if (!row) {
+      // Default-Einstellungen zurückgeben
+      return {
+        accountId: accountId,
+        excludePromotions: true,
+        excludeSocial: true,
+        excludeForums: true,
+        excludeUpdates: false,
+        emailLimit: 1000
+      };
+    }
+
+    return {
+      accountId: row.account_id,
+      excludePromotions: row.exclude_promotions === 1,
+      excludeSocial: row.exclude_social === 1,
+      excludeForums: row.exclude_forums === 1,
+      excludeUpdates: row.exclude_updates === 1,
+      emailLimit: row.email_limit
+    };
+  } catch (error) {
+    console.error('[EMAIL-DB] Fehler beim Abrufen der Sync-Einstellungen:', error.message);
+    return {
+      excludePromotions: true,
+      excludeSocial: true,
+      excludeForums: true,
+      excludeUpdates: false,
+      emailLimit: 1000
+    };
+  }
+}
+
+/**
+ * Baut den Gmail Query-String für die Kategorie-Filter
+ */
+function buildGmailCategoryQuery(settings) {
+  const excludes = [];
+
+  if (settings.excludePromotions) excludes.push('-category:promotions');
+  if (settings.excludeSocial) excludes.push('-category:social');
+  if (settings.excludeForums) excludes.push('-category:forums');
+  if (settings.excludeUpdates) excludes.push('-category:updates');
+
+  return excludes.join(' ');
+}
+
 module.exports = {
   initDatabase,
   saveEmail,
@@ -539,5 +744,13 @@ module.exports = {
   emailExists,
   indexConversations,
   getAllConversations,
-  closeDatabase
+  closeDatabase,
+  // Import Status
+  saveImportStatus,
+  getImportStatus,
+  clearImportStatus,
+  // Sync Settings
+  saveSyncSettings,
+  getSyncSettings,
+  buildGmailCategoryQuery
 };

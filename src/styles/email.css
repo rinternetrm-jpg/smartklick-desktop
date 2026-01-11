@@ -3106,6 +3106,54 @@ body {
   background: linear-gradient(135deg, #22c55e, #16a34a);
 }
 
+/* ===== Sync Filter Info ===== */
+.sync-filter-info {
+  padding: 12px 16px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+/* ===== Resume Import Modal ===== */
+.resume-import-info {
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.resume-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.resume-stat:not(:last-child) {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.resume-stat-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.resume-stat-value {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.resume-import-question {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
 /* Account Options */
 .account-options {
   display: flex;
