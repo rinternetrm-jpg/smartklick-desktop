@@ -4209,25 +4209,60 @@ ipcMain.handle('emaildb:indexConversations', async (_, accountId) => {
   }
 });
 
-// E-Mail Anzahl abrufen
+// E-Mail Anzahl abrufen (schnelle Methode über Message-IDs)
 ipcMain.handle('email:getEmailCount', async (_, accountId) => {
   try {
     console.log('[EMAIL] Ermittle E-Mail Anzahl für Account:', accountId);
 
-    // Google Account - nutze die bestehende gmailService
+    // Google Account - über emailProviderManager
     if (accountId?.includes('gmail') || accountId?.includes('google')) {
-      // Versuche Anzahl über Gmail API zu ermitteln
       try {
-        const profile = await gmailService.gmail?.users.getProfile({ userId: 'me' });
-        if (profile?.data?.messagesTotal) {
-          return { success: true, count: profile.data.messagesTotal };
+        // Provider aus emailProviderManager holen
+        if (!emailProviderManager) {
+          return { success: false, count: 0, error: 'EmailProviderManager nicht initialisiert' };
         }
+
+        const provider = emailProviderManager.providers.get(accountId);
+        if (!provider) {
+          console.log('[EMAIL] Provider nicht gefunden für:', accountId);
+          console.log('[EMAIL] Verfügbare Provider:', Array.from(emailProviderManager.providers.keys()));
+          return { success: false, count: 0, error: 'Provider nicht gefunden' };
+        }
+
+        // Gmail API vom Provider holen
+        const gmail = provider.getGmail ? provider.getGmail() : provider.gmail;
+        if (!gmail) {
+          return { success: false, count: 0, error: 'Gmail nicht initialisiert' };
+        }
+
+        // Zähle alle Nachrichten im Posteingang
+        let totalCount = 0;
+        let pageToken = null;
+
+        do {
+          const response = await gmail.users.messages.list({
+            userId: 'me',
+            labelIds: ['INBOX'],
+            maxResults: 500,
+            pageToken: pageToken
+          });
+
+          const messages = response.data.messages || [];
+          totalCount += messages.length;
+          pageToken = response.data.nextPageToken;
+
+          console.log(`[EMAIL] Gezählt: ${totalCount} E-Mails...`);
+        } while (pageToken);
+
+        console.log(`[EMAIL] Gesamt: ${totalCount} E-Mails im Posteingang`);
+        return { success: true, count: totalCount };
+
       } catch (e) {
-        console.log('[EMAIL] Konnte Profilinfo nicht abrufen:', e.message);
+        console.error('[EMAIL] Count error:', e.message);
+        return { success: false, count: 0, error: e.message };
       }
     }
 
-    // Fallback: Schätzung nicht möglich
     return { success: true, count: 0 };
   } catch (error) {
     console.error('[EMAIL] Count error:', error);
@@ -4235,20 +4270,40 @@ ipcMain.handle('email:getEmailCount', async (_, accountId) => {
   }
 });
 
-// Alle E-Mails laden (für Sync)
+// Alle E-Mails laden mit Progress (für Sync)
 ipcMain.handle('email:loadAllEmails', async (event, accountId) => {
   try {
-    console.log('[EMAIL] Lade alle E-Mails für Account:', accountId);
+    console.log('[EMAIL] Starte Progressive Loading für Account:', accountId);
 
     let allEmails = [];
-    let totalLoaded = 0;
 
-    // Google Account
+    // Google Account - nutze Progressive Loading mit Callback
     if (accountId?.includes('gmail') || accountId?.includes('google')) {
-      // Nutze bestehende getEmails mit hohem Limit
-      const result = await gmailService.getRecentEmails(10000); // Max 10000
-      if (result && Array.isArray(result)) {
-        allEmails = result.map(email => ({
+
+      // Provider aus emailProviderManager holen
+      if (!emailProviderManager) {
+        return { success: false, error: 'EmailProviderManager nicht initialisiert' };
+      }
+
+      const provider = emailProviderManager.providers.get(accountId);
+      if (!provider) {
+        console.log('[EMAIL] Provider nicht gefunden für:', accountId);
+        console.log('[EMAIL] Verfügbare Provider:', Array.from(emailProviderManager.providers.keys()));
+        return { success: false, error: 'Provider nicht gefunden' };
+      }
+
+      // Prüfe ob Provider progressive loading unterstützt
+      if (!provider.getRecentEmailsProgressive) {
+        console.log('[EMAIL] Provider unterstützt kein progressive loading');
+        return { success: false, error: 'Progressive Loading nicht unterstützt' };
+      }
+
+      // Callback für jeden geladenen Batch
+      const onBatch = async (batchData) => {
+        console.log(`[EMAIL] Batch ${batchData.batchNumber}: ${batchData.totalLoaded}/${batchData.totalCount} (${batchData.progress}%)`);
+
+        // E-Mails für DB vorbereiten
+        const preparedEmails = batchData.emails.map(email => ({
           id: email.id,
           from: email.from,
           fromName: email.fromName,
@@ -4265,20 +4320,35 @@ ipcMain.handle('email:loadAllEmails', async (event, accountId) => {
           accountId: accountId,
           provider: 'google'
         }));
-        totalLoaded = allEmails.length;
 
-        // Progress senden
+        allEmails.push(...preparedEmails);
+
+        // Progress an Frontend senden
         if (emailWindow && !emailWindow.isDestroyed()) {
           emailWindow.webContents.send('email:syncProgress', {
-            loaded: totalLoaded,
-            emails: allEmails
+            loaded: batchData.totalLoaded,
+            total: batchData.totalCount,
+            progress: batchData.progress,
+            batchNumber: batchData.batchNumber,
+            emails: preparedEmails,
+            isFirst: batchData.isFirst,
+            isLast: batchData.isLast
           });
         }
+      };
+
+      // Progressive Loading über den Provider starten
+      const result = await provider.getRecentEmailsProgressive(onBatch, 50);
+
+      if (result.success) {
+        console.log('[EMAIL] Sync abgeschlossen:', result.totalLoaded, 'E-Mails');
+        return { success: true, emails: allEmails, totalLoaded: result.totalLoaded };
+      } else {
+        return { success: false, error: 'Progressive Loading fehlgeschlagen' };
       }
     }
 
-    console.log('[EMAIL] Sync abgeschlossen:', totalLoaded, 'E-Mails');
-    return { success: true, emails: allEmails, totalLoaded };
+    return { success: true, emails: allEmails, totalLoaded: allEmails.length };
 
   } catch (error) {
     console.error('[EMAIL] Load all error:', error);

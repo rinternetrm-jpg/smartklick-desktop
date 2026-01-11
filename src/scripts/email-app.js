@@ -3919,13 +3919,24 @@ async function connectGmail() {
       await loadAccounts();
       closeAddAccountModal();
 
-      // Finde das neue Konto und starte Sync-Modal
-      const newAccount = accounts.find(a => a.provider === 'google' || a.id?.includes('gmail'));
-      if (newAccount) {
-        showSyncModal(newAccount.id, newAccount.email || newAccount.name);
+      // accountId direkt aus dem Auth-Ergebnis nutzen
+      const accountId = result.accountId;
+      const userEmail = result.user?.email || '';
+
+      console.log('[GMAIL] Neuer Account verbunden:', accountId, userEmail);
+
+      if (accountId) {
+        // Nutze die accountId direkt für das Sync-Modal
+        showSyncModal(accountId, userEmail);
       } else {
-        // Fallback: Normale Ladung
-        loadEmails();
+        // Fallback: Finde Account in der Liste
+        const newAccount = accounts.find(a => a.provider === 'gmail' || a.id?.includes('gmail'));
+        if (newAccount) {
+          showSyncModal(newAccount.id, newAccount.email || newAccount.name);
+        } else {
+          // Letzter Fallback: Normale Ladung
+          loadEmails();
+        }
       }
     } else {
       showToast('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'), 'error');
@@ -5317,17 +5328,29 @@ function showSyncModal(accountId, accountName) {
  * Startet die vollständige Synchronisation
  */
 async function startFullSync(accountId) {
-  console.log('[SYNC] Starte vollständige Synchronisation...');
+  console.log('[SYNC] Starte vollständige Synchronisation für Account:', accountId);
 
   try {
     // Erst Gesamtanzahl der E-Mails ermitteln
     updateSyncStatus('🔍', 'Ermittle E-Mail Anzahl...');
 
+    console.log('[SYNC] Rufe email:getEmailCount auf...');
     const countResult = await ipcRenderer.invoke('email:getEmailCount', accountId);
+    console.log('[SYNC] Count Result:', countResult);
+
     if (countResult.success) {
       syncTotalEmails = countResult.count || 0;
       elements.syncTotalCount.textContent = syncTotalEmails.toLocaleString();
       console.log('[SYNC] Gefunden:', syncTotalEmails, 'E-Mails');
+
+      // Zeitschätzung basierend auf Anzahl (ca. 1 E-Mail pro Sekunde)
+      if (syncTotalEmails > 0) {
+        const estimatedMinutes = Math.ceil(syncTotalEmails / 60);
+        elements.syncTimeText.textContent = `Geschätzt: ~${estimatedMinutes} Min.`;
+      }
+    } else {
+      console.error('[SYNC] Count failed:', countResult.error);
+      updateSyncStatus('⚠️', 'Zählung fehlgeschlagen: ' + (countResult.error || 'Unbekannt'));
     }
 
     if (syncCancelled) return;
@@ -5339,8 +5362,10 @@ async function startFullSync(accountId) {
     const progressHandler = (event, data) => {
       if (syncCancelled) return;
 
+      console.log('[SYNC] Progress Update:', data.loaded, '/', data.total, `(${data.progress}%)`);
+
       syncLoadedEmails = data.loaded || 0;
-      const progress = syncTotalEmails > 0 ? (syncLoadedEmails / syncTotalEmails) * 100 : 0;
+      const progress = syncTotalEmails > 0 ? (syncLoadedEmails / syncTotalEmails) * 100 : data.progress || 0;
 
       elements.syncLoadedCount.textContent = syncLoadedEmails.toLocaleString();
       elements.syncProgressFill.style.width = `${Math.min(progress, 100)}%`;
@@ -5349,7 +5374,7 @@ async function startFullSync(accountId) {
       const elapsed = (Date.now() - syncStartTime) / 1000;
       if (syncLoadedEmails > 0 && elapsed > 2) {
         const emailsPerSecond = syncLoadedEmails / elapsed;
-        const remaining = syncTotalEmails - syncLoadedEmails;
+        const remaining = (data.total || syncTotalEmails) - syncLoadedEmails;
         const secondsLeft = remaining / emailsPerSecond;
 
         if (secondsLeft < 60) {
@@ -5365,10 +5390,13 @@ async function startFullSync(accountId) {
       }
     };
 
+    console.log('[SYNC] Registriere Progress-Listener...');
     ipcRenderer.on('email:syncProgress', progressHandler);
 
     // Starte das Laden
+    console.log('[SYNC] Starte email:loadAllEmails...');
     const result = await ipcRenderer.invoke('email:loadAllEmails', accountId);
+    console.log('[SYNC] LoadAllEmails Result:', result?.success, 'Emails:', result?.emails?.length || 0, 'Total:', result?.totalLoaded);
 
     // Listener entfernen
     ipcRenderer.removeListener('email:syncProgress', progressHandler);
@@ -5382,12 +5410,14 @@ async function startFullSync(accountId) {
 
       // Speichere alle geladenen E-Mails
       if (result.emails && result.emails.length > 0) {
+        console.log('[SYNC] Speichere', result.emails.length, 'E-Mails in globale Liste...');
         emails = result.emails;
         await saveEmailsToDatabase(result.emails, accountId);
       }
 
       completeSyncLoading();
     } else {
+      console.error('[SYNC] LoadAllEmails failed:', result.error);
       updateSyncStatus('❌', 'Fehler: ' + (result.error || 'Unbekannt'));
       elements.syncFinishBtn.disabled = false;
       elements.syncFinishBtn.textContent = 'Schließen';
