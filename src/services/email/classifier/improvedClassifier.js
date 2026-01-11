@@ -900,14 +900,61 @@ class ImprovedClassifier {
         kategorie: 'papierkorb',
         confidence: 90,
         gedanken: `E-Mail ist ${age} Tage alt - veraltet.`,
+        stufe: 6,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // ========== STUFE 7: WERBUNG-KEYWORDS & EMOJIS ==========
+    // Diese überschreiben Domain-basierte INFO-Klassifizierung!
+    if (isWerbungKeyword(subject)) {
+      console.log(`[CLASSIFY] → WERBUNG (Stufe 7 - Werbung-Keyword im Betreff)`);
+      return {
+        kategorie: 'werbung',
+        confidence: 92,
+        gedanken: `Werbung-Keyword erkannt im Betreff.`,
         stufe: 7,
         schnell: true,
         final: true
       };
     }
 
-    // ========== STUFE 7: WEITER ZU GPT (Stufe 1/2) ==========
-    // Kein Match in Stufe 0-6 → null zurückgeben damit GPT gefragt wird
+    // Emoji-Spam = Marketing
+    if (hasExcessiveEmojis(subject)) {
+      console.log(`[CLASSIFY] → WERBUNG (Stufe 7 - Emoji-Spam)`);
+      return {
+        kategorie: 'werbung',
+        confidence: 90,
+        gedanken: `Mehrere Emojis im Betreff = Marketing.`,
+        stufe: 7,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // ========== STUFE 8: PAPIERKORB-KEYWORDS ==========
+    if (isPapierkorbKeyword(subject)) {
+      console.log(`[CLASSIFY] → PAPIERKORB (Stufe 8 - Papierkorb-Keyword)`);
+      return {
+        kategorie: 'papierkorb',
+        confidence: 95,
+        gedanken: `Papierkorb-Keyword erkannt (Spam/Test).`,
+        stufe: 8,
+        schnell: true,
+        final: true
+      };
+    }
+
+    // ========== STUFE 9: DOMAIN-CHECK ==========
+    const domainResult = checkDomain(fromAddress, age);
+    if (domainResult.final) {
+      console.log(`[CLASSIFY] → ${domainResult.kategorie.toUpperCase()} (Stufe 9 - Domain)`);
+      return domainResult;
+    }
+
+    // ========== STUFE 10: WEITER ZU GPT (Stufe 1/2) ==========
+    // Kein Match in Stufe 0-9 → null zurückgeben damit GPT gefragt wird
     console.log(`[CLASSIFY] → Keine Regel matched, weiter zu GPT`);
 
     // WICHTIG: null zurückgeben, NICHT ein Objekt!
