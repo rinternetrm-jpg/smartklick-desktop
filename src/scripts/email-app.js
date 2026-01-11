@@ -725,10 +725,10 @@ async function classifyAllEmails() {
           email.tags = classification.tags || [];
           email.zusammenfassung = classification.zusammenfassung;
           email.aktion = classification.aktion;
-          email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
+          email.isImportant = email.kategorie === 'essenz' || email.kategorie === 'wichtig';
           email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
-          email.isPapierkorb = classification.kategorie === 'papierkorb';
-          email.isNewsletter = classification.kategorie === 'newsletter';
+          email.isPapierkorb = email.kategorie === 'spam';
+          email.isNewsletter = email.kategorie === 'newsletter';
           email.canAutoReply = classification.autoAntwortMöglich;
         }
       }
@@ -771,11 +771,10 @@ class EmailAnalysisAnimation {
       wichtig: 0,
       termine: 0,
       rechnung: 0,
-      normal: 0,
       info: 0,
       werbung: 0,
       newsletter: 0,
-      papierkorb: 0,
+      spam: 0,
       veraltet: 0
     };
     // Mapping: Klassifizierungs-Kategorie → Sidebar-Kategorie
@@ -784,11 +783,10 @@ class EmailAnalysisAnimation {
       wichtig: 'important',
       termine: 'termine',
       rechnung: 'rechnung',
-      normal: 'inbox',
       info: 'info',
       werbung: 'werbung',
       newsletter: 'newsletter',
-      papierkorb: 'papierkorb',
+      spam: 'papierkorb',
       veraltet: 'inbox'
     };
     this.createUIElements();
@@ -832,12 +830,8 @@ class EmailAnalysisAnimation {
             <div class="summary-stat-label">Newsletter</div>
           </div>
           <div class="summary-stat-item">
-            <div class="summary-stat-number papierkorb" id="summaryPapierkorb">0</div>
-            <div class="summary-stat-label">Papierkorb</div>
-          </div>
-          <div class="summary-stat-item">
-            <div class="summary-stat-number normal" id="summaryNormal">0</div>
-            <div class="summary-stat-label">Normal</div>
+            <div class="summary-stat-number spam" id="summaryPapierkorb">0</div>
+            <div class="summary-stat-label">Spam</div>
           </div>
         </div>
         <div class="summary-message" id="summaryMessage">Du hast 0 wichtige E-Mails.</div>
@@ -897,14 +891,14 @@ class EmailAnalysisAnimation {
         email.tags = classification.tags || [];
         email.zusammenfassung = classification.zusammenfassung;
         email.aktion = classification.aktion;
-        email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
+        email.isImportant = email.kategorie === 'essenz' || email.kategorie === 'wichtig';
         email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
-        email.isPapierkorb = classification.kategorie === 'papierkorb';
-        email.isNewsletter = classification.kategorie === 'newsletter';
+        email.isPapierkorb = email.kategorie === 'spam';
+        email.isNewsletter = email.kategorie === 'newsletter';
         email.canAutoReply = classification.autoAntwortMöglich;
 
         // Animation starten: E-Mail fliegt zur Kategorie
-        await this.animateEmailToCategory(email, classification.kategorie, i);
+        await this.animateEmailToCategory(email, email.kategorie, i);
 
         // Kurze Pause vor nächster E-Mail (150-300ms)
         await this.sleep(150 + Math.random() * 150);
@@ -1122,10 +1116,9 @@ class EmailAnalysisAnimation {
     // Update Stats
     document.getElementById('summaryEssenz').textContent = this.counts.essenz || 0;
     document.getElementById('summaryWichtig').textContent = this.counts.wichtig || 0;
-    document.getElementById('summaryNormal').textContent = this.counts.normal || 0;
     document.getElementById('summaryInfo').textContent = this.counts.info || 0;
     document.getElementById('summaryNewsletter').textContent = this.counts.newsletter || 0;
-    document.getElementById('summaryPapierkorb').textContent = this.counts.papierkorb || 0;
+    document.getElementById('summaryPapierkorb').textContent = this.counts.spam || 0;
 
     // Message
     const wichtigeAnzahl = (this.counts.essenz || 0) + (this.counts.wichtig || 0);
@@ -1374,7 +1367,7 @@ function createEmailItem(email) {
   let priorityClass = 'normal';
   if (email.kategorie === 'essenz') priorityClass = 'high';
   else if (email.kategorie === 'wichtig') priorityClass = 'medium';
-  else if (email.kategorie === 'papierkorb' || email.kategorie === 'newsletter') priorityClass = 'low';
+  else if (email.kategorie === 'spam' || email.kategorie === 'newsletter') priorityClass = 'low';
 
   // Tags basierend auf Klassifizierung
   let tagsHtml = '';
@@ -1840,12 +1833,11 @@ function updateStats() {
 }
 
 function updateCategoryCounts() {
-  // Inbox (nur unkategorisierte E-Mails, normal, veraltet)
+  // Inbox (nur unkategorisierte E-Mails oder veraltet)
   const inboxCount = emails.filter(e =>
     !e.kategorie ||
-    e.kategorie === 'normal' ||
     e.kategorie === 'veraltet' ||
-    (e.kategorie !== 'papierkorb' && e.kategorie !== 'newsletter' &&
+    (e.kategorie !== 'spam' && e.kategorie !== 'newsletter' &&
      e.kategorie !== 'info' && e.kategorie !== 'werbung' &&
      e.kategorie !== 'essenz' && e.kategorie !== 'wichtig' &&
      e.kategorie !== 'termine' && e.kategorie !== 'rechnung' &&
@@ -1899,10 +1891,10 @@ function updateCategoryCounts() {
   const newsletterCount = emails.filter(e => e.kategorie === 'newsletter' || e.isNewsletter).length;
   document.getElementById('catNewsletter').textContent = `${newsletterCount} E-Mails`;
 
-  // Papierkorb
-  const papierkorbCount = emails.filter(e => e.kategorie === 'papierkorb' || e.isPapierkorb).length;
-  document.getElementById('catPapierkorb').textContent = `${papierkorbCount} E-Mails`;
-  elements.papierkorbCount.textContent = papierkorbCount;
+  // Spam/Papierkorb
+  const spamCount = emails.filter(e => e.kategorie === 'spam' || e.isPapierkorb).length;
+  document.getElementById('catPapierkorb').textContent = `${spamCount} E-Mails`;
+  elements.papierkorbCount.textContent = spamCount;
 
   // Sent
   const sentCount = emails.filter(e => e.isSent).length;
@@ -1941,11 +1933,10 @@ function renderChart() {
     wichtig: 0,
     termine: 0,
     rechnung: 0,
-    normal: 0,
     info: 0,
     newsletter: 0,
     werbung: 0,
-    papierkorb: 0,
+    spam: 0,
     veraltet: 0
   }));
 
@@ -1973,11 +1964,11 @@ function renderChart() {
       const emailDayOfWeek = emailDate.getDay();
       const dayIndex = emailDayOfWeek === 0 ? 6 : emailDayOfWeek - 1; // Mo=0, So=6
 
-      const kategorie = email.kategorie || 'normal';
+      const kategorie = email.kategorie || 'info';
       if (data[dayIndex][kategorie] !== undefined) {
         data[dayIndex][kategorie]++;
       } else {
-        data[dayIndex].normal++;
+        data[dayIndex].info++;
       }
       countedEmails++;
     } else {
@@ -1996,11 +1987,11 @@ function renderChart() {
 
   // Berechne Maximum für Skalierung (alle Kategorien)
   const maxTotal = Math.max(1, ...data.map(d =>
-    d.essenz + d.wichtig + d.termine + d.rechnung + d.normal + d.info + d.newsletter + d.werbung + d.papierkorb + d.veraltet
+    d.essenz + d.wichtig + d.termine + d.rechnung + d.info + d.newsletter + d.werbung + d.spam + d.veraltet
   ));
 
   elements.chartBars.innerHTML = data.map((d, i) => {
-    const total = d.essenz + d.wichtig + d.termine + d.rechnung + d.normal + d.info + d.newsletter + d.werbung + d.papierkorb + d.veraltet;
+    const total = d.essenz + d.wichtig + d.termine + d.rechnung + d.info + d.newsletter + d.werbung + d.spam + d.veraltet;
     const scale = 100 / maxTotal;
 
     return `
@@ -2011,11 +2002,10 @@ function renderChart() {
           <div class="chart-bar wichtig" style="width: ${d.wichtig * scale}%" title="Wichtig: ${d.wichtig}"></div>
           <div class="chart-bar termine" style="width: ${d.termine * scale}%" title="Termine: ${d.termine}"></div>
           <div class="chart-bar rechnung" style="width: ${d.rechnung * scale}%" title="Rechnung: ${d.rechnung}"></div>
-          <div class="chart-bar normal" style="width: ${d.normal * scale}%" title="Normal: ${d.normal}"></div>
           <div class="chart-bar info" style="width: ${d.info * scale}%" title="Info: ${d.info}"></div>
           <div class="chart-bar newsletter" style="width: ${d.newsletter * scale}%" title="Newsletter: ${d.newsletter}"></div>
           <div class="chart-bar werbung" style="width: ${d.werbung * scale}%" title="Werbung: ${d.werbung}"></div>
-          <div class="chart-bar papierkorb" style="width: ${d.papierkorb * scale}%" title="Papierkorb: ${d.papierkorb}"></div>
+          <div class="chart-bar spam" style="width: ${d.spam * scale}%" title="Spam: ${d.spam}"></div>
           <div class="chart-bar veraltet" style="width: ${d.veraltet * scale}%" title="Veraltet: ${d.veraltet}"></div>
         </div>
         <span class="chart-total">${total}</span>
@@ -2176,23 +2166,23 @@ async function analyzeAllEmails() {
         email.tags = classification.tags || [];
         email.zusammenfassung = classification.zusammenfassung;
         email.aktion = classification.aktion;
-        email.isImportant = classification.kategorie === 'essenz' || classification.kategorie === 'wichtig';
+        email.isImportant = email.kategorie === 'essenz' || email.kategorie === 'wichtig';
         email.needsAction = classification.tags?.includes('ANTWORT_NÖTIG') || classification.aktion === 'antworten';
-        email.isPapierkorb = classification.kategorie === 'papierkorb';
-        email.isNewsletter = classification.kategorie === 'newsletter';
+        email.isPapierkorb = email.kategorie === 'spam';
+        email.isNewsletter = email.kategorie === 'newsletter';
         email.canAutoReply = classification.autoAntwortMöglich;
 
         // Debug-Log Eintrag hinzufügen
         addDebugEntry(emailForClassification, classification);
 
         // SOFORT Animation für diese E-Mail
-        await emailAnalysisAnimation.animateEmailToCategory(email, classification.kategorie, i);
+        await emailAnalysisAnimation.animateEmailToCategory(email, email.kategorie, i);
 
         // Update Counts nach jeder E-Mail
         updateCategoryCounts();
 
         const cacheInfo = classification.cached ? ' [Cache]' : ' [Neu]';
-        console.log(`[ANALYZE] ${i + 1}/${totalEmails}: ${email.subject?.substring(0, 30)}... → ${classification.kategorie} (Stufe ${classification.stufe})${cacheInfo}`);
+        console.log(`[ANALYZE] ${i + 1}/${totalEmails}: ${email.subject?.substring(0, 30)}... → ${email.kategorie} (Stufe ${classification.stufe})${cacheInfo}`);
       } else {
         console.warn(`[ANALYZE] Fehler bei E-Mail ${i + 1}:`, result.error);
       }
@@ -2270,12 +2260,12 @@ async function emptyPapierkorb() {
 
   try {
     await ipcRenderer.invoke('email:emptyPapierkorb');
-    emails = emails.filter(e => !e.isPapierkorb && e.kategorie !== 'papierkorb');
+    emails = emails.filter(e => !e.isPapierkorb && e.kategorie !== 'spam');
     updateCategoryCounts();
     renderEmailList();
     showToast('Papierkorb geleert');
   } catch (error) {
-    console.error('Error emptying papierkorb:', error);
+    console.error('Error emptying spam:', error);
     showToast('Fehler beim Leeren', 'error');
   }
 }
@@ -3036,7 +3026,7 @@ function setupKIFeedbackListeners() {
     item.addEventListener('click', () => {
       if (!currentEmail) return;
       const neueKategorie = item.dataset.kategorie;
-      const alteKategorie = currentEmail.kategorie || 'normal';
+      const alteKategorie = currentEmail.kategorie || 'info';
 
       // E-Mail Kategorie ändern
       currentEmail.kategorie = neueKategorie;
@@ -3087,7 +3077,7 @@ function saveFeedbackNew(emailId, feedback) {
       absenderName: currentEmail.fromName,
       absenderDomain: currentEmail.from?.split('@')[1] || '',
       betreff: currentEmail.subject,
-      kategorie: currentEmail.kategorie || 'normal',
+      kategorie: currentEmail.kategorie || 'info',
       feedbackType: feedback.type,
       userErklärung: feedback.message || null,
       korrekturVon: feedback.von || null,
@@ -3122,10 +3112,9 @@ function formatKategorieName(kat) {
   const names = {
     essenz: 'Essenz',
     wichtig: 'Wichtig',
-    normal: 'Normal',
     info: 'Info',
     newsletter: 'Newsletter',
-    papierkorb: 'Papierkorb',
+    spam: 'Spam',
     werbung: 'Werbung'
   };
   return names[kat] || kat;
@@ -3145,7 +3134,7 @@ async function showKIAnalyse() {
 
   // Box anzeigen mit Loading
   box.classList.remove('hidden');
-  kategorie.textContent = formatKategorieIcon(currentEmail.kategorie || 'normal');
+  kategorie.textContent = formatKategorieIcon(currentEmail.kategorie || 'info');
   begruendung.textContent = 'Analysiere...';
   sicherheit.textContent = '-';
 
@@ -3189,10 +3178,9 @@ function formatKategorieIcon(kat) {
   const icons = {
     essenz: '🔴 Essenz',
     wichtig: '🟠 Wichtig',
-    normal: '🔵 Normal',
     info: 'ℹ️ Info',
     newsletter: '📰 Newsletter',
-    papierkorb: '🗑️ Papierkorb',
+    spam: '🗑️ Spam',
     werbung: '📢 Werbung'
   };
   return icons[kat] || kat;

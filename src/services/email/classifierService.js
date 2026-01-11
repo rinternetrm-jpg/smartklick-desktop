@@ -11,6 +11,13 @@ let initError = null;
 // Store für bereits klassifizierte E-Mails
 const classifiedEmailsStore = require('./classifiedEmailsStore');
 
+// Kategorie-Normalisierung (Legacy-Kategorien umwandeln)
+function normalizeKategorie(kategorie) {
+  if (kategorie === 'normal') return 'info';
+  if (kategorie === 'papierkorb') return 'spam';
+  return kategorie;
+}
+
 // Lazy load to catch errors
 function loadClassifier() {
   if (initError) {
@@ -63,11 +70,12 @@ async function classifyEmail(email, accountId = 'default', skipIfKnown = true) {
     if (skipIfKnown && classifiedEmailsStore.initialized) {
       const existing = classifiedEmailsStore.getClassification(email, accountId);
       if (existing) {
-        console.log('[CLASSIFIER] Already classified:', email.subject?.substring(0, 30), '→', existing.kategorie);
+        const normalizedKat = normalizeKategorie(existing.kategorie);
+        console.log('[CLASSIFIER] Already classified:', email.subject?.substring(0, 30), '→', normalizedKat);
         return {
           success: true,
           classification: {
-            kategorie: existing.kategorie,
+            kategorie: normalizedKat,
             confidence: existing.confidence,
             stufe: existing.stufe,
             cached: true
@@ -112,7 +120,7 @@ async function classifyEmails(emails, accountId = 'default', skipIfKnown = true)
         const existing = classifiedEmailsStore.getClassification(email, accountId);
         if (existing) {
           results[i] = {
-            kategorie: existing.kategorie,
+            kategorie: normalizeKategorie(existing.kategorie),
             confidence: existing.confidence,
             stufe: existing.stufe,
             cached: true
@@ -332,7 +340,11 @@ function isEmailClassified(email, accountId = 'default') {
 // Holt gespeicherte Klassifizierung
 function getStoredClassification(email, accountId = 'default') {
   if (!classifiedEmailsStore.initialized) return null;
-  return classifiedEmailsStore.getClassification(email, accountId);
+  const result = classifiedEmailsStore.getClassification(email, accountId);
+  if (result) {
+    result.kategorie = normalizeKategorie(result.kategorie);
+  }
+  return result;
 }
 
 // Filtert bereits klassifizierte E-Mails heraus
@@ -352,7 +364,12 @@ function getStoreStats() {
 // Alle Klassifizierungen für Account
 function getClassificationsForAccount(accountId) {
   if (!classifiedEmailsStore.initialized) return [];
-  return classifiedEmailsStore.getClassificationsForAccount(accountId);
+  const results = classifiedEmailsStore.getClassificationsForAccount(accountId);
+  // Normalisiere alle Kategorien
+  return results.map(r => ({
+    ...r,
+    kategorie: normalizeKategorie(r.kategorie)
+  }));
 }
 
 // Store leeren (Reset)
