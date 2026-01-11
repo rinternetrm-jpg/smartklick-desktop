@@ -411,8 +411,9 @@ class EmailProviderManager {
 
     for (const [accountId, provider] of this.providers) {
       try {
-        // Bei 0 (alle) pro Provider viele abrufen, sonst aufteilen
-        const perProvider = maxResults === 0 ? 500 : Math.ceil(maxResults / this.providers.size) + 5;
+        // GEÄNDERT: Bei "Alle Konten" das volle Limit pro Provider laden
+        // So bekommt der User bei 50 Limit: 50 von jedem Konto
+        const perProvider = maxResults === 0 ? 500 : maxResults;
         const result = await provider.getRecentEmails(perProvider, existingIds);
 
         // Inkrementelles Ergebnis verarbeiten
@@ -433,14 +434,14 @@ class EmailProviderManager {
     // Bei inkrementellem Laden: Metadaten zurückgeben
     if (isIncremental) {
       return {
-        emails: maxResults === 0 ? allEmails : allEmails.slice(0, maxResults),
+        emails: allEmails,  // Kein Limit mehr - alle geladenen E-Mails zurückgeben
         skipped: totalSkipped,
         isIncremental: true
       };
     }
 
-    // Bei 0 alle zurückgeben, sonst limitieren
-    return maxResults === 0 ? allEmails : allEmails.slice(0, maxResults);
+    // Alle geladenen E-Mails zurückgeben (Limit wurde bereits pro Provider angewendet)
+    return allEmails;
   }
 
   // Progressive Loading: Lädt E-Mails in Batches und sendet sie via Callback

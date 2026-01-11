@@ -1,4 +1,4 @@
-/* Smartklick Email Manager - Slate Blue Dark Mode */
+/* Smartklick Email Manager - Dark/Light Mode Support */
 
 * {
   margin: 0;
@@ -6,6 +6,7 @@
   box-sizing: border-box;
 }
 
+/* Dark Mode (Default) */
 :root {
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;
@@ -20,6 +21,20 @@
   --danger: #ef4444;
   --warning: #f59e0b;
   --success: #22c55e;
+}
+
+/* Light Mode */
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e2e8f0;
+  --bg-hover: #cbd5e1;
+  --border-color: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --accent: #0d9488;
+  --accent-dark: #0f766e;
 }
 
 body {
@@ -3880,4 +3895,65 @@ body {
   white-space: nowrap;
   min-width: 150px;
   text-align: right;
+}
+
+/* ===== Theme Switcher ===== */
+.theme-switcher {
+  display: flex;
+  gap: 8px;
+}
+
+.theme-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 2px solid var(--border-color);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.theme-btn:hover {
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+
+.theme-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(20, 184, 166, 0.4);
+}
+
+.setting-card-avatar.theme {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+/* Light mode specific adjustments */
+[data-theme="light"] .email-item:hover {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="light"] .setting-card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+[data-theme="light"] .settings-panel {
+  box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+}
+
+[data-theme="light"] .modal {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+[data-theme="light"] .category-btn.active {
+  background: var(--accent);
+  color: white;
+}
+
+[data-theme="light"] .email-account-badge {
+  font-weight: 600;
 }

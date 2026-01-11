@@ -332,6 +332,9 @@ function setupEventListeners() {
   // Clear All Data
   document.getElementById('clearAllDataBtn')?.addEventListener('click', clearAllData);
 
+  // Theme Switcher
+  setupThemeSwitcher();
+
   // OpenAI API Key
   document.getElementById('saveApiKeyBtn')?.addEventListener('click', saveOpenAIApiKey);
   loadOpenAIApiKey(); // Lade gespeicherten Key beim Start
@@ -2528,6 +2531,56 @@ async function removeAccount(accountId) {
     showToast('Fehler beim Entfernen', 'error');
   }
 }
+
+// ============================================
+// Theme Switcher (Dark/Light Mode)
+// ============================================
+
+function setupThemeSwitcher() {
+  const darkBtn = document.getElementById('themeDarkBtn');
+  const lightBtn = document.getElementById('themeLightBtn');
+  const themeIcon = document.getElementById('themeIcon');
+  const themeDesc = document.getElementById('themeDescription');
+
+  // Gespeichertes Theme laden
+  const savedTheme = localStorage.getItem('smartklick-theme') || 'dark';
+  applyTheme(savedTheme);
+
+  // Button Event Listener
+  darkBtn?.addEventListener('click', () => {
+    applyTheme('dark');
+    localStorage.setItem('smartklick-theme', 'dark');
+  });
+
+  lightBtn?.addEventListener('click', () => {
+    applyTheme('light');
+    localStorage.setItem('smartklick-theme', 'light');
+  });
+
+  function applyTheme(theme) {
+    if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+      darkBtn?.classList.remove('active');
+      lightBtn?.classList.add('active');
+      if (themeIcon) themeIcon.textContent = '☀️';
+      if (themeDesc) themeDesc.textContent = 'Aktuell: Heller Modus';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      darkBtn?.classList.add('active');
+      lightBtn?.classList.remove('active');
+      if (themeIcon) themeIcon.textContent = '🌙';
+      if (themeDesc) themeDesc.textContent = 'Aktuell: Dunkler Modus';
+    }
+  }
+}
+
+// Theme sofort beim Laden anwenden (vor DOMContentLoaded für flackerfreies Laden)
+(function() {
+  const savedTheme = localStorage.getItem('smartklick-theme') || 'dark';
+  if (savedTheme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+})();
 
 // ============================================
 // OpenAI API Key Management
