@@ -67,7 +67,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupKIFeedbackListeners();
   setupKIRegelnListeners();
   await loadAccounts();
-  loadEmails();
+  // loadEmails wird bereits in loadAccounts() aufgerufen wenn nötig
+  // Bei mehreren Konten explizit aufrufen
+  if (accounts.length !== 1) {
+    loadEmails();
+  }
   renderChart();
 });
 
@@ -469,9 +473,21 @@ function selectAccount(accountId) {
 function updateAccountDropdown() {
   const dropdown = elements.accountDropdownMenu;
 
-  // Keep the "All Accounts" item, remove others
-  const allItem = dropdown.querySelector('[data-account="all"]');
+  // Komplett neu aufbauen um doppelte Event-Listener zu vermeiden
   dropdown.innerHTML = '';
+
+  // "Alle Konten" Item neu erstellen
+  const allItem = document.createElement('div');
+  allItem.className = 'account-dropdown-item';
+  allItem.dataset.account = 'all';
+  allItem.innerHTML = `
+    <div class="dropdown-avatar all">✉</div>
+    <div class="dropdown-info">
+      <div class="dropdown-name">Alle Konten</div>
+      <div class="dropdown-email" id="dropdownAllCount">${accounts.length} ${accounts.length === 1 ? 'Konto' : 'Konten'}</div>
+    </div>
+  `;
+  allItem.addEventListener('click', () => selectAccount('all'));
   dropdown.appendChild(allItem);
 
   // Add account items
@@ -489,9 +505,6 @@ function updateAccountDropdown() {
     item.addEventListener('click', () => selectAccount(account.id));
     dropdown.appendChild(item);
   });
-
-  // Re-add click handler for all accounts
-  allItem.addEventListener('click', () => selectAccount('all'));
 }
 
 // =============================================================================
@@ -1364,9 +1377,10 @@ function createEmailItem(email) {
   if (currentEmail && currentEmail.id === email.id) item.classList.add('active');
 
   // Priority dot basierend auf Klassifizierung
-  let priorityClass = 'normal';
+  let priorityClass = 'default';
   if (email.kategorie === 'essenz') priorityClass = 'high';
   else if (email.kategorie === 'wichtig') priorityClass = 'medium';
+  else if (email.kategorie === 'info' || email.kategorie === 'werbung' || email.kategorie === 'termine' || email.kategorie === 'rechnung') priorityClass = 'default';
   else if (email.kategorie === 'spam' || email.kategorie === 'newsletter') priorityClass = 'low';
 
   // Tags basierend auf Klassifizierung
@@ -1410,12 +1424,20 @@ function createEmailItem(email) {
     confidenceHtml = `<span class="email-confidence" style="color: ${confColor}" title="Konfidenz: ${email.confidence}%">●</span>`;
   }
 
+  // Account-Indikator (bei mehreren Konten)
+  let accountHtml = '';
+  if (accounts.length > 1 && email.accountEmail) {
+    const shortEmail = email.accountEmail.split('@')[0];
+    const accountColor = email.provider === 'gmail' ? '#ea4335' : email.provider === 'outlook' ? '#0078d4' : '#6b7280';
+    accountHtml = `<span class="email-account-badge" style="background: ${accountColor}20; color: ${accountColor}; border: 1px solid ${accountColor}40;" title="${email.accountEmail}">${shortEmail}</span>`;
+  }
+
   item.innerHTML = `
     <div class="email-priority ${priorityClass}"></div>
     <div class="email-content">
       <div class="email-header">
         <span class="email-sender">${escapeHtml(email.fromName || email.from)}</span>
-        <span class="email-time">${confidenceHtml}${email.dateFormatted || formatDate(email.date)}</span>
+        <span class="email-time">${accountHtml}${confidenceHtml}${email.dateFormatted || formatDate(email.date)}</span>
       </div>
       <div class="email-subject">${escapeHtml(email.subject)}</div>
       <div class="email-preview">${escapeHtml(email.zusammenfassung || email.snippet || '')}</div>

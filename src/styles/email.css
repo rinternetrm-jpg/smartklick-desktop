@@ -604,8 +604,10 @@ body {
 
 .email-priority.high { background: var(--danger); }
 .email-priority.medium { background: var(--warning); }
-.email-priority.normal { background: #3b82f6; }
+.email-priority.default { background: #6b7280; }
 .email-priority.low { background: #71717a; }
+/* Legacy - nicht mehr verwendet */
+.email-priority.normal { background: #6b7280; }
 
 .email-content {
   flex: 1;
@@ -1126,8 +1128,9 @@ body {
 .chart-bar.wichtig { background: #f97316; }    /* Orange */
 .chart-bar.termine { background: #0ea5e9; }    /* Hellblau */
 .chart-bar.rechnung { background: #10b981; }   /* Gruen */
-.chart-bar.normal { background: #3b82f6; }     /* Blau */
 .chart-bar.info { background: #6b7280; }       /* Grau */
+/* Legacy - normal umgeleitet auf info */
+.chart-bar.normal { background: #6b7280; }
 .chart-bar.newsletter { background: #8b5cf6; } /* Lila */
 .chart-bar.werbung { background: #ec4899; }    /* Pink */
 .chart-bar.papierkorb { background: #71717a; }       /* Dunkelgrau */
@@ -2175,6 +2178,21 @@ body {
 .email-confidence {
   font-size: 8px;
   margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* Account Badge für Multi-Account */
+.email-account-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-right: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
   vertical-align: middle;
 }
 
