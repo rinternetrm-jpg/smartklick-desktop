@@ -4271,11 +4271,12 @@ ipcMain.handle('email:getEmailCount', async (_, accountId) => {
 });
 
 // Alle E-Mails laden mit Progress (für Sync)
-ipcMain.handle('email:loadAllEmails', async (event, accountId) => {
+ipcMain.handle('email:loadAllEmails', async (event, accountId, limit = 1000) => {
   try {
-    console.log('[EMAIL] Starte Progressive Loading für Account:', accountId);
+    console.log('[EMAIL] Starte Progressive Loading für Account:', accountId, 'Limit:', limit);
 
     let allEmails = [];
+    let shouldStop = false;
 
     // Google Account - nutze Progressive Loading mit Callback
     if (accountId?.includes('gmail') || accountId?.includes('google')) {
@@ -4300,10 +4301,19 @@ ipcMain.handle('email:loadAllEmails', async (event, accountId) => {
 
       // Callback für jeden geladenen Batch
       const onBatch = async (batchData) => {
-        console.log(`[EMAIL] Batch ${batchData.batchNumber}: ${batchData.totalLoaded}/${batchData.totalCount} (${batchData.progress}%)`);
+        // Stoppe wenn Limit erreicht
+        if (shouldStop || allEmails.length >= limit) {
+          shouldStop = true;
+          return false; // Signal zum Stoppen
+        }
 
-        // E-Mails für DB vorbereiten
-        const preparedEmails = batchData.emails.map(email => ({
+        console.log(`[EMAIL] Batch ${batchData.batchNumber}: ${allEmails.length + batchData.emails.length}/${limit}`);
+
+        // E-Mails für DB vorbereiten (nur bis zum Limit)
+        const remainingSlots = limit - allEmails.length;
+        const emailsToProcess = batchData.emails.slice(0, remainingSlots);
+
+        const preparedEmails = emailsToProcess.map(email => ({
           id: email.id,
           from: email.from,
           fromName: email.fromName,
@@ -4326,26 +4336,30 @@ ipcMain.handle('email:loadAllEmails', async (event, accountId) => {
         // Progress an Frontend senden
         if (emailWindow && !emailWindow.isDestroyed()) {
           emailWindow.webContents.send('email:syncProgress', {
-            loaded: batchData.totalLoaded,
-            total: batchData.totalCount,
-            progress: batchData.progress,
+            loaded: allEmails.length,
+            total: limit,
+            progress: Math.round((allEmails.length / limit) * 100),
             batchNumber: batchData.batchNumber,
             emails: preparedEmails,
             isFirst: batchData.isFirst,
-            isLast: batchData.isLast
+            isLast: allEmails.length >= limit
           });
         }
+
+        // Stoppe wenn Limit erreicht
+        if (allEmails.length >= limit) {
+          shouldStop = true;
+          return false;
+        }
+
+        return true; // Weitermachen
       };
 
-      // Progressive Loading über den Provider starten
-      const result = await provider.getRecentEmailsProgressive(onBatch, 50);
+      // Progressive Loading über den Provider starten (mit höherer Batch-Größe für Geschwindigkeit)
+      const result = await provider.getRecentEmailsProgressive(onBatch, 50, limit);
 
-      if (result.success) {
-        console.log('[EMAIL] Sync abgeschlossen:', result.totalLoaded, 'E-Mails');
-        return { success: true, emails: allEmails, totalLoaded: result.totalLoaded };
-      } else {
-        return { success: false, error: 'Progressive Loading fehlgeschlagen' };
-      }
+      console.log('[EMAIL] Sync abgeschlossen:', allEmails.length, 'E-Mails');
+      return { success: true, emails: allEmails, totalLoaded: allEmails.length };
     }
 
     return { success: true, emails: allEmails, totalLoaded: allEmails.length };

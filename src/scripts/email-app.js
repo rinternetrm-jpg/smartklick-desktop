@@ -804,6 +804,13 @@ async function getConversationFromDatabase(contactEmail, accountId = null) {
 
 async function loadEmails(forceReload = false) {
   console.log('[EMAIL] loadEmails() gestartet, accounts:', accounts.length, 'limit:', emailLimit, 'selectedAccount:', selectedAccountId, 'forceReload:', forceReload);
+
+  // Während Sync läuft, keine E-Mails laden (verhindert Konflikte)
+  if (isSyncing) {
+    console.log('[EMAIL] Überspringe loadEmails - Sync läuft');
+    return;
+  }
+
   showLoading();
 
   try {
@@ -5295,6 +5302,12 @@ window.downloadAttachment = async (messageId, attachmentId, filename) => {
  * Zeigt das Sync-Modal für ein neues Konto
  */
 function showSyncModal(accountId, accountName) {
+  // Verhindere doppelten Sync
+  if (isSyncing) {
+    console.log('[SYNC] Sync läuft bereits, überspringe');
+    return;
+  }
+
   console.log('[SYNC] Starte Sync für Account:', accountId, accountName);
 
   // Reset state
@@ -5305,11 +5318,14 @@ function showSyncModal(accountId, accountName) {
   syncTotalEmails = 0;
   syncLoadedEmails = 0;
 
+  // E-Mail-Limit aus Einstellungen (Standard: 1000)
+  const syncLimit = emailLimit > 0 ? emailLimit : 1000;
+
   // UI zurücksetzen
   elements.syncAccountName.textContent = accountName || 'E-Mails werden synchronisiert...';
   elements.syncProgressFill.style.width = '0%';
   elements.syncLoadedCount.textContent = '0';
-  elements.syncTotalCount.textContent = '?';
+  elements.syncTotalCount.textContent = syncLimit.toLocaleString();
   elements.syncTimeText.textContent = 'Berechne...';
   elements.syncIndexing.classList.add('hidden');
   elements.syncFinishBtn.disabled = true;
@@ -5320,52 +5336,39 @@ function showSyncModal(accountId, accountName) {
   // Modal anzeigen
   elements.syncModal.style.display = 'flex';
 
-  // Sync starten
-  startFullSync(accountId);
+  // Sync starten mit Limit
+  startFullSync(accountId, syncLimit);
 }
 
 /**
  * Startet die vollständige Synchronisation
+ * @param {string} accountId - Account ID
+ * @param {number} limit - Maximale Anzahl E-Mails (aus Einstellungen)
  */
-async function startFullSync(accountId) {
-  console.log('[SYNC] Starte vollständige Synchronisation für Account:', accountId);
+async function startFullSync(accountId, limit = 1000) {
+  console.log('[SYNC] Starte Synchronisation für Account:', accountId, 'Limit:', limit);
+
+  // Das Limit ist unsere Zielanzahl
+  syncTotalEmails = limit;
 
   try {
-    // Erst Gesamtanzahl der E-Mails ermitteln
-    updateSyncStatus('🔍', 'Ermittle E-Mail Anzahl...');
-
-    console.log('[SYNC] Rufe email:getEmailCount auf...');
-    const countResult = await ipcRenderer.invoke('email:getEmailCount', accountId);
-    console.log('[SYNC] Count Result:', countResult);
-
-    if (countResult.success) {
-      syncTotalEmails = countResult.count || 0;
-      elements.syncTotalCount.textContent = syncTotalEmails.toLocaleString();
-      console.log('[SYNC] Gefunden:', syncTotalEmails, 'E-Mails');
-
-      // Zeitschätzung basierend auf Anzahl (ca. 1 E-Mail pro Sekunde)
-      if (syncTotalEmails > 0) {
-        const estimatedMinutes = Math.ceil(syncTotalEmails / 60);
-        elements.syncTimeText.textContent = `Geschätzt: ~${estimatedMinutes} Min.`;
-      }
-    } else {
-      console.error('[SYNC] Count failed:', countResult.error);
-      updateSyncStatus('⚠️', 'Zählung fehlgeschlagen: ' + (countResult.error || 'Unbekannt'));
-    }
-
     if (syncCancelled) return;
 
-    // Progressive Loading starten
-    updateSyncStatus('📥', 'Lade E-Mails...');
+    // Direkt mit Laden starten (kein Zählen nötig, wir kennen das Limit)
+    updateSyncStatus('📥', `Lade ${limit.toLocaleString()} E-Mails...`);
+
+    // Zeitschätzung (ca. 1-2 E-Mails pro Sekunde)
+    const estimatedMinutes = Math.ceil(limit / 60);
+    elements.syncTimeText.textContent = `Geschätzt: ~${estimatedMinutes} Min.`;
 
     // Listener für Progress-Updates
     const progressHandler = (event, data) => {
       if (syncCancelled) return;
 
-      console.log('[SYNC] Progress Update:', data.loaded, '/', data.total, `(${data.progress}%)`);
+      console.log('[SYNC] Progress Update:', data.loaded, '/', limit, `(${Math.round(data.loaded / limit * 100)}%)`);
 
       syncLoadedEmails = data.loaded || 0;
-      const progress = syncTotalEmails > 0 ? (syncLoadedEmails / syncTotalEmails) * 100 : data.progress || 0;
+      const progress = (syncLoadedEmails / limit) * 100;
 
       elements.syncLoadedCount.textContent = syncLoadedEmails.toLocaleString();
       elements.syncProgressFill.style.width = `${Math.min(progress, 100)}%`;
@@ -5374,7 +5377,7 @@ async function startFullSync(accountId) {
       const elapsed = (Date.now() - syncStartTime) / 1000;
       if (syncLoadedEmails > 0 && elapsed > 2) {
         const emailsPerSecond = syncLoadedEmails / elapsed;
-        const remaining = (data.total || syncTotalEmails) - syncLoadedEmails;
+        const remaining = limit - syncLoadedEmails;
         const secondsLeft = remaining / emailsPerSecond;
 
         if (secondsLeft < 60) {
@@ -5393,9 +5396,9 @@ async function startFullSync(accountId) {
     console.log('[SYNC] Registriere Progress-Listener...');
     ipcRenderer.on('email:syncProgress', progressHandler);
 
-    // Starte das Laden
-    console.log('[SYNC] Starte email:loadAllEmails...');
-    const result = await ipcRenderer.invoke('email:loadAllEmails', accountId);
+    // Starte das Laden mit Limit
+    console.log('[SYNC] Starte email:loadAllEmails mit Limit:', limit);
+    const result = await ipcRenderer.invoke('email:loadAllEmails', accountId, limit);
     console.log('[SYNC] LoadAllEmails Result:', result?.success, 'Emails:', result?.emails?.length || 0, 'Total:', result?.totalLoaded);
 
     // Listener entfernen

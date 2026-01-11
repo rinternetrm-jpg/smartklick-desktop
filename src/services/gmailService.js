@@ -150,24 +150,29 @@ class GmailService {
   }
 
   // Progressive Loading: Lädt E-Mails in Batches und ruft onBatch für jeden Batch auf
-  async getRecentEmailsProgressive(onBatch, batchSize = 30) {
+  // @param {Function} onBatch - Callback für jeden Batch, return false zum Stoppen
+  // @param {number} batchSize - Anzahl E-Mails pro Batch
+  // @param {number} limit - Maximale Anzahl E-Mails (0 = alle)
+  async getRecentEmailsProgressive(onBatch, batchSize = 30, limit = 0) {
     const gmail = this.getGmail();
 
     const accountInfo = this.getAccountInfo();
     const accountEmail = accountInfo?.email || this.accountId;
-    console.log(`[GMAIL:${accountEmail}] Progressive Loading gestartet (Batch-Größe: ${batchSize})`);
+    const effectiveLimit = limit > 0 ? limit : Infinity;
+    console.log(`[GMAIL:${accountEmail}] Progressive Loading gestartet (Batch: ${batchSize}, Limit: ${limit || 'alle'})`);
 
     let pageToken = null;
     let totalLoaded = 0;
     let batchNumber = 0;
+    let shouldStop = false;
 
-    // Pagination: Alle E-Mail-IDs laden
+    // Pagination: E-Mail-IDs laden (nur bis zum Limit)
     const allMessageIds = [];
     do {
       const response = await gmail.users.messages.list({
         userId: 'me',
         labelIds: ['INBOX'],
-        maxResults: 500,
+        maxResults: Math.min(500, effectiveLimit - allMessageIds.length),
         pageToken: pageToken
       });
 
@@ -175,18 +180,26 @@ class GmailService {
       allMessageIds.push(...messages);
       pageToken = response.data.nextPageToken;
 
-      console.log(`[GMAIL:${accountEmail}] IDs geladen: ${allMessageIds.length}`);
+      console.log(`[GMAIL:${accountEmail}] IDs geladen: ${allMessageIds.length}${limit > 0 ? '/' + limit : ''}`);
+
+      // Stoppe wenn Limit erreicht
+      if (limit > 0 && allMessageIds.length >= limit) {
+        break;
+      }
     } while (pageToken);
 
-    console.log(`[GMAIL:${accountEmail}] Gesamt ${allMessageIds.length} E-Mail-IDs, starte Progressive Loading...`);
+    // Auf Limit beschränken
+    const messageIdsToLoad = limit > 0 ? allMessageIds.slice(0, limit) : allMessageIds;
+    console.log(`[GMAIL:${accountEmail}] Lade ${messageIdsToLoad.length} E-Mails...`);
 
     // E-Mails in Batches laden
-    for (let i = 0; i < allMessageIds.length; i += batchSize) {
-      const batchIds = allMessageIds.slice(i, i + batchSize);
+    for (let i = 0; i < messageIdsToLoad.length && !shouldStop; i += batchSize) {
+      const batchIds = messageIdsToLoad.slice(i, i + batchSize);
       const batchEmails = [];
 
       // Details für diesen Batch laden
       for (const msg of batchIds) {
+        if (shouldStop) break;
         const email = await this.getEmail(msg.id);
         if (email) {
           batchEmails.push(email);
@@ -196,23 +209,29 @@ class GmailService {
       totalLoaded += batchEmails.length;
       batchNumber++;
 
-      console.log(`[GMAIL:${accountEmail}] Batch ${batchNumber}: ${batchEmails.length} E-Mails (Gesamt: ${totalLoaded}/${allMessageIds.length})`);
+      console.log(`[GMAIL:${accountEmail}] Batch ${batchNumber}: ${batchEmails.length} E-Mails (Gesamt: ${totalLoaded}/${messageIdsToLoad.length})`);
 
       // Callback mit dem Batch aufrufen
       if (onBatch && batchEmails.length > 0) {
         const isFirst = batchNumber === 1;
-        const isLast = i + batchSize >= allMessageIds.length;
-        const progress = Math.round((totalLoaded / allMessageIds.length) * 100);
+        const isLast = i + batchSize >= messageIdsToLoad.length;
+        const progress = Math.round((totalLoaded / messageIdsToLoad.length) * 100);
 
-        await onBatch({
+        const result = await onBatch({
           emails: batchEmails,
           batchNumber,
           totalLoaded,
-          totalCount: allMessageIds.length,
+          totalCount: messageIdsToLoad.length,
           progress,
           isFirst,
           isLast
         });
+
+        // Callback kann false zurückgeben um zu stoppen
+        if (result === false) {
+          console.log(`[GMAIL:${accountEmail}] Stopp-Signal vom Callback erhalten`);
+          shouldStop = true;
+        }
       }
     }
 
