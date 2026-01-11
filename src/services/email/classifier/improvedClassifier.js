@@ -687,12 +687,29 @@ function isMyOwnEmail(from) {
 }
 
 // =============================================================================
-// STUFE 10: ALTERS-LIMIT ANWENDEN
+// STUFE 10: ALTERS-LIMIT ANWENDEN (DEAKTIVIERT)
 // =============================================================================
 
 function applyAgeLimit(kategorie, emailDate) {
   const age = getAgeInDays(emailDate);
 
+  // WICHTIG: Alters-Limits DEAKTIVIERT!
+  // Diese Logik führte dazu, dass wichtige E-Mails (Hochzeitsplanung, Therapie,
+  // persönliche Kontakte) fälschlicherweise als "veraltet" oder "papierkorb"
+  // klassifiziert wurden.
+  //
+  // Der GPT hat bereits das Alter berücksichtigt und eine passende Kategorie
+  // gewählt. Wir sollten sein Urteil nicht überschreiben.
+
+  // Keine Änderung mehr basierend auf Alter
+  return {
+    kategorie: kategorie,
+    wasLimited: false,
+    originalKategorie: null,
+    ageInDays: age
+  };
+
+  /* ORIGINAL CODE (DEAKTIVIERT):
   // Diese Kategorien ignorieren das Alter
   if (['rechnung', 'werbung', 'newsletter', 'termine', 'papierkorb'].includes(kategorie)) {
     return { kategorie, wasLimited: false, ageInDays: age };
@@ -754,6 +771,7 @@ function applyAgeLimit(kategorie, emailDate) {
     originalKategorie: wasLimited ? kategorie : null,
     ageInDays: age
   };
+  */
 }
 
 // =============================================================================
@@ -923,29 +941,21 @@ class ImprovedClassifier {
     }
 
     // ========== STUFE 5: ALTER > 90 Tage ==========
+    // HINWEIS: Alte E-Mails werden NICHT mehr automatisch als Papierkorb markiert!
+    // Dies führte dazu, dass wichtige E-Mails (Hochzeitsplanung, Therapie, etc.)
+    // fälschlicherweise als Spam/Papierkorb klassifiziert wurden.
+    // Stattdessen werden sie als "veraltet" markiert und GPT entscheidet.
     if (age > AGE_LIMITS.ARCHIV) {
-      console.log(`[CLASSIFY] → PAPIERKORB (${age} Tage alt - ARCHIV)`);
-      return {
-        kategorie: 'papierkorb',
-        confidence: 100,
-        gedanken: `E-Mail ist ${age} Tage alt - Archiv.`,
-        stufe: 5,
-        schnell: true,
-        final: true
-      };
+      console.log(`[CLASSIFY] → E-Mail ist ${age} Tage alt, weiter zu GPT für Bewertung`);
+      // NICHT mehr automatisch Papierkorb - GPT soll entscheiden
     }
 
-    // ========== STUFE 6: ALTER > 30 Tage → PAPIERKORB ==========
+    // ========== STUFE 6: ALTER > 30 Tage ==========
+    // DEAKTIVIERT: Führte zu falschen Spam-Klassifizierungen
+    // Alte E-Mails können immer noch wichtig sein!
     if (age > AGE_LIMITS.VERALTET) {
-      console.log(`[CLASSIFY] → PAPIERKORB (${age} Tage alt - VERALTET)`);
-      return {
-        kategorie: 'papierkorb',
-        confidence: 90,
-        gedanken: `E-Mail ist ${age} Tage alt - veraltet.`,
-        stufe: 6,
-        schnell: true,
-        final: true
-      };
+      console.log(`[CLASSIFY] → E-Mail ist ${age} Tage alt, aber nicht automatisch Papierkorb`);
+      // NICHT mehr automatisch Papierkorb
     }
 
     // ========== STUFE 7: WERBUNG-KEYWORDS & EMOJIS ==========

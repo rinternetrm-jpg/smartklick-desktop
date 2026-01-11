@@ -14,7 +14,9 @@ const classifiedEmailsStore = require('./classifiedEmailsStore');
 // Kategorie-Normalisierung (Legacy-Kategorien umwandeln)
 function normalizeKategorie(kategorie) {
   if (kategorie === 'normal') return 'info';
-  if (kategorie === 'papierkorb') return 'spam';
+  // HINWEIS: 'papierkorb' bleibt 'papierkorb' - nicht mehr zu 'spam' umwandeln!
+  // Die UI hat eine eigene Papierkorb-Kategorie.
+  // if (kategorie === 'papierkorb') return 'spam'; // DEAKTIVIERT
   return kategorie;
 }
 
