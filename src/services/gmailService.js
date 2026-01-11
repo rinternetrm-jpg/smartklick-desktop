@@ -61,13 +61,16 @@ class GmailService {
   // Get recent emails (inbox)
   async getRecentEmails(maxResults = 10) {
     const gmail = this.getGmail();
-    // 0 bedeutet "alle" - Gmail API max ist 500
-    const limit = maxResults === 0 ? 500 : maxResults;
+
+    // 0 bedeutet "alle E-Mails" - mit Pagination
+    if (maxResults === 0) {
+      return await this.getAllEmails();
+    }
 
     const response = await gmail.users.messages.list({
       userId: 'me',
       labelIds: ['INBOX'],
-      maxResults: limit
+      maxResults: maxResults
     });
 
     const messages = response.data.messages || [];
@@ -80,6 +83,52 @@ class GmailService {
       }
     }
 
+    return emails;
+  }
+
+  // Alle E-Mails mit Pagination abrufen
+  async getAllEmails() {
+    const gmail = this.getGmail();
+    const allMessages = [];
+    let pageToken = null;
+    let pageCount = 0;
+
+    console.log('[GMAIL] Starte Abruf aller E-Mails...');
+
+    do {
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        labelIds: ['INBOX'],
+        maxResults: 500, // Maximum pro Request
+        pageToken: pageToken
+      });
+
+      const messages = response.data.messages || [];
+      allMessages.push(...messages);
+      pageToken = response.data.nextPageToken;
+      pageCount++;
+
+      console.log(`[GMAIL] Seite ${pageCount}: ${messages.length} E-Mails (Gesamt: ${allMessages.length})`);
+    } while (pageToken);
+
+    console.log(`[GMAIL] ${allMessages.length} E-Mail-IDs geladen, lade Details...`);
+
+    // Jetzt alle E-Mail-Details laden
+    const emails = [];
+    for (let i = 0; i < allMessages.length; i++) {
+      const msg = allMessages[i];
+      const email = await this.getEmail(msg.id);
+      if (email) {
+        emails.push(email);
+      }
+
+      // Progress alle 50 E-Mails loggen
+      if ((i + 1) % 50 === 0) {
+        console.log(`[GMAIL] Details geladen: ${i + 1}/${allMessages.length}`);
+      }
+    }
+
+    console.log(`[GMAIL] Fertig: ${emails.length} E-Mails vollständig geladen`);
     return emails;
   }
 
