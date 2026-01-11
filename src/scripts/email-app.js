@@ -5985,7 +5985,7 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
     // Step 2 ist bereits aktiv (durch showSyncModal gesetzt)
 
     // Zeitschätzung (ca. 1-2 E-Mails pro Sekunde) - basierend auf erwarteter Anzahl
-    const targetCount = syncTotalEmails; // Verwendet expectedTotal, nicht das technische Limit
+    let targetCount = syncTotalEmails; // Verwendet expectedTotal, nicht das technische Limit
     const remaining = targetCount - startCount;
     const estimatedMinutes = Math.ceil(remaining / 60);
     elements.syncTimeText.textContent = `Geschätzt: ~${estimatedMinutes} Min.`;
@@ -5994,9 +5994,16 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
     const progressHandler = async (event, data) => {
       if (syncCancelled) return;
 
-      console.log('[SYNC] Progress Update:', data.loaded, '/', targetCount, `(${Math.round(data.loaded / targetCount * 100)}%)`);
-
       syncLoadedEmails = data.loaded || 0;
+
+      // Wenn mehr geladen als erwartet, Ziel anpassen (Kategorie-Schätzungen sind nicht exakt)
+      if (syncLoadedEmails > targetCount) {
+        targetCount = syncLoadedEmails + 100; // Etwas Puffer
+        elements.syncTotalCount.textContent = '~' + targetCount.toLocaleString();
+      }
+
+      console.log('[SYNC] Progress Update:', syncLoadedEmails, '/', targetCount, `(${Math.round(syncLoadedEmails / targetCount * 100)}%)`);
+
       const progress = (syncLoadedEmails / targetCount) * 100;
 
       elements.syncLoadedCount.textContent = syncLoadedEmails.toLocaleString();
@@ -6007,7 +6014,7 @@ async function startFullSyncWithOptions(accountId, limit = 1000, options = {}) {
       if (syncLoadedEmails > startCount && elapsed > 2) {
         const loadedSinceStart = syncLoadedEmails - startCount;
         const emailsPerSecond = loadedSinceStart / elapsed;
-        const remainingEmails = targetCount - syncLoadedEmails;
+        const remainingEmails = Math.max(0, targetCount - syncLoadedEmails);
         const secondsLeft = remainingEmails / emailsPerSecond;
 
         if (secondsLeft < 60) {
