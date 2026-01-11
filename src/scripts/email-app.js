@@ -564,6 +564,7 @@ function hideLoadingProgress() {
 }
 
 async function loadEmails() {
+  console.log('[EMAIL] loadEmails() gestartet, accounts:', accounts.length, 'limit:', emailLimit, 'selectedAccount:', selectedAccountId);
   showLoading();
 
   try {
@@ -591,6 +592,7 @@ async function loadEmails() {
 
       // Starte Progressive Loading (läuft async, Events kommen über Listener)
       const result = await ipcRenderer.invoke('email:startProgressiveLoading', 30);
+      console.log('[EMAIL] Progressive Loading Ergebnis:', result);
 
       if (!result.success) {
         console.error('[EMAIL] Progressive Loading fehlgeschlagen:', result.error);
@@ -600,12 +602,17 @@ async function loadEmails() {
     }
 
     // Standard-Loading (mit Limit)
+    console.log('[EMAIL] Standard-Loading mit Limit:', emailLimit);
     let result;
     if (selectedAccountId === 'all') {
+      console.log('[EMAIL] Rufe getUnifiedInbox auf...');
       result = await ipcRenderer.invoke('email:getUnifiedInbox', emailLimit);
     } else {
+      console.log('[EMAIL] Rufe getEmailsFromAccount auf für:', selectedAccountId);
       result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, emailLimit);
     }
+
+    console.log('[EMAIL] Ergebnis:', result?.success, 'E-Mails:', result?.emails?.length || 0);
 
     // Kein Fallback mehr - wenn keine Konten, keine E-Mails
     if (!result || !result.success) {
@@ -620,6 +627,7 @@ async function loadEmails() {
 
     if (result.success) {
       emails = result.emails || [];
+      console.log('[EMAIL] E-Mails geladen:', emails.length);
 
       // Automatische Klassifizierung wenn aktiviert
       if (autoClassifyEnabled && emails.length > 0) {
@@ -631,7 +639,7 @@ async function loadEmails() {
       renderEmailList();
     }
   } catch (error) {
-    console.error('Error loading emails:', error);
+    console.error('[EMAIL] Error loading emails:', error);
     emails = [];
     updateStats();
     updateCategoryCounts();
