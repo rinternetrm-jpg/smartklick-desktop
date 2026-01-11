@@ -13,7 +13,7 @@ let accounts = [];
 let selectedAccountId = 'all';
 let autoReplyEnabled = false;
 let autoClassifyEnabled = true;
-let emailLimit = parseInt(localStorage.getItem('emailLimit') ?? '0'); // Standard: 0 (Alle)
+let emailLimit = parseInt(localStorage.getItem('emailLimit') ?? '50'); // Standard: 50
 let classifierStats = null;
 let isClassifying = false;  // Flag um doppelte Klassifizierung zu verhindern
 let stopAnalysisRequested = false;  // Flag um Analyse zu stoppen
@@ -4079,7 +4079,7 @@ function setupThemeSwitcher() {
   const themeDesc = document.getElementById('themeDescription');
 
   // Gespeichertes Theme laden
-  const savedTheme = localStorage.getItem('smartklick-theme') || 'dark';
+  const savedTheme = localStorage.getItem('smartklick-theme') || 'light';
   applyTheme(savedTheme);
 
   // Button Event Listener
@@ -4112,7 +4112,7 @@ function setupThemeSwitcher() {
 
 // Theme sofort beim Laden anwenden (vor DOMContentLoaded für flackerfreies Laden)
 (function() {
-  const savedTheme = localStorage.getItem('smartklick-theme') || 'dark';
+  const savedTheme = localStorage.getItem('smartklick-theme') || 'light';
   if (savedTheme === 'light') {
     document.documentElement.setAttribute('data-theme', 'light');
   }
