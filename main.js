@@ -4325,25 +4325,39 @@ ipcMain.handle('email:clearAllData', () => {
     const imapStore = new Store({ name: 'imap-accounts' });
     imapStore.clear();
 
-    // Clear Gmail tokens
+    // Clear Gmail tokens (Legacy)
     const gmailStore = new Store({ name: 'gmail-tokens' });
     gmailStore.clear();
 
-    // WICHTIG: Clear Google OAuth tokens (das ist der eigentliche Token-Store!)
+    // WICHTIG: Clear Google OAuth tokens (alter Single-Account Store)
     const googleTokenStore = new Store({
       name: 'google-tokens',
       encryptionKey: 'smartklick-secure-key-2024'
     });
     googleTokenStore.clear();
-    console.log('[EMAIL] Google OAuth tokens cleared');
 
-    // Reset Google Auth Service
+    // WICHTIG: Clear Google OAuth tokens v2 (neuer Multi-Account Store!)
+    const googleTokenStoreV2 = new Store({
+      name: 'google-tokens-v2',
+      encryptionKey: 'smartklick-secure-key-2024'
+    });
+    googleTokenStoreV2.clear();
+    console.log('[EMAIL] Google OAuth tokens (v1 + v2) cleared');
+
+    // Reset Google Auth Service (Multi-Account)
     if (googleAuth) {
+      // Alte Properties (Legacy)
       googleAuth.isAuthenticated = false;
       googleAuth.userInfo = null;
       if (googleAuth.oauth2Client) {
         googleAuth.oauth2Client.setCredentials({});
       }
+      // Neue Multi-Account Properties
+      if (googleAuth.accounts) {
+        googleAuth.accounts.clear();
+      }
+      googleAuth.activeAccountId = null;
+      console.log('[EMAIL] GoogleAuth service reset');
     }
 
     // Reset Gmail Service
@@ -4378,9 +4392,18 @@ ipcMain.handle('email:clearAllData', () => {
 
     if (emailProviderManager) {
       emailProviderManager.accounts = [];
+      // Multi-Account: Gmail Services Map leeren
+      if (emailProviderManager.gmailServices) {
+        emailProviderManager.gmailServices.clear();
+      }
+      // Providers Map leeren
+      if (emailProviderManager.providers) {
+        emailProviderManager.providers.clear();
+      }
       if (emailProviderManager.store) {
         emailProviderManager.store.clear();
       }
+      console.log('[EMAIL] EmailProviderManager reset');
     }
 
     // Try to delete Gmail token file if exists
