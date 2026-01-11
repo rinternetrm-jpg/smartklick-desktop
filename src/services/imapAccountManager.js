@@ -366,7 +366,8 @@ class ImapAccountManager {
   }
 
   // Get emails from account
-  async getEmails(accountId, folder = 'INBOX', count = 500) {
+  // count = 0 bedeutet ALLE E-Mails abrufen (kein Limit)
+  async getEmails(accountId, folder = 'INBOX', count = 0) {
     try {
       const imap = await this.getConnection(accountId);
       const account = this.accounts.get(accountId);
@@ -389,9 +390,18 @@ class ImapAccountManager {
             return;
           }
 
-          const start = Math.max(1, total - count + 1);
+          // count = 0 oder count > total bedeutet ALLE E-Mails
+          const effectiveCount = (count === 0 || count > total) ? total : count;
+          const start = Math.max(1, total - effectiveCount + 1);
           const range = `${start}:${total}`;
           const emails = [];
+
+          console.log(`[IMAP] Fetching ${effectiveCount} of ${total} emails (range: ${range})`);
+
+          // Warnung bei sehr vielen E-Mails
+          if (total > 5000) {
+            console.warn(`[IMAP] WARNUNG: ${total} E-Mails im Ordner - das kann dauern!`);
+          }
 
           const fetch = imap.seq.fetch(range, {
             bodies: ['HEADER.FIELDS (FROM TO SUBJECT DATE)'],

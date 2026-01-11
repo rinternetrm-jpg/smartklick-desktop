@@ -4182,6 +4182,53 @@ ipcMain.handle('email:resetLearning', () => {
   return emailClassifier.resetLearning();
 });
 
+// ============= Classified Emails Store =============
+
+// Store initialisieren
+ipcMain.handle('email:initClassificationStore', () => {
+  return emailClassifier.initializeStore();
+});
+
+// Store-Statistiken abrufen
+ipcMain.handle('email:getStoreStats', () => {
+  return emailClassifier.getStoreStats();
+});
+
+// Prüfen ob E-Mail klassifiziert
+ipcMain.handle('email:isClassified', (_, email, accountId) => {
+  return emailClassifier.isEmailClassified(email, accountId);
+});
+
+// Gespeicherte Klassifizierung holen
+ipcMain.handle('email:getStoredClassification', (_, email, accountId) => {
+  return emailClassifier.getStoredClassification(email, accountId);
+});
+
+// Unklassifizierte E-Mails filtern
+ipcMain.handle('email:filterUnclassified', (_, emails, accountId) => {
+  return emailClassifier.filterUnclassifiedEmails(emails, accountId);
+});
+
+// Alle Klassifizierungen für Account
+ipcMain.handle('email:getClassificationsForAccount', (_, accountId) => {
+  return emailClassifier.getClassificationsForAccount(accountId);
+});
+
+// Store leeren
+ipcMain.handle('email:clearClassificationStore', () => {
+  return emailClassifier.clearClassificationStore();
+});
+
+// Klassifizierungen für Account löschen
+ipcMain.handle('email:clearClassificationsForAccount', (_, accountId) => {
+  return emailClassifier.clearClassificationsForAccount(accountId);
+});
+
+// Alte Klassifizierungen aufräumen
+ipcMain.handle('email:cleanupOldClassifications', (_, daysToKeep) => {
+  return emailClassifier.cleanupOldClassifications(daysToKeep);
+});
+
 // Alle E-Mail-Daten löschen (für sauberen Neustart)
 ipcMain.handle('email:clearAllData', () => {
   try {
@@ -4852,7 +4899,7 @@ ipcMain.handle('email:getUnreadCounts', async () => {
   }
 });
 
-ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 500) => {
+ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 0) => {
   if (!emailProviderManager) {
     return { success: false, error: 'Provider manager not initialized' };
   }
@@ -4864,7 +4911,7 @@ ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 5
   }
 });
 
-ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 500) => {
+ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 0) => {
   if (!emailProviderManager) {
     return { success: false, error: 'Provider manager not initialized' };
   }
@@ -5080,7 +5127,7 @@ ipcMain.handle('imap:test', async (_, settings) => {
   return imapAccountManager.testConnection(settings);
 });
 
-ipcMain.handle('imap:getEmails', async (_, count = 500) => {
+ipcMain.handle('imap:getEmails', async (_, count = 0) => {
   try {
     const accounts = imapAccountManager.getAccounts();
     if (accounts.length === 0) {
@@ -5140,6 +5187,15 @@ app.whenReady().then(() => {
   // Initialize IMAP Account Manager
   imapAccountManager.initialize(store);
   console.log('[IMAP] Account manager initialized');
+
+  // Initialize Classified Emails Store
+  emailClassifier.initializeStore().then(result => {
+    if (result.success) {
+      console.log('[CLASSIFIER] Store ready:', result.stats.total, 'E-Mails gespeichert');
+    }
+  }).catch(err => {
+    console.error('[CLASSIFIER] Store init error:', err);
+  });
 
   createWindow();
   createTray();

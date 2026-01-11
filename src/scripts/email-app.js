@@ -495,11 +495,11 @@ async function loadEmails() {
     }
 
     if (selectedAccountId === 'all') {
-      result = await ipcRenderer.invoke('email:getUnifiedInbox', 500);
+      result = await ipcRenderer.invoke('email:getUnifiedInbox', 0);
     } else if (selectedAccountId === 'imap' || selectedAccountId?.startsWith('imap-')) {
       return loadImapEmails();
     } else {
-      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, 500);
+      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, 0);
     }
 
     // Kein Fallback mehr - wenn keine Konten, keine E-Mails
@@ -1017,7 +1017,7 @@ async function animateSorting(classifications) {
 
 async function loadImapEmails() {
   try {
-    const result = await ipcRenderer.invoke('imap:getEmails', 500);
+    const result = await ipcRenderer.invoke('imap:getEmails', 0);
 
     if (result.success) {
       emails = (result.emails || []).map(email => ({

@@ -8,6 +8,9 @@ let IntelligentEmailClassifier, KATEGORIEN, TAGS;
 let classifier = null;
 let initError = null;
 
+// Store für bereits klassifizierte E-Mails
+const classifiedEmailsStore = require('./classifiedEmailsStore');
+
 // Lazy load to catch errors
 function loadClassifier() {
   if (initError) {
@@ -40,13 +43,50 @@ function getClassifier() {
   return classifier;
 }
 
-// Einzelne E-Mail klassifizieren
-async function classifyEmail(email) {
+// Store initialisieren
+async function initializeStore() {
   try {
+    await classifiedEmailsStore.initialize();
+    const stats = classifiedEmailsStore.getStats();
+    console.log(`[CLASSIFIER] Store initialisiert: ${stats.total} E-Mails gespeichert`);
+    return { success: true, stats };
+  } catch (error) {
+    console.error('[CLASSIFIER] Store init error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Einzelne E-Mail klassifizieren
+async function classifyEmail(email, accountId = 'default', skipIfKnown = true) {
+  try {
+    // Prüfe ob bereits klassifiziert
+    if (skipIfKnown && classifiedEmailsStore.initialized) {
+      const existing = classifiedEmailsStore.getClassification(email, accountId);
+      if (existing) {
+        console.log('[CLASSIFIER] Already classified:', email.subject?.substring(0, 30), '→', existing.kategorie);
+        return {
+          success: true,
+          classification: {
+            kategorie: existing.kategorie,
+            confidence: existing.confidence,
+            stufe: existing.stufe,
+            cached: true
+          },
+          cached: true
+        };
+      }
+    }
+
     console.log('[CLASSIFIER] Classifying single email:', email.subject);
     const cls = getClassifier();
     const result = await cls.klassifiziere(email);
     console.log('[CLASSIFIER] Result:', result.kategorie, result.confidence);
+
+    // Speichere Klassifizierung
+    if (classifiedEmailsStore.initialized) {
+      classifiedEmailsStore.saveClassification(email, accountId, result);
+    }
+
     return { success: true, classification: result };
   } catch (error) {
     console.error('[CLASSIFIER] Error:', error);
@@ -55,13 +95,70 @@ async function classifyEmail(email) {
 }
 
 // Mehrere E-Mails klassifizieren (Batch)
-async function classifyEmails(emails) {
+async function classifyEmails(emails, accountId = 'default', skipIfKnown = true) {
   try {
     console.log('[CLASSIFIER] Batch classifying', emails.length, 'emails');
-    const cls = getClassifier();
-    const results = await cls.klassifiziereBatch(emails);
-    console.log('[CLASSIFIER] Batch complete, results:', results.length);
-    return { success: true, classifications: results };
+
+    const results = [];
+    let cachedCount = 0;
+    let newCount = 0;
+    const toClassify = [];
+    const toClassifyIndices = [];
+
+    // Erst prüfen welche schon klassifiziert sind
+    if (skipIfKnown && classifiedEmailsStore.initialized) {
+      for (let i = 0; i < emails.length; i++) {
+        const email = emails[i];
+        const existing = classifiedEmailsStore.getClassification(email, accountId);
+        if (existing) {
+          results[i] = {
+            kategorie: existing.kategorie,
+            confidence: existing.confidence,
+            stufe: existing.stufe,
+            cached: true
+          };
+          cachedCount++;
+        } else {
+          toClassify.push(email);
+          toClassifyIndices.push(i);
+        }
+      }
+      console.log(`[CLASSIFIER] ${cachedCount} bereits bekannt, ${toClassify.length} neu zu klassifizieren`);
+    } else {
+      // Alle klassifizieren
+      toClassify.push(...emails);
+      for (let i = 0; i < emails.length; i++) {
+        toClassifyIndices.push(i);
+      }
+    }
+
+    // Neue E-Mails klassifizieren
+    if (toClassify.length > 0) {
+      const cls = getClassifier();
+      const newResults = await cls.klassifiziereBatch(toClassify);
+
+      // Ergebnisse einfügen und speichern
+      for (let j = 0; j < newResults.length; j++) {
+        const originalIndex = toClassifyIndices[j];
+        const email = toClassify[j];
+        const result = newResults[j];
+
+        results[originalIndex] = result;
+        newCount++;
+
+        // Speichere Klassifizierung
+        if (classifiedEmailsStore.initialized) {
+          classifiedEmailsStore.saveClassification(email, accountId, result);
+        }
+      }
+    }
+
+    console.log(`[CLASSIFIER] Batch complete: ${cachedCount} cached, ${newCount} neu klassifiziert`);
+    return {
+      success: true,
+      classifications: results,
+      stats: { cached: cachedCount, newlyClassified: newCount, total: emails.length }
+    };
   } catch (error) {
     console.error('[CLASSIFIER] Batch error:', error);
     return { success: false, error: error.message };
@@ -224,22 +321,91 @@ function getCategories() {
   return { success: true, categories: KATEGORIEN, tags: TAGS };
 }
 
+// ============= Store-Funktionen =============
+
+// Prüft ob E-Mail bereits klassifiziert wurde
+function isEmailClassified(email, accountId = 'default') {
+  if (!classifiedEmailsStore.initialized) return false;
+  return classifiedEmailsStore.isClassified(email, accountId);
+}
+
+// Holt gespeicherte Klassifizierung
+function getStoredClassification(email, accountId = 'default') {
+  if (!classifiedEmailsStore.initialized) return null;
+  return classifiedEmailsStore.getClassification(email, accountId);
+}
+
+// Filtert bereits klassifizierte E-Mails heraus
+function filterUnclassifiedEmails(emails, accountId = 'default') {
+  if (!classifiedEmailsStore.initialized) return emails;
+  return classifiedEmailsStore.filterUnclassified(emails, accountId);
+}
+
+// Store-Statistiken
+function getStoreStats() {
+  if (!classifiedEmailsStore.initialized) {
+    return { success: false, error: 'Store nicht initialisiert' };
+  }
+  return { success: true, stats: classifiedEmailsStore.getStats() };
+}
+
+// Alle Klassifizierungen für Account
+function getClassificationsForAccount(accountId) {
+  if (!classifiedEmailsStore.initialized) return [];
+  return classifiedEmailsStore.getClassificationsForAccount(accountId);
+}
+
+// Store leeren (Reset)
+function clearClassificationStore() {
+  classifiedEmailsStore.clearAll();
+  return { success: true };
+}
+
+// Klassifizierungen für Account löschen
+function clearClassificationsForAccount(accountId) {
+  classifiedEmailsStore.clearForAccount(accountId);
+  return { success: true };
+}
+
+// Alte Klassifizierungen aufräumen
+function cleanupOldClassifications(daysToKeep = 90) {
+  classifiedEmailsStore.cleanupOld(daysToKeep);
+  return { success: true };
+}
+
 module.exports = {
+  // Klassifizierung
   classifyEmail,
   classifyEmails,
   getEssenz,
   correctCategory,
+  // Tracking
   trackOpened,
   trackReplied,
   trackDeletedUnread,
+  // Listen
   addSenderToList,
+  // Konfiguration
   setOpenAIKey,
   setMyEmails,
+  // Statistiken
   getStats,
+  getCategories,
+  // Lerndaten
   exportLearningData,
   importLearningData,
   resetLearning,
-  getCategories,
+  // Store-Funktionen (NEU)
+  initializeStore,
+  isEmailClassified,
+  getStoredClassification,
+  filterUnclassifiedEmails,
+  getStoreStats,
+  getClassificationsForAccount,
+  clearClassificationStore,
+  clearClassificationsForAccount,
+  cleanupOldClassifications,
+  // Konstanten
   KATEGORIEN,
   TAGS
 };
