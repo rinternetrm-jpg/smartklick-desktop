@@ -2484,6 +2484,69 @@ async function generateConversationSummary(conversationEmails, currentEmail) {
 }
 
 /**
+ * Gruppiert E-Mails nach Datum (Heute, Gestern, Letzte Woche, etc.)
+ */
+function groupEmailsByDate(emails) {
+  const groups = [];
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const thisWeekStart = new Date(today);
+  thisWeekStart.setDate(thisWeekStart.getDate() - today.getDay());
+  const lastWeekStart = new Date(thisWeekStart);
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+
+  const todayEmails = [];
+  const yesterdayEmails = [];
+  const thisWeekEmails = [];
+  const lastWeekEmails = [];
+  const olderEmails = [];
+
+  emails.forEach(email => {
+    const emailDate = new Date(email.date);
+    const emailDay = new Date(emailDate.getFullYear(), emailDate.getMonth(), emailDate.getDate());
+
+    if (emailDay.getTime() === today.getTime()) {
+      todayEmails.push(email);
+    } else if (emailDay.getTime() === yesterday.getTime()) {
+      yesterdayEmails.push(email);
+    } else if (emailDay >= thisWeekStart) {
+      thisWeekEmails.push(email);
+    } else if (emailDay >= lastWeekStart) {
+      lastWeekEmails.push(email);
+    } else {
+      olderEmails.push(email);
+    }
+  });
+
+  if (todayEmails.length > 0) {
+    groups.push({ label: 'Heute', emails: todayEmails });
+  }
+  if (yesterdayEmails.length > 0) {
+    groups.push({ label: 'Gestern', emails: yesterdayEmails });
+  }
+  if (thisWeekEmails.length > 0) {
+    const label = thisWeekEmails.length > 2 ? `Diese Woche • ${thisWeekEmails.length} E-Mails` : 'Diese Woche';
+    groups.push({ label, emails: thisWeekEmails });
+  }
+  if (lastWeekEmails.length > 0) {
+    const label = lastWeekEmails.length > 2 ? `Letzte Woche • ${lastWeekEmails.length} E-Mails` : 'Letzte Woche';
+    groups.push({ label, emails: lastWeekEmails });
+  }
+  if (olderEmails.length > 0) {
+    // Gruppiere ältere nach Monat
+    const firstOld = olderEmails[olderEmails.length - 1];
+    const firstDate = new Date(firstOld.date);
+    const monthName = firstDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    const label = olderEmails.length > 1 ? `${monthName} • ${olderEmails.length} E-Mails` : `${monthName} • Erste E-Mail`;
+    groups.push({ label, emails: olderEmails });
+  }
+
+  return groups;
+}
+
+/**
  * Zeigt die Konversations-Übersicht an (Mockup Design)
  */
 function showConversationCard(data) {
@@ -2583,27 +2646,46 @@ function showConversationCard(data) {
     timelineCount.textContent = `${data.totalEmails || 0} E-Mails`;
   }
 
-  // Timeline - Alle E-Mails mit Preview (wie Mockup)
+  // Timeline - Mit Date-Separators wie im Mockup (kein Scrolling)
   if (convTimelineList && data.emails && data.emails.length > 0) {
-    convTimelineList.innerHTML = data.emails.map(email => {
-      const isSent = email.isSent;
-      const isCurrent = currentEmail && email.id === currentEmail.id;
-      const date = formatDateShort(new Date(email.date));
-      const preview = (email.snippet || email.body || '').substring(0, 60).replace(/\n/g, ' ');
+    // Gruppiere E-Mails nach Datum
+    const groups = groupEmailsByDate(data.emails);
+    let html = '';
 
-      return `
-        <div class="conv-timeline-item${isCurrent ? ' current' : ''}" data-email-id="${email.id}">
-          <div class="conv-timeline-direction ${isSent ? 'sent' : 'received'}">
-            ${isSent ? '📤' : '📥'}
-          </div>
-          <div class="conv-timeline-content">
-            <div class="conv-timeline-subject">${escapeHtml(email.subject || 'Kein Betreff')}</div>
-            <div class="conv-timeline-preview">${escapeHtml(preview)}...</div>
-          </div>
-          <div class="conv-timeline-date">${date}</div>
+    groups.forEach(group => {
+      // Date Separator
+      html += `
+        <div class="conv-date-separator">
+          <div class="conv-date-line"></div>
+          <span class="conv-date-text">${group.label}</span>
+          <div class="conv-date-line"></div>
         </div>
       `;
-    }).join('');
+
+      // E-Mails in dieser Gruppe (max 2 pro Gruppe, Rest zusammenfassen)
+      const emailsToShow = group.emails.slice(0, 2);
+      emailsToShow.forEach(email => {
+        const isSent = email.isSent;
+        const isCurrent = currentEmail && email.id === currentEmail.id;
+        const date = formatDateShort(new Date(email.date));
+        const preview = (email.snippet || email.body || '').substring(0, 50).replace(/\n/g, ' ');
+
+        html += `
+          <div class="conv-timeline-item${isCurrent ? ' current' : ''}" data-email-id="${email.id}">
+            <div class="conv-timeline-direction ${isSent ? 'sent' : 'received'}">
+              ${isSent ? '📤' : '📥'}
+            </div>
+            <div class="conv-timeline-content">
+              <div class="conv-timeline-subject">${escapeHtml(email.subject || 'Kein Betreff')}</div>
+              <div class="conv-timeline-preview">${escapeHtml(preview)}...</div>
+            </div>
+            <div class="conv-timeline-date">${date}</div>
+          </div>
+        `;
+      });
+    });
+
+    convTimelineList.innerHTML = html;
 
     // Klick-Handler für Timeline-Items
     convTimelineList.querySelectorAll('.conv-timeline-item').forEach(item => {

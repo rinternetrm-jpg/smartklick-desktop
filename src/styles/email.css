@@ -1600,26 +1600,35 @@ body {
   border-radius: 6px;
 }
 
-/* E-Mail Timeline - Mockup Style (scrollbar) */
+/* E-Mail Timeline - Mockup Style (kein Scrolling) */
 .conversation-timeline {
   padding: 16px;
   border-bottom: 1px solid var(--border-color);
-  max-height: 300px;
-  overflow-y: auto;
 }
 
-.conversation-timeline::-webkit-scrollbar {
-  width: 6px;
+/* Date Separator - Mockup Style */
+.conv-date-separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
 }
 
-.conversation-timeline::-webkit-scrollbar-track {
-  background: var(--bg-tertiary);
-  border-radius: 3px;
+.conv-date-separator:first-child {
+  margin-top: 0;
 }
 
-.conversation-timeline::-webkit-scrollbar-thumb {
-  background: var(--accent);
-  border-radius: 3px;
+.conv-date-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.conv-date-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .conv-timeline-header {
