@@ -13,7 +13,7 @@ let accounts = [];
 let selectedAccountId = 'all';
 let autoReplyEnabled = false;
 let autoClassifyEnabled = true;
-let emailLimit = parseInt(localStorage.getItem('emailLimit')) || 100; // Standard: 100
+let emailLimit = parseInt(localStorage.getItem('emailLimit') ?? '0'); // Standard: 0 (Alle)
 let classifierStats = null;
 let isClassifying = false;  // Flag um doppelte Klassifizierung zu verhindern
 let stopAnalysisRequested = false;  // Flag um Analyse zu stoppen
@@ -2099,7 +2099,8 @@ async function analyzeAllEmails() {
         // Update Counts nach jeder E-Mail
         updateCategoryCounts();
 
-        console.log(`[ANALYZE] ${i + 1}/${totalEmails}: ${email.subject?.substring(0, 30)}... → ${classification.kategorie} (Stufe ${classification.stufe})`);
+        const cacheInfo = classification.cached ? ' [Cache]' : ' [Neu]';
+        console.log(`[ANALYZE] ${i + 1}/${totalEmails}: ${email.subject?.substring(0, 30)}... → ${classification.kategorie} (Stufe ${classification.stufe})${cacheInfo}`);
       } else {
         console.warn(`[ANALYZE] Fehler bei E-Mail ${i + 1}:`, result.error);
       }
@@ -2125,12 +2126,15 @@ async function analyzeAllEmails() {
     });
     console.log('[ANALYZE] Ergebnisse:', kategorieStats);
 
-    // Zeige Classifier-Kosten wenn verfügbar
+    // Zeige Classifier-Statistiken wenn verfügbar
     if (classifierStats?.stats) {
-      console.log('[CLASSIFIER] Stufe 0 (Domain):', classifierStats.stats.stufe0 || 0);
-      console.log('[CLASSIFIER] Stufe 1 (Header):', classifierStats.stats.stufe1 || 0);
-      console.log('[CLASSIFIER] Stufe 2 (Inhalt):', classifierStats.stats.stufe2 || 0);
-      console.log('[CLASSIFIER] Kosten:', classifierStats.stats.kostenGesamt);
+      const s = classifierStats.stats;
+      console.log('[CLASSIFIER] Gesamt klassifiziert:', s.total || 0);
+      console.log('[CLASSIFIER] Stufe 0 (Improved):', s.stufe0Improved || 0);
+      console.log('[CLASSIFIER] Stufe 0 (Domain):', s.stufe0 || 0);
+      console.log('[CLASSIFIER] Stufe 1 (Header GPT):', s.stufe1 || 0);
+      console.log('[CLASSIFIER] Stufe 2 (Inhalt GPT):', s.stufe2 || 0);
+      console.log('[CLASSIFIER] Kosten:', s.kostenGesamt || '0.00 Cent');
     }
 
     // Wechsle zu "Wichtig" Kategorie wenn fertig (nur wenn nicht gestoppt)
