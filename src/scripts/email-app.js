@@ -6253,14 +6253,31 @@ function finishSync() {
   isSyncing = false;
   closeSyncModal();
 
-  // Account auswählen, der gerade synchronisiert wurde
+  // Account auswählen (ohne loadEmails zu triggern)
   if (syncAccountId) {
     console.log('[SYNC] Wechsle zu synchronisiertem Account:', syncAccountId);
-    selectAccount(syncAccountId);
+    selectedAccountId = syncAccountId;
+
+    // UI aktualisieren (wie selectAccount, aber ohne loadEmails)
+    document.querySelectorAll('.account-dropdown-item').forEach(item => {
+      item.classList.toggle('active', item.dataset.account === syncAccountId);
+    });
+
+    const account = accounts.find(a => a.id === syncAccountId);
+    if (account) {
+      elements.currentAccountName.textContent = account.name || account.email;
+      elements.currentAccountEmail.textContent = account.email;
+      elements.currentAccountAvatar.textContent = account.email?.[0]?.toUpperCase() || '?';
+    }
+    elements.accountDropdownMenu.classList.add('hidden');
   }
 
-  // E-Mails laden und anzeigen
-  loadEmails(true);
+  // E-Mails sind bereits in der globalen Variable geladen - nur rendern
+  console.log('[SYNC] Rendere', emails.length, 'synchronisierte E-Mails...');
+  updateStats();
+  updateCategoryCounts();
+  renderEmailList();
+  hideLoading();
 
   showToast(`${syncLoadedEmails.toLocaleString()} E-Mails synchronisiert!`, 'success');
 }
