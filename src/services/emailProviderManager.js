@@ -57,6 +57,55 @@ class EmailProviderManager {
     console.log(`[EMAIL] Initialized ${this.providers.size} email providers`);
   }
 
+  // Gmail-Konto nach Verbindung hinzufügen/aktualisieren
+  refreshGmailAccount() {
+    if (!this.gmailService) {
+      console.log('[EMAIL] No Gmail service available');
+      return false;
+    }
+
+    if (!googleAuth.isConnected()) {
+      console.log('[EMAIL] Gmail not connected');
+      return false;
+    }
+
+    const userInfo = googleAuth.getUserInfo();
+    if (!userInfo?.email) {
+      console.log('[EMAIL] No Gmail user info');
+      return false;
+    }
+
+    // Prüfe ob Gmail-Konto bereits existiert
+    let gmailAccount = this.accounts.find(a => a.provider === 'gmail');
+
+    if (!gmailAccount) {
+      // Neues Gmail-Konto erstellen
+      gmailAccount = {
+        id: 'gmail-default',
+        name: 'Gmail',
+        email: userInfo.email,
+        provider: 'gmail',
+        isDefault: true,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+      this.accounts.push(gmailAccount);
+      this.saveAccounts();
+      console.log(`[EMAIL] Gmail account added: ${userInfo.email}`);
+    } else if (gmailAccount.email !== userInfo.email) {
+      // E-Mail aktualisieren falls geändert
+      gmailAccount.email = userInfo.email;
+      this.saveAccounts();
+      console.log(`[EMAIL] Gmail account updated: ${userInfo.email}`);
+    }
+
+    // Provider registrieren
+    this.providers.set('gmail-default', this.gmailService);
+    console.log(`[EMAIL] Gmail provider registered, total providers: ${this.providers.size}`);
+
+    return true;
+  }
+
   async initializeOutlookProvider(account) {
     try {
       const credentials = this.store.get(`credentials_${account.id}`);

@@ -2976,6 +2976,12 @@ ipcMain.handle('google-auth-status', () => {
 ipcMain.handle('google-auth-connect', async () => {
   try {
     const result = await googleAuth.startAuthFlow();
+    if (result.success) {
+      // Gmail-Konto zum Provider Manager hinzufügen
+      if (emailProviderManager) {
+        emailProviderManager.refreshGmailAccount();
+      }
+    }
     if (mainWindow) {
       mainWindow.webContents.send('google-auth-changed', {
         connected: true,
