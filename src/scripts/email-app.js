@@ -1345,8 +1345,8 @@ function filterByCategory(emailList) {
         e.isStarred
       );
     case 'inbox':
-      // Nur noch nicht klassifizierte E-Mails
-      return emailList.filter(e => !e.kategorie);
+      // Posteingang: ALLE E-Mails zeigen (außer Spam)
+      return emailList.filter(e => e.kategorie !== 'spam');
     case 'info':
       return emailList.filter(e => e.kategorie === 'info');
     case 'werbung':
@@ -1858,16 +1858,8 @@ function updateStats() {
 }
 
 function updateCategoryCounts() {
-  // Inbox (nur unkategorisierte E-Mails oder veraltet)
-  const inboxCount = emails.filter(e =>
-    !e.kategorie ||
-    e.kategorie === 'veraltet' ||
-    (e.kategorie !== 'spam' && e.kategorie !== 'newsletter' &&
-     e.kategorie !== 'info' && e.kategorie !== 'werbung' &&
-     e.kategorie !== 'essenz' && e.kategorie !== 'wichtig' &&
-     e.kategorie !== 'termine' && e.kategorie !== 'rechnung' &&
-     !e.isPapierkorb && !e.isNewsletter)
-  ).length;
+  // Inbox: ALLE E-Mails außer Spam
+  const inboxCount = emails.filter(e => e.kategorie !== 'spam').length;
   document.getElementById('catInbox').textContent = `${inboxCount} E-Mails`;
 
   // Important (Essenz + Wichtig)

@@ -4995,13 +4995,17 @@ ipcMain.handle('email:getUnreadCounts', async () => {
   }
 });
 
-ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 0) => {
+ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 0, existingIds = []) => {
   if (!emailProviderManager) {
     return { success: false, error: 'Provider manager not initialized' };
   }
   try {
-    const emails = await emailProviderManager.getEmails({ accountId, maxResults });
-    return { success: true, emails };
+    const result = await emailProviderManager.getEmails({ accountId, maxResults, existingIds });
+    // Inkrementelles Ergebnis verarbeiten
+    if (result && result.isIncremental) {
+      return { success: true, emails: result.emails, isIncremental: true, skipped: result.skipped };
+    }
+    return { success: true, emails: result };
   } catch (error) {
     return { success: false, error: error.message };
   }
