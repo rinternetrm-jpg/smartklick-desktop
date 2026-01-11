@@ -820,7 +820,7 @@ async function loadEmails(forceReload = false) {
     const isIncremental = existingIds.length > 0;
 
     if (isIncremental) {
-      console.log('[EMAIL] Inkrementelles Laden: ${existingIds.length} E-Mails bereits vorhanden, lade bis ${emailLimit}');
+      console.log(`[EMAIL] Inkrementelles Laden: ${existingIds.length} E-Mails bereits vorhanden, lade bis ${emailLimit}`);
     }
 
     // Standard-Loading (mit Limit)
@@ -854,7 +854,7 @@ async function loadEmails(forceReload = false) {
 
       // Bei inkrementellem Laden: Neue E-Mails anhängen
       if (result.isIncremental && isIncremental) {
-        console.log('[EMAIL] Inkrementell: ${newEmails.length} neue E-Mails hinzugefügt');
+        console.log(`[EMAIL] Inkrementell: ${newEmails.length} neue E-Mails hinzugefügt`);
         emails = [...emails, ...newEmails];
         // Nach Datum sortieren (neueste zuerst)
         emails.sort((a, b) => b.date - a.date);
@@ -862,7 +862,7 @@ async function loadEmails(forceReload = false) {
         emails = newEmails;
       }
 
-      console.log('[EMAIL] E-Mails geladen: ${emails.length} (${newEmails.length} neu)');
+      console.log(`[EMAIL] E-Mails geladen: ${emails.length} (${newEmails.length} neu)`);
 
       // Automatische Klassifizierung nur für neue E-Mails
       if (autoClassifyEnabled && newEmails.length > 0) {
@@ -2410,7 +2410,7 @@ async function analyzeConversation(email) {
     if (dbResult.emails && dbResult.emails.length > 0) {
       conversationEmails = dbResult.emails;
       dbStats = dbResult.stats;
-      console.log('[CONVERSATION] DB: ${conversationEmails.length} E-Mails gefunden');
+      console.log(`[CONVERSATION] DB: ${conversationEmails.length} E-Mails gefunden`);
     }
   } catch (error) {
     console.log('[CONVERSATION] DB-Abfrage fehlgeschlagen, nutze In-Memory');
