@@ -309,6 +309,17 @@ function initializeElements() {
     cancelledProgressText: document.getElementById('cancelledProgressText'),
     closeCancelledBtn: document.getElementById('closeCancelledBtn'),
 
+    // Import Options Modal
+    importOptionsModal: document.getElementById('importOptionsModal'),
+    optionsProviderIcon: document.getElementById('optionsProviderIcon'),
+    optionsAccountName: document.getElementById('optionsAccountName'),
+    optionExcludePromotions: document.getElementById('optionExcludePromotions'),
+    optionExcludeSocial: document.getElementById('optionExcludeSocial'),
+    optionExcludeForums: document.getElementById('optionExcludeForums'),
+    optionExcludeUpdates: document.getElementById('optionExcludeUpdates'),
+    cancelImportOptionsBtn: document.getElementById('cancelImportOptionsBtn'),
+    startImportBtn: document.getElementById('startImportBtn'),
+
     // Gmail Sync Filter Toggles
     excludePromotionsToggle: document.getElementById('excludePromotionsToggle'),
     excludeSocialToggle: document.getElementById('excludeSocialToggle'),
@@ -590,6 +601,10 @@ function setupEventListeners() {
   elements.continueImportBtn?.addEventListener('click', continueSyncImport);
   elements.confirmCancelBtn?.addEventListener('click', confirmCancelSync);
   elements.closeCancelledBtn?.addEventListener('click', closeCancelledModal);
+
+  // Import Options Modal
+  elements.cancelImportOptionsBtn?.addEventListener('click', closeImportOptionsModal);
+  elements.startImportBtn?.addEventListener('click', startImportFromOptions);
 
   // Gmail Sync Filter Toggles
   setupSyncFilterToggles();
@@ -903,14 +918,17 @@ async function loadEmails(forceReload = false) {
     }
 
     // Standard-Loading (mit Limit)
-    console.log('[EMAIL] Standard-Loading mit Limit:', emailLimit);
+    // Limit 0 bedeutet "alle E-Mails" - wir setzen ein hohes Limit
+    const effectiveLimit = emailLimit > 0 ? emailLimit : 999999;
+    console.log('[EMAIL] Standard-Loading mit Limit:', effectiveLimit, '(ursprünglich:', emailLimit, ')');
+
     let result;
     if (selectedAccountId === 'all') {
       console.log('[EMAIL] Rufe getUnifiedInbox auf...');
-      result = await ipcRenderer.invoke('email:getUnifiedInbox', emailLimit, existingIds);
+      result = await ipcRenderer.invoke('email:getUnifiedInbox', effectiveLimit, existingIds);
     } else {
       console.log('[EMAIL] Rufe getEmailsFromAccount auf für:', selectedAccountId);
-      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, emailLimit, existingIds);
+      result = await ipcRenderer.invoke('email:getEmailsFromAccount', selectedAccountId, effectiveLimit, existingIds);
     }
 
     console.log('[EMAIL] Ergebnis:', result?.success, 'E-Mails:', result?.emails?.length || 0, 'isIncremental:', result?.isIncremental);
@@ -3986,13 +4004,13 @@ async function connectGmail() {
       console.log('[GMAIL] Neuer Account verbunden:', accountId, userEmail);
 
       if (accountId) {
-        // Nutze die accountId direkt für das Sync-Modal
-        showSyncModal(accountId, userEmail);
+        // Zeige Import-Optionen Modal
+        showImportOptionsModal(accountId, userEmail);
       } else {
         // Fallback: Finde Account in der Liste
         const newAccount = accounts.find(a => a.provider === 'gmail' || a.id?.includes('gmail'));
         if (newAccount) {
-          showSyncModal(newAccount.id, newAccount.email || newAccount.name);
+          showImportOptionsModal(newAccount.id, newAccount.email || newAccount.name);
         } else {
           // Letzter Fallback: Normale Ladung
           loadEmails();
@@ -4022,7 +4040,22 @@ async function connectOutlook() {
       showToast('Outlook-Konto verbunden!');
       await loadAccounts();
       closeAddAccountModal();
-      loadEmails();
+
+      // Import-Optionen Modal anzeigen
+      const accountId = result.accountId;
+      const userEmail = result.user?.email || result.email || '';
+
+      if (accountId) {
+        showImportOptionsModal(accountId, userEmail);
+      } else {
+        // Fallback: Finde Account in der Liste
+        const newAccount = accounts.find(a => a.provider === 'outlook' || a.id?.includes('outlook'));
+        if (newAccount) {
+          showImportOptionsModal(newAccount.id, newAccount.email || newAccount.name);
+        } else {
+          loadEmails();
+        }
+      }
     } else {
       showToast('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'), 'error');
       elements.accountLoadingState.classList.add('hidden');
@@ -4109,8 +4142,8 @@ async function connectImap() {
       const accountId = `imap-${settings.user}`;
       selectedAccountId = accountId;
 
-      // Sync-Modal für IMAP anzeigen
-      showSyncModalImap(accountId, settings.user);
+      // Import-Optionen Modal anzeigen (IMAP hat auch Limit-Auswahl)
+      showImportOptionsModal(accountId, settings.user);
     } else {
       showToast('Fehler: ' + (result.error || 'Verbindung fehlgeschlagen'), 'error');
       elements.accountLoadingState.classList.add('hidden');
@@ -5463,6 +5496,146 @@ window.downloadAttachment = async (messageId, attachmentId, filename) => {
 // SYNC MODAL - Initial E-Mail Synchronisation
 // =============================================================================
 
+// Temporäre Speicherung der Import-Optionen
+let pendingImportAccountId = null;
+let pendingImportAccountName = null;
+
+/**
+ * Zeigt das Import-Optionen Modal
+ */
+function showImportOptionsModal(accountId, accountName) {
+  console.log('[IMPORT] Zeige Import-Optionen für:', accountId, accountName);
+
+  pendingImportAccountId = accountId;
+  pendingImportAccountName = accountName;
+
+  // Provider-Typ ermitteln
+  const isGmail = accountId?.includes('gmail') || accountId?.includes('google');
+  const isOutlook = accountId?.includes('outlook');
+
+  // Provider-Icon setzen
+  if (elements.optionsProviderIcon) {
+    elements.optionsProviderIcon.className = 'provider-icon-large ' + (isGmail ? 'gmail' : isOutlook ? 'outlook' : 'imap');
+    elements.optionsProviderIcon.textContent = isGmail ? 'G' : isOutlook ? 'O' : '✉';
+  }
+
+  // Account-Name setzen
+  if (elements.optionsAccountName) {
+    elements.optionsAccountName.textContent = accountName || 'E-Mail Konto';
+  }
+
+  // Checkboxen auf Standard zurücksetzen (Werbung, Soziales, Foren standardmäßig ausgeschlossen)
+  if (elements.optionExcludePromotions) elements.optionExcludePromotions.checked = true;
+  if (elements.optionExcludeSocial) elements.optionExcludeSocial.checked = true;
+  if (elements.optionExcludeForums) elements.optionExcludeForums.checked = true;
+  if (elements.optionExcludeUpdates) elements.optionExcludeUpdates.checked = false;
+
+  // Radio auf "Alle E-Mails" setzen
+  const allEmailsRadio = document.querySelector('input[name="emailLimit"][value="0"]');
+  if (allEmailsRadio) allEmailsRadio.checked = true;
+
+  // Modal anzeigen
+  elements.importOptionsModal?.classList.remove('hidden');
+}
+
+/**
+ * Schließt das Import-Optionen Modal
+ */
+function closeImportOptionsModal() {
+  elements.importOptionsModal?.classList.add('hidden');
+  pendingImportAccountId = null;
+  pendingImportAccountName = null;
+}
+
+/**
+ * Startet den Import mit den gewählten Optionen
+ */
+function startImportFromOptions() {
+  if (!pendingImportAccountId) {
+    console.error('[IMPORT] Keine Account-ID gesetzt');
+    return;
+  }
+
+  // Limit aus Radio-Button lesen
+  const limitRadio = document.querySelector('input[name="emailLimit"]:checked');
+  const limit = limitRadio ? parseInt(limitRadio.value) : 0; // 0 = Alle
+
+  // Kategorie-Filter aus Checkboxen lesen
+  const excludePromotions = elements.optionExcludePromotions?.checked || false;
+  const excludeSocial = elements.optionExcludeSocial?.checked || false;
+  const excludeForums = elements.optionExcludeForums?.checked || false;
+  const excludeUpdates = elements.optionExcludeUpdates?.checked || false;
+
+  // Query bauen
+  let categoryQuery = '';
+  if (excludePromotions) categoryQuery += '-category:promotions ';
+  if (excludeSocial) categoryQuery += '-category:social ';
+  if (excludeForums) categoryQuery += '-category:forums ';
+  if (excludeUpdates) categoryQuery += '-category:updates ';
+  categoryQuery = categoryQuery.trim();
+
+  console.log('[IMPORT] Start mit Limit:', limit || 'Alle', 'Query:', categoryQuery || 'keine Filter');
+
+  // Modal schließen
+  closeImportOptionsModal();
+
+  // Sync mit gewählten Optionen starten
+  showSyncModalWithOptions(pendingImportAccountId, pendingImportAccountName, limit, categoryQuery);
+}
+
+/**
+ * Zeigt das Sync-Modal und startet mit den gegebenen Optionen
+ */
+function showSyncModalWithOptions(accountId, accountName, limit, categoryQuery) {
+  // Verhindere doppelten Sync
+  if (isSyncing) {
+    console.log('[SYNC] Sync läuft bereits, überspringe');
+    return;
+  }
+
+  console.log('[SYNC] Starte Sync für Account:', accountId, accountName, 'Limit:', limit || 'Alle');
+
+  // Reset state
+  isSyncing = true;
+  syncCancelled = false;
+  syncAccountId = accountId;
+  syncStartTime = Date.now();
+  syncTotalEmails = 0;
+  syncLoadedEmails = 0;
+
+  // Limit setzen (0 = alle E-Mails)
+  const syncLimit = limit > 0 ? limit : 999999; // 999999 als "praktisch unbegrenzt"
+
+  // Provider-Typ ermitteln
+  const isGmail = accountId?.includes('gmail') || accountId?.includes('google');
+  const isOutlook = accountId?.includes('outlook');
+
+  // UI zurücksetzen (Neues Design)
+  if (elements.syncProviderIcon) {
+    elements.syncProviderIcon.className = 'provider-icon-large ' + (isGmail ? 'gmail' : isOutlook ? 'outlook' : 'imap');
+    elements.syncProviderIcon.textContent = isGmail ? 'G' : isOutlook ? 'O' : '✉';
+  }
+  if (elements.syncTitle) {
+    elements.syncTitle.textContent = isGmail ? 'Gmail wird synchronisiert...' : isOutlook ? 'Outlook wird synchronisiert...' : 'E-Mail wird synchronisiert...';
+  }
+  elements.syncAccountName.textContent = accountName || 'E-Mails werden geladen...';
+  elements.syncProgressFill.style.width = '0%';
+  elements.syncLoadedCount.textContent = '0';
+  elements.syncTotalCount.textContent = limit > 0 ? limit.toLocaleString() : 'Alle';
+  elements.syncTimeText.textContent = 'Berechne...';
+
+  // Status Steps zurücksetzen
+  resetSyncSteps();
+  updateSyncStep(1, 'completed');
+  updateSyncStep(2, 'active');
+
+  // Modal anzeigen
+  elements.syncModal.style.display = 'flex';
+
+  // Sync starten mit den gewählten Optionen
+  startFullSyncWithOptions(accountId, syncLimit, { categoryQuery });
+}
+
 /**
  * Zeigt das Sync-Modal für ein neues Konto
  */
@@ -6149,8 +6322,8 @@ async function restartImport() {
 
   closeResumeImportModal();
 
-  // Sync-Modal mit neuem Import starten
-  showSyncModal(accountId, accountEmail);
+  // Import-Optionen Modal anzeigen für Neustart
+  showImportOptionsModal(accountId, accountEmail);
 }
 
 /**

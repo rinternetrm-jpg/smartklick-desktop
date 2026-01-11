@@ -1263,6 +1263,112 @@
     </div>
   </div>
 
+  <!-- Import Options Modal - Vor dem Sync -->
+  <div class="modal-overlay hidden" id="importOptionsModal">
+    <div class="import-options-modal">
+      <!-- Provider Icon -->
+      <div class="provider-icon-large gmail" id="optionsProviderIcon">G</div>
+
+      <div class="import-options-title">Import-Einstellungen</div>
+      <div class="import-options-subtitle" id="optionsAccountName">example@gmail.com</div>
+
+      <!-- Kategorien Filter -->
+      <div class="import-section">
+        <div class="import-section-title">Kategorien ausschließen</div>
+        <div class="import-section-hint">Diese E-Mails werden nicht importiert</div>
+
+        <div class="import-checkboxes">
+          <label class="import-checkbox">
+            <input type="checkbox" id="optionExcludePromotions" checked>
+            <span class="checkbox-mark"></span>
+            <span class="checkbox-label">
+              <span class="checkbox-icon">🏷️</span>
+              Werbung
+            </span>
+          </label>
+
+          <label class="import-checkbox">
+            <input type="checkbox" id="optionExcludeSocial" checked>
+            <span class="checkbox-mark"></span>
+            <span class="checkbox-label">
+              <span class="checkbox-icon">👥</span>
+              Soziale Netzwerke
+            </span>
+          </label>
+
+          <label class="import-checkbox">
+            <input type="checkbox" id="optionExcludeForums" checked>
+            <span class="checkbox-mark"></span>
+            <span class="checkbox-label">
+              <span class="checkbox-icon">💬</span>
+              Foren
+            </span>
+          </label>
+
+          <label class="import-checkbox">
+            <input type="checkbox" id="optionExcludeUpdates">
+            <span class="checkbox-mark"></span>
+            <span class="checkbox-label">
+              <span class="checkbox-icon">🔔</span>
+              Updates & Benachrichtigungen
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- E-Mail Anzahl -->
+      <div class="import-section">
+        <div class="import-section-title">Anzahl E-Mails</div>
+
+        <div class="import-limit-options">
+          <label class="import-radio">
+            <input type="radio" name="emailLimit" value="0" checked>
+            <span class="radio-mark"></span>
+            <span class="radio-label">Alle E-Mails</span>
+          </label>
+
+          <label class="import-radio">
+            <input type="radio" name="emailLimit" value="500">
+            <span class="radio-mark"></span>
+            <span class="radio-label">Letzte 500</span>
+          </label>
+
+          <label class="import-radio">
+            <input type="radio" name="emailLimit" value="1000">
+            <span class="radio-mark"></span>
+            <span class="radio-label">Letzte 1.000</span>
+          </label>
+
+          <label class="import-radio">
+            <input type="radio" name="emailLimit" value="2000">
+            <span class="radio-mark"></span>
+            <span class="radio-label">Letzte 2.000</span>
+          </label>
+
+          <label class="import-radio">
+            <input type="radio" name="emailLimit" value="5000">
+            <span class="radio-mark"></span>
+            <span class="radio-label">Letzte 5.000</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div class="import-info">
+        <span class="import-info-icon">💡</span>
+        <span>Der Import kann jederzeit pausiert und später fortgesetzt werden.</span>
+      </div>
+
+      <!-- Buttons -->
+      <div class="import-options-buttons">
+        <button class="import-btn secondary" id="cancelImportOptionsBtn">Abbrechen</button>
+        <button class="import-btn primary" id="startImportBtn">
+          <span>▶️</span> Import starten
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Sync Modal - Initial E-Mail Synchronisation (Neues Design) -->
   <div class="modal-overlay" id="syncModal" style="display: none;">
     <div class="loading-modal">
