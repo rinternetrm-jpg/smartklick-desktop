@@ -2340,10 +2340,23 @@ function formatIban(iban) {
  * Formatiert Datum kurz
  */
 function formatDateShort(date) {
-  return new Intl.DateTimeFormat('de-DE', {
-    day: '2-digit',
-    month: '2-digit'
-  }).format(date);
+  try {
+    // Stelle sicher, dass wir ein gültiges Date-Objekt haben
+    let dateObj = date;
+    if (!(date instanceof Date)) {
+      dateObj = new Date(date);
+    }
+    // Prüfe ob Datum gültig ist
+    if (isNaN(dateObj.getTime())) {
+      return '-';
+    }
+    return new Intl.DateTimeFormat('de-DE', {
+      day: '2-digit',
+      month: '2-digit'
+    }).format(dateObj);
+  } catch (error) {
+    return '-';
+  }
 }
 
 // =============================================================================
@@ -2434,7 +2447,7 @@ async function analyzeConversation(email) {
   const sent = conversationEmails.filter(e => e.isSent).length;
 
   // Zeitraum
-  const dates = conversationEmails.map(e => new Date(e.date)).filter(d => !isNaN(d));
+  const dates = conversationEmails.map(e => new Date(e.date)).filter(d => d instanceof Date && !isNaN(d.getTime()));
   const firstDate = dates.length > 0 ? new Date(Math.min(...dates)) : null;
   const lastDate = dates.length > 0 ? new Date(Math.max(...dates)) : null;
 
@@ -2461,7 +2474,11 @@ async function analyzeConversation(email) {
   if (conversationEmails.length >= 2) {
     const responseTimes = [];
     for (let i = 1; i < conversationEmails.length; i++) {
-      const diff = new Date(conversationEmails[i-1].date) - new Date(conversationEmails[i].date);
+      const date1 = new Date(conversationEmails[i-1].date);
+      const date2 = new Date(conversationEmails[i].date);
+      // Nur gültige Daten berücksichtigen
+      if (isNaN(date1.getTime()) || isNaN(date2.getTime())) continue;
+      const diff = date1 - date2;
       if (diff > 0) {
         responseTimes.push(diff);
       }
@@ -2602,6 +2619,11 @@ function groupEmailsByDate(emails) {
 
   emails.forEach(email => {
     const emailDate = new Date(email.date);
+    // Prüfe ob Datum gültig ist
+    if (isNaN(emailDate.getTime())) {
+      olderEmails.push(email);
+      return;
+    }
     const emailDay = new Date(emailDate.getFullYear(), emailDate.getMonth(), emailDate.getDate());
 
     if (emailDay.getTime() === today.getTime()) {
