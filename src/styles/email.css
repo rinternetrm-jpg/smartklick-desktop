@@ -3019,18 +3019,24 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid transparent;
+  position: relative;
+  user-select: none;
 }
 
 .import-checkbox:hover {
   border-color: var(--accent-primary);
 }
 
-.import-checkbox input {
+.import-checkbox input[type="checkbox"] {
   position: absolute;
   opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
+  cursor: pointer;
+  height: 100%;
+  width: 100%;
+  top: 0;
+  left: 0;
+  margin: 0;
+  z-index: 1;
 }
 
 .checkbox-mark {
@@ -3105,18 +3111,24 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid transparent;
+  position: relative;
+  user-select: none;
 }
 
 .import-radio:hover {
   border-color: var(--accent-primary);
 }
 
-.import-radio input {
+.import-radio input[type="radio"] {
   position: absolute;
   opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
+  cursor: pointer;
+  height: 100%;
+  width: 100%;
+  top: 0;
+  left: 0;
+  margin: 0;
+  z-index: 1;
 }
 
 .radio-mark {

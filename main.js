@@ -4344,7 +4344,7 @@ ipcMain.handle('email:getEmailCount', async (_, accountId) => {
   }
 });
 
-// Schnelle Gesamtanzahl der E-Mails (ohne Pagination)
+// Schnelle Gesamtanzahl der E-Mails (über Labels API)
 ipcMain.handle('email:getMessageCount', async (_, accountId) => {
   try {
     console.log('[EMAIL] Ermittle Gesamtanzahl für Account:', accountId);
@@ -4364,15 +4364,14 @@ ipcMain.handle('email:getMessageCount', async (_, accountId) => {
         return { success: false, count: 0, error: 'Gmail nicht initialisiert' };
       }
 
-      // Nutze resultSizeEstimate für schnelle Schätzung
-      const response = await gmail.users.messages.list({
+      // Nutze labels.get für exakte Anzahl
+      const response = await gmail.users.labels.get({
         userId: 'me',
-        labelIds: ['INBOX'],
-        maxResults: 1 // Nur 1 Ergebnis, aber wir bekommen resultSizeEstimate
+        id: 'INBOX'
       });
 
-      const count = response.data.resultSizeEstimate || 0;
-      console.log('[EMAIL] Geschätzte Gesamtanzahl:', count);
+      const count = response.data.messagesTotal || 0;
+      console.log('[EMAIL] Exakte Gesamtanzahl INBOX:', count);
 
       return { success: true, count };
     }
@@ -4384,7 +4383,7 @@ ipcMain.handle('email:getMessageCount', async (_, accountId) => {
   }
 });
 
-// Anzahl E-Mails in einer Kategorie
+// Anzahl E-Mails in einer Kategorie (über Labels API)
 ipcMain.handle('email:getCategoryCount', async (_, accountId, category) => {
   try {
     console.log('[EMAIL] Ermittle Anzahl für Kategorie:', category, 'Account:', accountId);
@@ -4404,7 +4403,7 @@ ipcMain.handle('email:getCategoryCount', async (_, accountId, category) => {
         return { success: false, count: 0, error: 'Gmail nicht initialisiert' };
       }
 
-      // Query für die Kategorie
+      // Label-ID für die Kategorie
       const categoryLabelMap = {
         'promotions': 'CATEGORY_PROMOTIONS',
         'social': 'CATEGORY_SOCIAL',
@@ -4417,15 +4416,14 @@ ipcMain.handle('email:getCategoryCount', async (_, accountId, category) => {
         return { success: false, count: 0, error: 'Unbekannte Kategorie' };
       }
 
-      // Nutze Label-basierte Suche
-      const response = await gmail.users.messages.list({
+      // Nutze labels.get für exakte Anzahl
+      const response = await gmail.users.labels.get({
         userId: 'me',
-        labelIds: [labelId],
-        maxResults: 1
+        id: labelId
       });
 
-      const count = response.data.resultSizeEstimate || 0;
-      console.log(`[EMAIL] Kategorie ${category}: ${count} E-Mails`);
+      const count = response.data.messagesTotal || 0;
+      console.log(`[EMAIL] Kategorie ${category}: ${count} E-Mails (exakt)`);
 
       return { success: true, count };
     }
