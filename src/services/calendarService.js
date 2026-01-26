@@ -163,101 +163,152 @@ class CalendarService {
     };
   }
 
-  // Convert German date/time words to English for Google API
-  convertGermanToEnglish(text) {
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                        'July', 'August', 'September', 'October', 'November', 'December'];
+  // Parse German date/time text and return explicit date object
+  parseGermanDateTime(text) {
+    const now = new Date();
+    let targetDate = new Date(now);
+    let hour = 12;  // Default to noon
+    let minute = 0;
+    let title = text;
 
-    let result = text;
+    const textLower = text.toLowerCase();
 
-    // Step 1: Handle "X Uhr" or "X:YY Uhr" → "at X:00" or "at X:YY" FIRST
-    // "18 Uhr" → "at 18:00", "17:30 Uhr" → "at 17:30"
-    result = result.replace(/(\d{1,2})[:.]?(\d{2})?\s*uhr/gi, (match, hour, minutes) => {
-      const h = hour.padStart(2, '0');
-      const m = minutes || '00';
-      return `at ${h}:${m}`;
-    });
-
-    // Step 2: Handle time without "Uhr": "17:30" or "17.30" → "at 17:30"
-    result = result.replace(/\b(\d{1,2})[:.](\d{2})\b/gi, (match, hour, minutes) => {
-      const h = parseInt(hour, 10);
-      if (h >= 0 && h <= 23) {
-        return `at ${hour.padStart(2, '0')}:${minutes}`;
-      }
-      return match;
-    });
-
-    // Step 3: Convert German date format DD.MM or DD.MM.YYYY to English
-    result = result.replace(/(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?/g, (match, day, month, year) => {
-      const monthIndex = parseInt(month, 10) - 1;
-      const monthName = monthNames[monthIndex] || month;
-      const dayNum = parseInt(day, 10);
-      return year ? `${monthName} ${dayNum} ${year}` : `${monthName} ${dayNum}`;
-    });
-
-    // Step 4: Word replacements (German → English)
-    const replacements = {
-      'morgen': 'tomorrow',
-      'heute': 'today',
-      'übermorgen': 'day after tomorrow',
-      'montag': 'Monday',
-      'dienstag': 'Tuesday',
-      'mittwoch': 'Wednesday',
-      'donnerstag': 'Thursday',
-      'freitag': 'Friday',
-      'samstag': 'Saturday',
-      'sonntag': 'Sunday',
-      'nächste woche': 'next week',
-      'nächsten': 'next',
-      'nächster': 'next',
-      'vormittag': 'morning',
-      'nachmittag': 'afternoon',
-      'abend': 'evening',
-      'mittag': 'noon',
-      'januar': 'January',
-      'februar': 'February',
-      'märz': 'March',
-      'april': 'April',
-      'mai': 'May',
-      'juni': 'June',
-      'juli': 'July',
-      'august': 'August',
-      'september': 'September',
-      'oktober': 'October',
-      'november': 'November',
-      'dezember': 'December',
-      'am': 'on',
-      'um': 'at'
-    };
-
-    for (const [german, english] of Object.entries(replacements)) {
-      result = result.replace(new RegExp(`\\b${german}\\b`, 'gi'), english);
+    // Extract time: "19 Uhr", "17:30 Uhr", "17:30", "17.30"
+    const timeMatch = textLower.match(/(\d{1,2})[:.]?(\d{2})?\s*uhr/i) ||
+                      textLower.match(/\b(\d{1,2})[:.](\d{2})\b/);
+    if (timeMatch) {
+      hour = parseInt(timeMatch[1], 10);
+      minute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      // Remove time from title
+      title = title.replace(/\d{1,2}[:.]?\d{0,2}\s*uhr/gi, '').trim();
+      title = title.replace(/\b\d{1,2}[:\.]\d{2}\b/gi, '').trim();
     }
 
-    // Step 5: Clean up
-    result = result.replace(/,\s*,/g, ',');  // Remove double commas
-    result = result.replace(/\s+/g, ' ').trim();
+    // Check for specific date patterns
 
-    console.log('[Calendar] German→English:', text, '→', result);
-    return result;
-  }
+    // Pattern: "DD. Monat" or "DD.MM." or "DD.MM.YYYY"
+    const germanMonths = {
+      'januar': 0, 'februar': 1, 'märz': 2, 'april': 3, 'mai': 4, 'juni': 5,
+      'juli': 6, 'august': 7, 'september': 8, 'oktober': 9, 'november': 10, 'dezember': 11
+    };
 
-  // Quick add event using natural language
-  async quickAddEvent(text) {
-    const calendar = this.getCalendar();
+    // DD. Monat pattern (e.g., "30. Januar")
+    const monthNameMatch = textLower.match(/(\d{1,2})\.\s*(januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember)/i);
+    if (monthNameMatch) {
+      const day = parseInt(monthNameMatch[1], 10);
+      const monthName = monthNameMatch[2].toLowerCase();
+      const month = germanMonths[monthName];
+      targetDate = new Date(now.getFullYear(), month, day);
+      // If date is in the past, use next year
+      if (targetDate < now) {
+        targetDate = new Date(now.getFullYear() + 1, month, day);
+      }
+      title = title.replace(/\d{1,2}\.\s*(januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember)/gi, '').trim();
+    }
 
-    // Convert German to English for Google API
-    const englishText = this.convertGermanToEnglish(text);
+    // DD.MM. or DD.MM.YYYY pattern
+    const dateMatch = textLower.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})?/);
+    if (dateMatch && !monthNameMatch) {
+      const day = parseInt(dateMatch[1], 10);
+      const month = parseInt(dateMatch[2], 10) - 1;
+      const year = dateMatch[3] ? parseInt(dateMatch[3], 10) : now.getFullYear();
+      targetDate = new Date(year, month, day);
+      // If date is in the past and no year specified, use next year
+      if (!dateMatch[3] && targetDate < now) {
+        targetDate = new Date(now.getFullYear() + 1, month, day);
+      }
+      title = title.replace(/\d{1,2}\.\d{1,2}\.(\d{4})?/g, '').trim();
+    }
 
-    const response = await calendar.events.quickAdd({
-      calendarId: 'primary',
-      text: englishText
-    });
+    // Relative days
+    if (textLower.includes('heute')) {
+      targetDate = new Date(now);
+      title = title.replace(/heute/gi, '').trim();
+    } else if (textLower.includes('morgen')) {
+      targetDate = new Date(now);
+      targetDate.setDate(targetDate.getDate() + 1);
+      title = title.replace(/morgen/gi, '').trim();
+    } else if (textLower.includes('übermorgen')) {
+      targetDate = new Date(now);
+      targetDate.setDate(targetDate.getDate() + 2);
+      title = title.replace(/übermorgen/gi, '').trim();
+    }
+
+    // Weekdays
+    const weekdays = {
+      'montag': 1, 'dienstag': 2, 'mittwoch': 3, 'donnerstag': 4,
+      'freitag': 5, 'samstag': 6, 'sonntag': 0
+    };
+
+    for (const [dayName, dayNum] of Object.entries(weekdays)) {
+      if (textLower.includes(dayName)) {
+        const currentDay = now.getDay();
+        let daysToAdd = dayNum - currentDay;
+        if (daysToAdd <= 0) {
+          daysToAdd += 7;  // Next week
+        }
+        targetDate = new Date(now);
+        targetDate.setDate(targetDate.getDate() + daysToAdd);
+        title = title.replace(new RegExp(dayName, 'gi'), '').trim();
+        break;
+      }
+    }
+
+    // Set the time
+    targetDate.setHours(hour, minute, 0, 0);
+
+    // Clean up title: remove "um", "am", commas, extra spaces
+    title = title.replace(/\b(um|am|auf|bei)\b/gi, '').trim();
+    title = title.replace(/^[,.\s]+|[,.\s]+$/g, '').trim();
+    title = title.replace(/\s+/g, ' ').trim();
+
+    // Calculate end time (1 hour later)
+    const endDate = new Date(targetDate);
+    endDate.setHours(endDate.getHours() + 1);
+
+    console.log('[Calendar] Parsed:', text, '→ title:', title, ', start:', targetDate.toISOString());
 
     return {
-      success: true,
-      event: this.formatEvent(response.data)
+      title: title || 'Termin',
+      startDate: targetDate,
+      endDate: endDate
     };
+  }
+
+  // Quick add event using natural language - now with local parsing
+  async quickAddEvent(text) {
+    // Parse the German text locally to get explicit date/time
+    const parsed = this.parseGermanDateTime(text);
+
+    // Format as ISO strings with timezone
+    const startISO = this.toLocalISOString(parsed.startDate);
+    const endISO = this.toLocalISOString(parsed.endDate);
+
+    console.log('[Calendar] Creating event:', parsed.title, 'from', startISO, 'to', endISO);
+
+    // Use createEvent with explicit times instead of quickAdd
+    return await this.createEvent({
+      summary: parsed.title,
+      start: { dateTime: startISO },
+      end: { dateTime: endISO }
+    });
+  }
+
+  // Convert Date to ISO string with local timezone offset
+  toLocalISOString(date) {
+    const offset = -date.getTimezoneOffset();
+    const sign = offset >= 0 ? '+' : '-';
+    const hours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0');
+    const minutes = String(Math.abs(offset) % 60).padStart(2, '0');
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    const sec = String(date.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day}T${hour}:${min}:${sec}${sign}${hours}:${minutes}`;
   }
 
   // Delete an event
