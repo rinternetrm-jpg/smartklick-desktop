@@ -2,9 +2,9 @@
 const API_BASE = 'http://188.40.97.126:8080';
 
 const TONES = {
-  native: { name: 'Muttersprachlich', color: '#f97316', desc: 'native orange muttersprachlich' },
+  native: { name: 'Normal', color: '#f97316', desc: 'normal orange muttersprachlich' },
   private: { name: 'Privat', color: '#ef4444', desc: 'privat rot liebevoll' },
-  prompt: { name: 'Prompt', color: '#3b82f6', desc: 'prompt blau ai-prompts generieren' },
+  formal: { name: 'Formell', color: '#3b82f6', desc: 'formell blau geschäftlich' },
   friendly: { name: 'Freundlich', color: '#22c55e', desc: 'freundlich grün' },
   learning: { name: 'Learning', color: '#8b5cf6', desc: 'learning violett' },
   smartklick: { name: 'Smartklick', color: '#06b6d4', desc: 'smartklick agent assistent' }
@@ -516,27 +516,6 @@ function handleTranscriptionResult(result) {
       setTimeout(() => setMicState('idle'), 1500);
       return;
     }
-  }
-
-  // PROMPT MODE: Generate optimized prompt instead of inserting text
-  if (state.currentTone === 'prompt') {
-    console.log('Prompt mode - generating AI prompt');
-    // Cursor Feedback abbrechen (Prompt Mode fügt keinen Text ein)
-    if (window.electronAPI?.cursorFeedback) {
-      window.electronAPI.cursorFeedback.cancel();
-    }
-    // Switch to normal mode if not already there (panel only works in normal)
-    if (state.viewMode !== 'normal') {
-      if (window.electronAPI) {
-        window.electronAPI.changeViewMode('normal');
-      }
-      setTimeout(() => generatePrompt(text), 300);
-    } else {
-      generatePrompt(text);
-    }
-    setMicState('success');
-    setTimeout(() => setMicState('idle'), 1500);
-    return; // Don't insert/copy original text in prompt mode
   }
 
   // Always insert/copy text first (regardless of mode)
