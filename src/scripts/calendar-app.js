@@ -593,7 +593,7 @@ class CalendarApp {
 
     if (isAllDay) {
       return `
-        <div class="event-block all-day" style="background: ${this.getEventColor(event)};"
+        <div class="calendar-event all-day" style="background: ${this.getEventColor(event)};"
              onclick="calendarApp.showEventDetail('${event.id}')">
           ${event.summary || 'Kein Titel'}
         </div>
@@ -606,11 +606,11 @@ class CalendarApp {
     const height = Math.max(duration * 48, 24);
 
     return `
-      <div class="event-block"
+      <div class="calendar-event"
            style="top: ${top}px; height: ${height}px; background: ${this.getEventColor(event)};"
            onclick="calendarApp.showEventDetail('${event.id}')">
-        <div class="event-time">${this.formatTime(start)}</div>
-        <div class="event-title">${event.summary || 'Kein Titel'}</div>
+        <div class="calendar-event-time">${this.formatTime(start)}</div>
+        <div class="calendar-event-title">${event.summary || 'Kein Titel'}</div>
       </div>
     `;
   }
@@ -672,10 +672,14 @@ class CalendarApp {
   }
 
   getEventsForDate(date) {
-    return this.events.filter(event => {
+    const matchingEvents = this.events.filter(event => {
       const eventStart = new Date(event.start.dateTime || event.start.date);
-      return this.isSameDay(eventStart, date);
+      const matches = this.isSameDay(eventStart, date);
+      console.log(`[getEventsForDate] Event "${event.summary}": eventDate=${eventStart.toDateString()}, gridDate=${date.toDateString()}, matches=${matches}`);
+      return matches;
     });
+    console.log(`[getEventsForDate] Found ${matchingEvents.length} events for ${date.toDateString()}`);
+    return matchingEvents;
   }
 
   formatDate(date, format) {
