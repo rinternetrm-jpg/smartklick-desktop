@@ -158,6 +158,9 @@ class CalendarService {
 
   // Convert German date/time words to English for Google API
   convertGermanToEnglish(text) {
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+
     const replacements = {
       // Days
       'morgen': 'tomorrow',
@@ -183,22 +186,54 @@ class CalendarService {
       'vormittag': 'morning',
       'nachmittag': 'afternoon',
       'abend': 'evening',
-      'mittag': 'noon'
+      'mittag': 'noon',
+      // German months
+      'januar': 'January',
+      'februar': 'February',
+      'märz': 'March',
+      'april': 'April',
+      'mai': 'May',
+      'juni': 'June',
+      'juli': 'July',
+      'august': 'August',
+      'september': 'September',
+      'oktober': 'October',
+      'november': 'November',
+      'dezember': 'December',
+      // Prefix
+      'am': 'on'
     };
 
-    let result = text.toLowerCase();
+    let result = text;
+
+    // Convert German date format DD.MM or DD.MM.YYYY to English
+    // "02.02" → "February 2", "02.02.2026" → "February 2 2026"
+    result = result.replace(/(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?/g, (match, day, month, year) => {
+      const monthIndex = parseInt(month, 10) - 1;
+      const monthName = monthNames[monthIndex] || month;
+      const dayNum = parseInt(day, 10);
+      return year ? `${monthName} ${dayNum} ${year}` : `${monthName} ${dayNum}`;
+    });
+
+    // Apply word replacements
     for (const [german, english] of Object.entries(replacements)) {
-      result = result.replace(new RegExp(german, 'gi'), english);
+      result = result.replace(new RegExp(`\\b${german}\\b`, 'gi'), english);
     }
 
-    // Fix time format: "18" alone or "18:00" → "at 18:00"
-    result = result.replace(/(\d{1,2})[:.]?(\d{2})?\s*(tomorrow|today|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/gi,
-      '$3 at $1:$2');
-    result = result.replace(/(tomorrow|today|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(\d{1,2})[:.]?(\d{2})?/gi,
-      '$1 at $2:$3');
+    // Fix time format: "17:30" or "17.30" → "at 17:30"
+    // Handle time with colon or dot
+    result = result.replace(/(\d{1,2})[:.](\d{2})\s*(?=\S)/gi, 'at $1:$2 ');
+    result = result.replace(/\s(\d{1,2})[:.](\d{2})$/gi, ' at $1:$2');
 
-    // Clean up empty minutes
-    result = result.replace(/:undefined/g, ':00').replace(/:\s/g, ':00 ').replace(/:$/g, ':00');
+    // Handle standalone hour like "18 Uhr" (now just "18 ")
+    result = result.replace(/\b(\d{1,2})\s+(?=\w)/gi, (match, hour) => {
+      const h = parseInt(hour, 10);
+      if (h >= 0 && h <= 23) return `at ${hour}:00 `;
+      return match;
+    });
+
+    // Clean up multiple spaces
+    result = result.replace(/\s+/g, ' ').trim();
 
     console.log('[Calendar] German→English:', text, '→', result);
     return result;
