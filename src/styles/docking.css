@@ -422,10 +422,13 @@
 /* Modus-Farben */
 .dock-mode-dot[data-mode="native"] { background: var(--sk-mode-orange); }
 .dock-mode-dot[data-mode="private"] { background: var(--sk-mode-red); }
+.dock-mode-dot[data-mode="coach"] { background: var(--sk-mode-yellow); }
+.dock-mode-dot[data-mode="formal"] { background: var(--sk-mode-blue); }
+.dock-mode-dot[data-mode="smartklick"] { background: #06b6d4; }
+/* Legacy aliases */
 .dock-mode-dot[data-mode="friendly"] { background: var(--sk-mode-yellow); }
-.dock-mode-dot[data-mode="casual"] { background: var(--sk-mode-green); }
+.dock-mode-dot[data-mode="casual"] { background: var(--sk-mode-yellow); }
 .dock-mode-dot[data-mode="prompt"] { background: var(--sk-mode-blue); }
-.dock-mode-dot[data-mode="smartklick"] { background: var(--sk-mode-purple); }
 
 /* ========================================
    SPRACH-BUTTONS - Einzeilig horizontal
