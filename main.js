@@ -2,44 +2,6 @@ const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut, nativeImage, cl
 const path = require('path');
 const fs = require('fs');
 const Store = require('electron-store');
-
-// ============================================
-// .env Datei laden (für OpenAI API Key etc.)
-// WICHTIG: Muss VOR allen anderen requires passieren!
-// ============================================
-(function loadEnvFile() {
-  // Suche .env an mehreren Orten (synchron, vor app.ready)
-  const possiblePaths = [
-    path.join(__dirname, '.env'),                    // Development / Source
-    path.join(process.cwd(), '.env'),                // Current working directory
-    path.join(process.resourcesPath || __dirname, '.env'), // Resources (Production)
-  ];
-
-  for (const envPath of possiblePaths) {
-    try {
-      if (fs.existsSync(envPath)) {
-        const envContent = fs.readFileSync(envPath, 'utf-8');
-        envContent.split('\n').forEach(line => {
-          const trimmed = line.trim();
-          if (trimmed && !trimmed.startsWith('#')) {
-            const [key, ...valueParts] = trimmed.split('=');
-            if (key && valueParts.length > 0) {
-              process.env[key.trim()] = valueParts.join('=').trim();
-            }
-          }
-        });
-        console.log('[ENV] .env geladen von:', envPath);
-        if (process.env.OPENAI_API_KEY) {
-          console.log('[ENV] OPENAI_API_KEY gefunden:', process.env.OPENAI_API_KEY.substring(0, 10) + '...');
-        }
-        return;
-      }
-    } catch (error) {
-      console.log('[ENV] Fehler bei:', envPath, error.message);
-    }
-  }
-  console.log('[ENV] Keine .env Datei gefunden');
-})();
 const { exec, spawn } = require('child_process');
 const readline = require('readline');
 const https = require('https');
@@ -59,12 +21,6 @@ const gmailService = require('./src/services/gmailService');
 const notesService = require('./src/services/notesService');
 const imapService = require('./src/services/imapService');
 const imapAccountManager = require('./src/services/imapAccountManager');
-
-// Intelligentes E-Mail-Klassifizierungssystem
-const emailClassifier = require('./src/services/email/classifierService');
-
-// Email-Datenbank für Konversationen und Offline-Zugriff
-const emailDatabase = require('./src/services/emailDatabase');
 
 // Multi-Provider Email
 const EmailProviderManager = require('./src/services/emailProviderManager');
@@ -199,6 +155,9 @@ function createWindow() {
   });
 
   mainWindow.loadFile('src/index.html');
+
+  // DEBUG MODE - DevTools automatisch öffnen
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   // Save position on move + Docking detection + Bounds constraint
   mainWindow.on('moved', () => {
@@ -2967,40 +2926,22 @@ ipcMain.handle('extension-clear-all', () => {
 
 // ============ Google Services IPC Handlers ============
 
-// Auth - Multi-Account Support
+// Auth
 ipcMain.handle('google-auth-status', () => {
   return {
     connected: googleAuth.isConnected(),
     configured: googleAuth.isConfigured(),
-    user: googleAuth.getUserInfo(),
-    accounts: googleAuth.getAllAccounts(),
-    hasMultipleAccounts: googleAuth.getAllAccounts().length > 1
-  };
-});
-
-// Alle Gmail-Konten abrufen
-ipcMain.handle('google-auth-accounts', () => {
-  return {
-    success: true,
-    accounts: googleAuth.getAllAccounts()
+    user: googleAuth.getUserInfo()
   };
 });
 
 ipcMain.handle('google-auth-connect', async () => {
   try {
     const result = await googleAuth.startAuthFlow();
-    if (result.success) {
-      // Alle Gmail-Konten zum Provider Manager hinzufügen
-      if (emailProviderManager) {
-        emailProviderManager.refreshGmailAccounts();
-      }
-    }
     if (mainWindow) {
       mainWindow.webContents.send('google-auth-changed', {
         connected: true,
-        user: result.user,
-        accountId: result.accountId,
-        accounts: googleAuth.getAllAccounts()
+        user: result.user
       });
     }
     return result;
@@ -3010,44 +2951,13 @@ ipcMain.handle('google-auth-connect', async () => {
   }
 });
 
-// Einzelnes Gmail-Konto entfernen
-ipcMain.handle('google-auth-remove-account', async (_, accountId) => {
-  try {
-    const result = await googleAuth.removeAccount(accountId);
-    if (result.success && emailProviderManager) {
-      await emailProviderManager.removeAccount(accountId);
-    }
-    if (mainWindow) {
-      mainWindow.webContents.send('google-auth-changed', {
-        connected: googleAuth.hasAnyAccount(),
-        accounts: googleAuth.getAllAccounts()
-      });
-    }
-    return result;
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// Aktives Gmail-Konto setzen
-ipcMain.handle('google-auth-set-active', (_, accountId) => {
-  try {
-    const success = googleAuth.setActiveAccount(accountId);
-    return { success };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// Alle Gmail-Konten trennen (Legacy)
 ipcMain.handle('google-auth-disconnect', async () => {
   try {
     const result = await googleAuth.disconnect();
     if (mainWindow) {
       mainWindow.webContents.send('google-auth-changed', {
         connected: false,
-        user: null,
-        accounts: []
+        user: null
       });
     }
     return result;
@@ -3887,77 +3797,6 @@ ipcMain.handle('email:delete', async (_, messageId) => {
   }
 });
 
-// Alle als gelesen markieren
-ipcMain.handle('email:markAllAsRead', async () => {
-  try {
-    // Get unread emails and mark them as read
-    const unread = await gmailService.getUnreadEmails();
-    if (unread && unread.length > 0) {
-      for (const email of unread) {
-        await gmailService.markAsRead(email.id);
-      }
-    }
-    return { success: true, count: unread?.length || 0 };
-  } catch (error) {
-    console.error('Error marking all as read:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Spam-Ordner leeren
-ipcMain.handle('email:emptySpam', async () => {
-  try {
-    // TODO: Implement when spam folder access is available
-    return { success: true, message: 'Spam geleert' };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// Newsletter archivieren
-ipcMain.handle('email:archiveNewsletters', async () => {
-  try {
-    // TODO: Implement newsletter archiving
-    return { success: true, message: 'Newsletter archiviert' };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// Anhang herunterladen
-ipcMain.handle('email:downloadAttachment', async (_, messageId, attachmentId, filename) => {
-  try {
-    const result = await gmailService.getAttachment(messageId, attachmentId);
-
-    if (!result.success) {
-      return result;
-    }
-
-    // Base64 zu Buffer konvertieren
-    const buffer = Buffer.from(result.data, 'base64');
-
-    // Dialog zum Speichern anzeigen
-    const { dialog } = require('electron');
-    const { canceled, filePath } = await dialog.showSaveDialog({
-      defaultPath: filename || 'anhang',
-      filters: [{ name: 'Alle Dateien', extensions: ['*'] }]
-    });
-
-    if (canceled || !filePath) {
-      return { success: false, error: 'Abgebrochen' };
-    }
-
-    // Datei speichern
-    const fs = require('fs');
-    fs.writeFileSync(filePath, buffer);
-
-    return { success: true, path: filePath };
-  } catch (error) {
-    console.error('[EMAIL] Attachment download error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
 ipcMain.handle('email:getForBriefing', async (_, maxResults = 20) => {
   try {
     const emails = await gmailService.getEmailsForBriefing(maxResults);
@@ -3988,1097 +3827,26 @@ ipcMain.handle('email:analyze', async (_, emailData) => {
   }
 });
 
-// Kontakt-Extraktion aus E-Mail
-ipcMain.handle('contact:extract', async (_, emailData) => {
+// Email KI-Klassifizierung (via Server)
+ipcMain.handle('email:classify', async (_, emailData) => {
   try {
-    // Versuche Server-basierte Extraktion
-    const response = await fetch('http://188.40.97.126:8080/contact-extract', {
+    const response = await fetch('http://188.40.97.126:8080/email-classify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: emailData.from,
-        fromName: emailData.fromName,
-        subject: emailData.subject,
-        body: emailData.body,
-        html: emailData.html
+        from: emailData.from || '',
+        subject: emailData.subject || '',
+        preview: emailData.preview || '',
+        language: 'de'
       })
     });
 
-    if (response.ok) {
-      const result = await response.json();
-      if (result.contact) {
-        return { success: true, contact: result.contact };
-      }
-    }
-
-    // Fallback: Lokale Basis-Extraktion
-    const contact = extractContactLocally(emailData);
-    return { success: true, contact };
-
-  } catch (error) {
-    console.error('[CONTACT] Extraction error:', error);
-    // Bei Fehler: Lokale Extraktion
-    const contact = extractContactLocally(emailData);
-    return { success: true, contact };
-  }
-});
-
-// Zahlungsdaten-Extraktion aus E-Mail
-ipcMain.handle('payment:extract', async (_, emailData) => {
-  try {
-    // Versuche Server-basierte Extraktion
-    const response = await fetch('http://188.40.97.126:8080/payment-extract', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: emailData.from,
-        subject: emailData.subject,
-        body: emailData.body,
-        html: emailData.html
-      })
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      if (result.payment) {
-        return { success: true, payment: result.payment };
-      }
-    }
-
-    // Fallback: Lokale Extraktion erfolgt im Renderer
-    return { success: false };
-
-  } catch (error) {
-    console.error('[PAYMENT] Extraction error:', error);
-    return { success: false };
-  }
-});
-
-// Konversations-Zusammenfassung
-ipcMain.handle('conversation:summarize', async (_, data) => {
-  try {
-    // Versuche Server-basierte Zusammenfassung
-    const response = await fetch('http://188.40.97.126:8080/conversation-summarize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        emails: data.emails,
-        currentSubject: data.currentSubject
-      }),
-      timeout: 10000
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      if (result.summary) {
-        return { success: true, summary: result.summary };
-      }
-    }
-
-    // Fallback: Lokale Zusammenfassung
-    return { success: false };
-
-  } catch (error) {
-    console.error('[CONVERSATION] Summarize error:', error);
-    return { success: false };
-  }
-});
-
-// ============================================
-// EMAIL DATABASE IPC HANDLERS
-// ============================================
-
-// Initialisiere DB beim Start
-ipcMain.handle('emaildb:init', () => {
-  try {
-    emailDatabase.initDatabase();
-    return { success: true };
-  } catch (error) {
-    console.error('[EMAIL-DB] Init error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// E-Mails speichern
-ipcMain.handle('emaildb:saveEmails', (_, emails, accountId) => {
-  try {
-    const count = emailDatabase.saveEmails(emails, accountId);
-    return { success: true, count };
-  } catch (error) {
-    console.error('[EMAIL-DB] Save error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Konversation abrufen
-ipcMain.handle('emaildb:getConversation', (_, contactEmail, accountId) => {
-  try {
-    const emails = emailDatabase.getConversationEmails(contactEmail, accountId);
-    const stats = emailDatabase.getContactStats(contactEmail, accountId);
-    return {
-      success: true,
-      emails,
-      stats: {
-        total: stats?.total || 0,
-        received: stats?.received || 0,
-        sent: stats?.sent || 0,
-        firstContact: stats?.first_contact,
-        lastContact: stats?.last_contact
-      }
-    };
-  } catch (error) {
-    console.error('[EMAIL-DB] Conversation error:', error);
-    return { success: false, emails: [], error: error.message };
-  }
-});
-
-// E-Mail nach ID abrufen
-ipcMain.handle('emaildb:getEmail', (_, emailId) => {
-  try {
-    const email = emailDatabase.getEmailById(emailId);
-    return { success: true, email };
-  } catch (error) {
-    console.error('[EMAIL-DB] GetEmail error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Kategorie aktualisieren
-ipcMain.handle('emaildb:updateCategory', (_, emailId, kategorie) => {
-  try {
-    emailDatabase.updateEmailCategory(emailId, kategorie);
-    return { success: true };
-  } catch (error) {
-    console.error('[EMAIL-DB] UpdateCategory error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// E-Mails suchen
-ipcMain.handle('emaildb:search', (_, searchTerm, accountId, limit) => {
-  try {
-    const results = emailDatabase.searchEmails(searchTerm, accountId, limit);
-    return { success: true, results };
-  } catch (error) {
-    console.error('[EMAIL-DB] Search error:', error);
-    return { success: false, results: [], error: error.message };
-  }
-});
-
-// DB Statistiken
-ipcMain.handle('emaildb:stats', () => {
-  try {
-    const stats = emailDatabase.getDbStats();
-    return { success: true, stats };
-  } catch (error) {
-    console.error('[EMAIL-DB] Stats error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Prüfen ob E-Mail existiert
-ipcMain.handle('emaildb:exists', (_, emailId) => {
-  try {
-    const exists = emailDatabase.emailExists(emailId);
-    return { success: true, exists };
-  } catch (error) {
-    return { success: false, exists: false };
-  }
-});
-
-// Alte E-Mails löschen
-ipcMain.handle('emaildb:cleanup', (_, daysToKeep) => {
-  try {
-    const deleted = emailDatabase.cleanupOldEmails(daysToKeep || 90);
-    return { success: true, deleted };
-  } catch (error) {
-    console.error('[EMAIL-DB] Cleanup error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Konversationen indizieren
-ipcMain.handle('emaildb:indexConversations', async (_, accountId) => {
-  try {
-    console.log('[EMAIL-DB] Indiziere Konversationen für Account:', accountId);
-    const result = emailDatabase.indexConversations(accountId);
+    const result = await response.json();
     return result;
   } catch (error) {
-    console.error('[EMAIL-DB] Index error:', error);
-    return { contacts: 0, conversations: 0, error: error.message };
-  }
-});
-
-// ========================================
-// SYNC SETTINGS & IMPORT STATUS HANDLERS
-// ========================================
-
-// Sync-Einstellungen speichern
-ipcMain.handle('emaildb:saveSyncSettings', async (_, accountId, settings) => {
-  try {
-    console.log('[EMAIL-DB] Speichere Sync-Einstellungen für Account:', accountId);
-    const result = emailDatabase.saveSyncSettings(accountId, settings);
-    return { success: result };
-  } catch (error) {
-    console.error('[EMAIL-DB] saveSyncSettings error:', error);
+    console.error('[EMAIL] Classify error:', error);
     return { success: false, error: error.message };
   }
-});
-
-// Sync-Einstellungen abrufen
-ipcMain.handle('emaildb:getSyncSettings', async (_, accountId) => {
-  try {
-    console.log('[EMAIL-DB] Lade Sync-Einstellungen für Account:', accountId);
-    const settings = emailDatabase.getSyncSettings(accountId);
-    return { success: true, settings };
-  } catch (error) {
-    console.error('[EMAIL-DB] getSyncSettings error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Gmail Kategorie-Query erstellen
-ipcMain.handle('emaildb:buildCategoryQuery', async (_, settings) => {
-  try {
-    const query = emailDatabase.buildGmailCategoryQuery(settings);
-    return { success: true, query };
-  } catch (error) {
-    console.error('[EMAIL-DB] buildCategoryQuery error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Import-Status speichern
-ipcMain.handle('emaildb:saveImportStatus', async (_, accountId, status) => {
-  try {
-    console.log('[EMAIL-DB] Speichere Import-Status für Account:', accountId, status.status);
-    const result = emailDatabase.saveImportStatus(accountId, status);
-    return { success: result };
-  } catch (error) {
-    console.error('[EMAIL-DB] saveImportStatus error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Import-Status abrufen
-ipcMain.handle('emaildb:getImportStatus', async (_, accountId) => {
-  try {
-    const status = emailDatabase.getImportStatus(accountId);
-    return { success: true, status };
-  } catch (error) {
-    console.error('[EMAIL-DB] getImportStatus error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Import-Status löschen
-ipcMain.handle('emaildb:clearImportStatus', async (_, accountId) => {
-  try {
-    console.log('[EMAIL-DB] Lösche Import-Status für Account:', accountId);
-    const result = emailDatabase.clearImportStatus(accountId);
-    return { success: result };
-  } catch (error) {
-    console.error('[EMAIL-DB] clearImportStatus error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// E-Mail Anzahl abrufen (schnelle Methode über Message-IDs)
-ipcMain.handle('email:getEmailCount', async (_, accountId) => {
-  try {
-    console.log('[EMAIL] Ermittle E-Mail Anzahl für Account:', accountId);
-
-    // Google Account - über emailProviderManager
-    if (accountId?.includes('gmail') || accountId?.includes('google')) {
-      try {
-        // Provider aus emailProviderManager holen
-        if (!emailProviderManager) {
-          return { success: false, count: 0, error: 'EmailProviderManager nicht initialisiert' };
-        }
-
-        const provider = emailProviderManager.providers.get(accountId);
-        if (!provider) {
-          console.log('[EMAIL] Provider nicht gefunden für:', accountId);
-          console.log('[EMAIL] Verfügbare Provider:', Array.from(emailProviderManager.providers.keys()));
-          return { success: false, count: 0, error: 'Provider nicht gefunden' };
-        }
-
-        // Gmail API vom Provider holen
-        const gmail = provider.getGmail ? provider.getGmail() : provider.gmail;
-        if (!gmail) {
-          return { success: false, count: 0, error: 'Gmail nicht initialisiert' };
-        }
-
-        // Zähle alle Nachrichten im Posteingang
-        let totalCount = 0;
-        let pageToken = null;
-
-        do {
-          const response = await gmail.users.messages.list({
-            userId: 'me',
-            labelIds: ['INBOX'],
-            maxResults: 500,
-            pageToken: pageToken
-          });
-
-          const messages = response.data.messages || [];
-          totalCount += messages.length;
-          pageToken = response.data.nextPageToken;
-
-          console.log(`[EMAIL] Gezählt: ${totalCount} E-Mails...`);
-        } while (pageToken);
-
-        console.log(`[EMAIL] Gesamt: ${totalCount} E-Mails im Posteingang`);
-        return { success: true, count: totalCount };
-
-      } catch (e) {
-        console.error('[EMAIL] Count error:', e.message);
-        return { success: false, count: 0, error: e.message };
-      }
-    }
-
-    return { success: true, count: 0 };
-  } catch (error) {
-    console.error('[EMAIL] Count error:', error);
-    return { success: false, count: 0, error: error.message };
-  }
-});
-
-// Schnelle Gesamtanzahl der E-Mails (über Labels API)
-ipcMain.handle('email:getMessageCount', async (_, accountId) => {
-  try {
-    console.log('[EMAIL] Ermittle Gesamtanzahl für Account:', accountId);
-
-    if (accountId?.includes('gmail') || accountId?.includes('google')) {
-      if (!emailProviderManager) {
-        return { success: false, count: 0, error: 'EmailProviderManager nicht initialisiert' };
-      }
-
-      const provider = emailProviderManager.providers.get(accountId);
-      if (!provider) {
-        return { success: false, count: 0, error: 'Provider nicht gefunden' };
-      }
-
-      const gmail = provider.getGmail ? provider.getGmail() : provider.gmail;
-      if (!gmail) {
-        return { success: false, count: 0, error: 'Gmail nicht initialisiert' };
-      }
-
-      // Nutze labels.get für exakte Anzahl
-      const response = await gmail.users.labels.get({
-        userId: 'me',
-        id: 'INBOX'
-      });
-
-      const count = response.data.messagesTotal || 0;
-      console.log('[EMAIL] Exakte Gesamtanzahl INBOX:', count);
-
-      return { success: true, count };
-    }
-
-    return { success: false, count: 0, error: 'Nicht unterstützter Provider' };
-  } catch (error) {
-    console.error('[EMAIL] getMessageCount error:', error);
-    return { success: false, count: 0, error: error.message };
-  }
-});
-
-// Anzahl E-Mails in einer Kategorie (über Labels API)
-ipcMain.handle('email:getCategoryCount', async (_, accountId, category) => {
-  try {
-    console.log('[EMAIL] Ermittle Anzahl für Kategorie:', category, 'Account:', accountId);
-
-    if (accountId?.includes('gmail') || accountId?.includes('google')) {
-      if (!emailProviderManager) {
-        return { success: false, count: 0, error: 'EmailProviderManager nicht initialisiert' };
-      }
-
-      const provider = emailProviderManager.providers.get(accountId);
-      if (!provider) {
-        return { success: false, count: 0, error: 'Provider nicht gefunden' };
-      }
-
-      const gmail = provider.getGmail ? provider.getGmail() : provider.gmail;
-      if (!gmail) {
-        return { success: false, count: 0, error: 'Gmail nicht initialisiert' };
-      }
-
-      // Label-ID für die Kategorie
-      const categoryLabelMap = {
-        'promotions': 'CATEGORY_PROMOTIONS',
-        'social': 'CATEGORY_SOCIAL',
-        'forums': 'CATEGORY_FORUMS',
-        'updates': 'CATEGORY_UPDATES'
-      };
-
-      const labelId = categoryLabelMap[category];
-      if (!labelId) {
-        return { success: false, count: 0, error: 'Unbekannte Kategorie' };
-      }
-
-      // Nutze labels.get für exakte Anzahl
-      const response = await gmail.users.labels.get({
-        userId: 'me',
-        id: labelId
-      });
-
-      const count = response.data.messagesTotal || 0;
-      console.log(`[EMAIL] Kategorie ${category}: ${count} E-Mails (exakt)`);
-
-      return { success: true, count };
-    }
-
-    return { success: false, count: 0, error: 'Nicht unterstützter Provider' };
-  } catch (error) {
-    console.error('[EMAIL] getCategoryCount error:', error);
-    return { success: false, count: 0, error: error.message };
-  }
-});
-
-// Alle E-Mails laden mit Progress (für Sync)
-// options: { categoryQuery, resumeToken, startCount, startBatch }
-ipcMain.handle('email:loadAllEmails', async (event, accountId, limit = 1000, options = {}) => {
-  try {
-    const categoryQuery = options.categoryQuery || '';
-    const resumeToken = options.resumeToken || null;
-
-    console.log('[EMAIL] Starte Progressive Loading für Account:', accountId, 'Limit:', limit, 'Query:', categoryQuery);
-
-    let allEmails = [];
-    let shouldStop = false;
-    let lastPageToken = null;
-
-    // Google Account - nutze Progressive Loading mit Callback
-    if (accountId?.includes('gmail') || accountId?.includes('google')) {
-
-      // Provider aus emailProviderManager holen
-      if (!emailProviderManager) {
-        return { success: false, error: 'EmailProviderManager nicht initialisiert' };
-      }
-
-      const provider = emailProviderManager.providers.get(accountId);
-      if (!provider) {
-        console.log('[EMAIL] Provider nicht gefunden für:', accountId);
-        console.log('[EMAIL] Verfügbare Provider:', Array.from(emailProviderManager.providers.keys()));
-        return { success: false, error: 'Provider nicht gefunden' };
-      }
-
-      // Prüfe ob Provider progressive loading unterstützt
-      if (!provider.getRecentEmailsProgressive) {
-        console.log('[EMAIL] Provider unterstützt kein progressive loading');
-        return { success: false, error: 'Progressive Loading nicht unterstützt' };
-      }
-
-      // Callback für jeden geladenen Batch
-      const onBatch = async (batchData) => {
-        // Stoppe wenn Limit erreicht
-        if (shouldStop || allEmails.length >= limit) {
-          shouldStop = true;
-          return false; // Signal zum Stoppen
-        }
-
-        console.log(`[EMAIL] Batch ${batchData.batchNumber}: ${allEmails.length + batchData.emails.length}/${limit}`);
-
-        // E-Mails für DB vorbereiten (nur bis zum Limit)
-        const remainingSlots = limit - allEmails.length;
-        const emailsToProcess = batchData.emails.slice(0, remainingSlots);
-
-        const preparedEmails = emailsToProcess.map(email => ({
-          id: email.id,
-          from: email.from,
-          fromName: email.fromName,
-          to: email.to,
-          subject: email.subject,
-          date: email.date,
-          snippet: email.snippet,
-          body: email.body,
-          html: email.html,
-          isRead: !email.isUnread,
-          isStarred: email.isStarred,
-          labels: email.labels,
-          threadId: email.threadId,
-          accountId: accountId,
-          provider: 'google'
-        }));
-
-        allEmails.push(...preparedEmails);
-
-        // Progress an Frontend senden
-        if (emailWindow && !emailWindow.isDestroyed()) {
-          emailWindow.webContents.send('email:syncProgress', {
-            loaded: allEmails.length,
-            total: limit,
-            progress: Math.round((allEmails.length / limit) * 100),
-            batchNumber: batchData.batchNumber,
-            emails: preparedEmails,
-            isFirst: batchData.isFirst,
-            isLast: allEmails.length >= limit,
-            categoryQuery: categoryQuery
-          });
-        }
-
-        // Stoppe wenn Limit erreicht
-        if (allEmails.length >= limit) {
-          shouldStop = true;
-          return false;
-        }
-
-        return true; // Weitermachen
-      };
-
-      // Progressive Loading über den Provider starten (mit höherer Batch-Größe für Geschwindigkeit)
-      // Jetzt mit Kategorie-Filter und Resume-Optionen
-      const progressiveOptions = {
-        categoryQuery: categoryQuery,
-        resumeToken: resumeToken,
-        startCount: options.startCount || 0,
-        startBatch: options.startBatch || 0
-      };
-
-      const result = await provider.getRecentEmailsProgressive(onBatch, 50, limit, progressiveOptions);
-
-      lastPageToken = result.lastPageToken;
-
-      console.log('[EMAIL] Sync abgeschlossen:', allEmails.length, 'E-Mails', categoryQuery ? '(gefiltert)' : '');
-      return {
-        success: true,
-        emails: allEmails,
-        totalLoaded: allEmails.length,
-        lastPageToken: lastPageToken,
-        wasInterrupted: result.wasInterrupted,
-        categoryQuery: categoryQuery
-      };
-    }
-
-    return { success: true, emails: allEmails, totalLoaded: allEmails.length };
-
-  } catch (error) {
-    console.error('[EMAIL] Load all error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Lokale Kontakt-Extraktion (Fallback)
-// Nur echte Signatur-Daten extrahieren, keine Garbage-Daten
-function extractContactLocally(emailData) {
-  const contact = {
-    email: emailData.from,
-    name: emailData.fromName || '',
-    emailSource: 'Header'
-  };
-
-  // Versuche aus HTML/Text Signatur-Daten zu extrahieren
-  const text = emailData.body || '';
-  const html = emailData.html || '';
-  const content = text || html.replace(/<[^>]*>/g, ' ');
-
-  // Suche nach Signatur-Bereich (typischerweise am Ende der E-Mail)
-  // Signatur beginnt oft mit "Mit freundlichen Grüßen", "Best regards", "--" etc.
-  const signaturePatterns = [
-    /(?:mit freundlichen grü[ßs]en|best regards|kind regards|viele grü[ßs]e|liebe grü[ßs]e|regards|cheers|mfg)[,\s\n]*([\s\S]{0,500}?)$/i,
-    /(?:^|\n)--\s*\n([\s\S]{0,500}?)$/m,
-    /(?:^|\n)_{3,}\s*\n([\s\S]{0,500}?)$/m
-  ];
-
-  let signatureText = '';
-  for (const pattern of signaturePatterns) {
-    const match = content.match(pattern);
-    if (match && match[1]) {
-      signatureText = match[1];
-      break;
-    }
-  }
-
-  // Wenn keine Signatur gefunden, nimm die letzten 500 Zeichen
-  if (!signatureText && content.length > 100) {
-    signatureText = content.slice(-500);
-  }
-
-  // Telefonnummer suchen (nur mit Label)
-  const phoneMatch = signatureText.match(/(?:Tel\.?|Telefon|Phone|Mobil|Mobile|Fon|Fax)[:\s]*([+\d\s\-\/()]{8,20})/i);
-  if (phoneMatch) {
-    contact.phone = phoneMatch[1].trim();
-  }
-
-  // Website suchen (nur www. URLs, keine CDNs oder Tracking-URLs)
-  const websiteMatch = signatureText.match(/(?:www\.[a-zA-Z0-9][a-zA-Z0-9\-]*\.[a-zA-Z]{2,6})/i);
-  if (websiteMatch) {
-    const website = websiteMatch[0].toLowerCase();
-    // Keine CDNs, Tracking-URLs, oder Mail-Server
-    const invalidWebsites = ['static', 'cdn', 'assets', 'mail', 'smtp', 'imap', 'tracking', 'click', 'open', 'link'];
-    if (!invalidWebsites.some(inv => website.includes(inv))) {
-      contact.website = website;
-    }
-  }
-
-  // Position/Titel suchen
-  const positionPatterns = [
-    /(?:position|titel|title|rolle|role)[:\s]*([^\n]{5,50})/i,
-    /(?:^|\n)([A-Z][a-zA-ZäöüÄÖÜß\s]+(?:Manager|Director|CEO|CTO|CFO|Lead|Head|Chief|Senior|Junior|Engineer|Developer|Designer|Consultant|Berater|Leiter|Geschäftsführer|Inhaber))/m
-  ];
-  for (const pattern of positionPatterns) {
-    const match = signatureText.match(pattern);
-    if (match && match[1]) {
-      contact.position = match[1].trim();
-      break;
-    }
-  }
-
-  // Firma NICHT aus Domain extrahieren - das ist meistens Quatsch
-  // Nur wenn explizit in Signatur gefunden
-  const companyMatch = signatureText.match(/(?:firma|company|unternehmen|gmbh|ag|kg|ohg)[:\s]*([^\n]{3,50})/i);
-  if (companyMatch) {
-    contact.company = companyMatch[1].trim();
-  }
-
-  return contact;
-}
-
-// =====================================================
-// INTELLIGENTES E-MAIL-KLASSIFIZIERUNGSSYSTEM
-// Mehrstufig, selbstlernend, kostenoptimiert
-// =====================================================
-
-// Einzelne E-Mail klassifizieren
-ipcMain.handle('email:classify', async (_, emailData) => {
-  return await emailClassifier.classifyEmail(emailData);
-});
-
-// Mehrere E-Mails klassifizieren (Batch)
-ipcMain.handle('email:classifyBatch', async (_, emails) => {
-  return await emailClassifier.classifyEmails(emails);
-});
-
-// Essenz extrahieren (nur wichtige E-Mails)
-ipcMain.handle('email:getEssenz', async (_, emails) => {
-  return await emailClassifier.getEssenz(emails);
-});
-
-// Kategorie manuell korrigieren (Lernsystem)
-ipcMain.handle('email:correctCategory', (_, email, oldCategory, newCategory) => {
-  return emailClassifier.correctCategory(email, oldCategory, newCategory);
-});
-
-// Tracking: E-Mail geöffnet
-ipcMain.handle('email:trackOpened', (_, email) => {
-  return emailClassifier.trackOpened(email);
-});
-
-// Tracking: E-Mail beantwortet
-ipcMain.handle('email:trackReplied', (_, email) => {
-  return emailClassifier.trackReplied(email);
-});
-
-// Tracking: E-Mail gelöscht ohne lesen
-ipcMain.handle('email:trackDeletedUnread', (_, email) => {
-  return emailClassifier.trackDeletedUnread(email);
-});
-
-// === FEEDBACK SYSTEM ===
-
-// Feedback speichern
-ipcMain.handle('feedback:save', async (_, feedbackData) => {
-  try {
-    const Store = require('electron-store');
-    const feedbackStore = new Store({ name: 'ki-feedback' });
-
-    const all = feedbackStore.get('feedbackList', []);
-    all.push(feedbackData);
-
-    // Nur letzte 500 Feedbacks behalten
-    if (all.length > 500) {
-      all.splice(0, all.length - 500);
-    }
-
-    feedbackStore.set('feedbackList', all);
-    console.log('[FEEDBACK] Gespeichert:', feedbackData.feedbackType, feedbackData.absenderDomain);
-    return { success: true };
-  } catch (error) {
-    console.error('[FEEDBACK] Fehler beim Speichern:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// KI-Analyse auf Klick (mit Gedanken)
-ipcMain.handle('email:getKIAnalyse', async (_, email) => {
-  try {
-    // Verwende Stufe 2 Classifier für detaillierte Analyse
-    const Stufe2Classifier = require('./src/services/email/classifier/stufe2.js');
-    const classifier = new Stufe2Classifier();
-
-    const result = await classifier.klassifiziere(email);
-
-    return {
-      kategorie: result.kategorie || 'normal',
-      gedanken: result.gedanken || 'Keine detaillierte Analyse verfügbar.',
-      sicherheit: result.confidence || 70,
-      stufe: result.stufe || 1
-    };
-  } catch (error) {
-    console.error('[KI-ANALYSE] Fehler:', error);
-    return {
-      kategorie: 'normal',
-      gedanken: 'Fehler bei der Analyse: ' + error.message,
-      sicherheit: 0
-    };
-  }
-});
-
-// === KI-REGELN VERWALTUNG ===
-
-// Alle Regeln laden
-ipcMain.handle('regeln:getAll', async () => {
-  try {
-    const Store = require('electron-store');
-    const regelnStore = new Store({ name: 'ki-regeln' });
-    const regeln = regelnStore.get('regeln', []);
-    return { success: true, regeln };
-  } catch (error) {
-    console.error('[REGELN] Fehler beim Laden:', error);
-    return { success: false, error: error.message, regeln: [] };
-  }
-});
-
-// Neue Regel hinzufügen
-ipcMain.handle('regeln:add', async (_, text, kategorie, quelle = 'manuell') => {
-  try {
-    const Store = require('electron-store');
-    const regelnStore = new Store({ name: 'ki-regeln' });
-
-    const regeln = regelnStore.get('regeln', []);
-    const neueRegel = {
-      id: Date.now(),
-      text,
-      kategorie,
-      erstelltAm: new Date().toISOString(),
-      quelle,
-      anwendungen: 0
-    };
-
-    regeln.push(neueRegel);
-    regelnStore.set('regeln', regeln);
-
-    console.log('[REGELN] Neue Regel hinzugefügt:', neueRegel.text);
-    return { success: true, regel: neueRegel };
-  } catch (error) {
-    console.error('[REGELN] Fehler beim Hinzufügen:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Regel aktualisieren
-ipcMain.handle('regeln:update', async (_, id, text, kategorie) => {
-  try {
-    const Store = require('electron-store');
-    const regelnStore = new Store({ name: 'ki-regeln' });
-
-    const regeln = regelnStore.get('regeln', []);
-    const index = regeln.findIndex(r => r.id === id);
-
-    if (index !== -1) {
-      regeln[index].text = text;
-      regeln[index].kategorie = kategorie;
-      regelnStore.set('regeln', regeln);
-      console.log('[REGELN] Regel aktualisiert:', id);
-      return { success: true };
-    }
-
-    return { success: false, error: 'Regel nicht gefunden' };
-  } catch (error) {
-    console.error('[REGELN] Fehler beim Aktualisieren:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Regel löschen
-ipcMain.handle('regeln:delete', async (_, id) => {
-  try {
-    const Store = require('electron-store');
-    const regelnStore = new Store({ name: 'ki-regeln' });
-
-    const regeln = regelnStore.get('regeln', []);
-    const filtered = regeln.filter(r => r.id !== id);
-    regelnStore.set('regeln', filtered);
-
-    console.log('[REGELN] Regel gelöscht:', id);
-    return { success: true };
-  } catch (error) {
-    console.error('[REGELN] Fehler beim Löschen:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Alle Regeln löschen
-ipcMain.handle('regeln:deleteAll', async () => {
-  try {
-    const Store = require('electron-store');
-    const regelnStore = new Store({ name: 'ki-regeln' });
-    regelnStore.set('regeln', []);
-
-    console.log('[REGELN] Alle Regeln gelöscht');
-    return { success: true };
-  } catch (error) {
-    console.error('[REGELN] Fehler beim Löschen aller:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Regel-Anwendung inkrementieren
-ipcMain.handle('regeln:increment', async (_, id) => {
-  try {
-    const Store = require('electron-store');
-    const regelnStore = new Store({ name: 'ki-regeln' });
-
-    const regeln = regelnStore.get('regeln', []);
-    const index = regeln.findIndex(r => r.id === id);
-
-    if (index !== -1) {
-      regeln[index].anwendungen = (regeln[index].anwendungen || 0) + 1;
-      regelnStore.set('regeln', regeln);
-    }
-
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// Regeln für GPT-Prompt formatieren
-ipcMain.handle('regeln:getForPrompt', async () => {
-  try {
-    const Store = require('electron-store');
-    const regelnStore = new Store({ name: 'ki-regeln' });
-    const regeln = regelnStore.get('regeln', []);
-
-    if (regeln.length === 0) return '';
-
-    let prompt = 'GELERNTE REGELN AUS FEEDBACK:\n';
-    regeln.forEach((r, i) => {
-      prompt += `${i + 1}. ${r.text} → ${r.kategorie.toUpperCase()}\n`;
-    });
-    prompt += '\nBerücksichtige diese Regeln IMMER bei der Klassifizierung.\n';
-
-    return prompt;
-  } catch (error) {
-    return '';
-  }
-});
-
-// Absender zu Liste hinzufügen (vip, family, customer, whitelist, blacklist)
-ipcMain.handle('email:addSenderToList', (_, email, listType) => {
-  return emailClassifier.addSenderToList(email, listType);
-});
-
-// Classifier-Statistiken abrufen
-ipcMain.handle('email:classifierStats', () => {
-  return emailClassifier.getStats();
-});
-
-// Kategorien und Tags für UI
-ipcMain.handle('email:getCategories', () => {
-  return emailClassifier.getCategories();
-});
-
-// OpenAI API Key für GPT-Klassifizierung setzen
-ipcMain.handle('email:setClassifierApiKey', (_, apiKey) => {
-  return emailClassifier.setOpenAIKey(apiKey);
-});
-
-// Eigene E-Mail-Adressen setzen
-ipcMain.handle('email:setMyEmails', (_, emails) => {
-  return emailClassifier.setMyEmails(emails);
-});
-
-// Lerndaten exportieren
-ipcMain.handle('email:exportLearningData', () => {
-  return emailClassifier.exportLearningData();
-});
-
-// Lerndaten importieren
-ipcMain.handle('email:importLearningData', (_, data) => {
-  return emailClassifier.importLearningData(data);
-});
-
-// Lerndaten zurücksetzen
-ipcMain.handle('email:resetLearning', () => {
-  return emailClassifier.resetLearning();
-});
-
-// ============= Classified Emails Store =============
-
-// Store initialisieren
-ipcMain.handle('email:initClassificationStore', () => {
-  return emailClassifier.initializeStore();
-});
-
-// Store-Statistiken abrufen
-ipcMain.handle('email:getStoreStats', () => {
-  return emailClassifier.getStoreStats();
-});
-
-// Prüfen ob E-Mail klassifiziert
-ipcMain.handle('email:isClassified', (_, email, accountId) => {
-  return emailClassifier.isEmailClassified(email, accountId);
-});
-
-// Gespeicherte Klassifizierung holen
-ipcMain.handle('email:getStoredClassification', (_, email, accountId) => {
-  return emailClassifier.getStoredClassification(email, accountId);
-});
-
-// Unklassifizierte E-Mails filtern
-ipcMain.handle('email:filterUnclassified', (_, emails, accountId) => {
-  return emailClassifier.filterUnclassifiedEmails(emails, accountId);
-});
-
-// Alle Klassifizierungen für Account
-ipcMain.handle('email:getClassificationsForAccount', (_, accountId) => {
-  return emailClassifier.getClassificationsForAccount(accountId);
-});
-
-// Store leeren
-ipcMain.handle('email:clearClassificationStore', () => {
-  return emailClassifier.clearClassificationStore();
-});
-
-// Klassifizierungen für Account löschen
-ipcMain.handle('email:clearClassificationsForAccount', (_, accountId) => {
-  return emailClassifier.clearClassificationsForAccount(accountId);
-});
-
-// Alte Klassifizierungen aufräumen
-ipcMain.handle('email:cleanupOldClassifications', (_, daysToKeep) => {
-  return emailClassifier.cleanupOldClassifications(daysToKeep);
-});
-
-// Alle E-Mail-Daten löschen (für sauberen Neustart)
-ipcMain.handle('email:clearAllData', () => {
-  try {
-    const Store = require('electron-store');
-    const fs = require('fs');
-    const path = require('path');
-
-    // Clear classifier data
-    const classifierStore = new Store({ name: 'email-classifier-config' });
-    classifierStore.clear();
-
-    // Clear learning data
-    const learningStore = new Store({ name: 'email-learning' });
-    learningStore.clear();
-
-    // Clear email accounts (benannter Store)
-    const accountsStore = new Store({ name: 'email-accounts' });
-    accountsStore.clear();
-
-    // Clear IMAP settings (benannter Store)
-    const imapStore = new Store({ name: 'imap-accounts' });
-    imapStore.clear();
-
-    // Clear Gmail tokens (Legacy)
-    const gmailStore = new Store({ name: 'gmail-tokens' });
-    gmailStore.clear();
-
-    // WICHTIG: Clear Google OAuth tokens (alter Single-Account Store)
-    const googleTokenStore = new Store({
-      name: 'google-tokens',
-      encryptionKey: 'smartklick-secure-key-2024'
-    });
-    googleTokenStore.clear();
-
-    // WICHTIG: Clear Google OAuth tokens v2 (neuer Multi-Account Store!)
-    const googleTokenStoreV2 = new Store({
-      name: 'google-tokens-v2',
-      encryptionKey: 'smartklick-secure-key-2024'
-    });
-    googleTokenStoreV2.clear();
-    console.log('[EMAIL] Google OAuth tokens (v1 + v2) cleared');
-
-    // Reset Google Auth Service (Multi-Account)
-    if (googleAuth) {
-      // Alte Properties (Legacy)
-      googleAuth.isAuthenticated = false;
-      googleAuth.userInfo = null;
-      if (googleAuth.oauth2Client) {
-        googleAuth.oauth2Client.setCredentials({});
-      }
-      // Neue Multi-Account Properties
-      if (googleAuth.accounts) {
-        googleAuth.accounts.clear();
-      }
-      googleAuth.activeAccountId = null;
-      console.log('[EMAIL] GoogleAuth service reset');
-    }
-
-    // Reset Gmail Service
-    if (gmailService) {
-      gmailService.gmail = null;
-    }
-
-    // WICHTIG: Clear IMAP accounts im Haupt-Store (wo imapAccountManager speichert!)
-    store.delete('imap_accounts');
-    store.delete('emailAccounts');
-    store.delete('imapAccounts');
-    store.delete('gmailTokens');
-
-    // Reset in-memory managers RICHTIG
-    if (imapAccountManager) {
-      // Clear the Map, not set to array
-      if (imapAccountManager.accounts instanceof Map) {
-        imapAccountManager.accounts.clear();
-      } else {
-        imapAccountManager.accounts = new Map();
-      }
-      // Close all connections
-      if (imapAccountManager.connections instanceof Map) {
-        imapAccountManager.connections.forEach((conn, id) => {
-          try { conn.end(); } catch(e) {}
-        });
-        imapAccountManager.connections.clear();
-      }
-      // Save empty state
-      imapAccountManager.saveAccounts();
-    }
-
-    if (emailProviderManager) {
-      emailProviderManager.accounts = [];
-      // Multi-Account: Gmail Services Map leeren
-      if (emailProviderManager.gmailServices) {
-        emailProviderManager.gmailServices.clear();
-      }
-      // Providers Map leeren
-      if (emailProviderManager.providers) {
-        emailProviderManager.providers.clear();
-      }
-      if (emailProviderManager.store) {
-        emailProviderManager.store.clear();
-      }
-      console.log('[EMAIL] EmailProviderManager reset');
-    }
-
-    // Try to delete Gmail token file if exists
-    try {
-      const tokenPath = path.join(app.getPath('userData'), 'gmail-token.json');
-      if (fs.existsSync(tokenPath)) {
-        fs.unlinkSync(tokenPath);
-        console.log('[EMAIL] Gmail token file deleted');
-      }
-    } catch (e) {
-      console.warn('[EMAIL] Could not delete token file:', e.message);
-    }
-
-    console.log('[EMAIL] All email data cleared successfully');
-    return { success: true, message: 'Alle E-Mail-Daten gelöscht. Bitte App neu starten.' };
-  } catch (error) {
-    console.error('[EMAIL] Clear data error:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// App neu starten
-ipcMain.handle('app:restart', () => {
-  console.log('[APP] Restarting application...');
-  app.relaunch();
-  app.exit(0);
 });
 
 // Email Briefing (via Server)
@@ -5570,54 +4338,13 @@ ipcMain.handle('outlook:getClientId', () => {
 
 // Multi-Account Email Handlers
 ipcMain.handle('email:getAccounts', () => {
-  const accounts = [];
-
-  // Email Provider Manager Accounts (Gmail, Outlook)
-  if (emailProviderManager) {
-    const providerAccounts = emailProviderManager.getAccounts() || [];
-    accounts.push(...providerAccounts.map(a => ({
-      ...a,
-      connected: true
-    })));
+  if (!emailProviderManager) {
+    return { success: false, error: 'Provider manager not initialized' };
   }
-
-  // IMAP Accounts
-  if (imapAccountManager) {
-    const imapAccounts = imapAccountManager.getAccounts() || [];
-    accounts.push(...imapAccounts.map(a => ({
-      id: `imap-${a.email}`,
-      name: a.provider || 'IMAP',
-      email: a.email,
-      provider: 'imap',
-      host: a.host,
-      connected: true
-    })));
-  }
-
-  return { success: true, accounts };
+  return { success: true, accounts: emailProviderManager.getAccounts() };
 });
 
 ipcMain.handle('email:removeAccount', async (_, accountId) => {
-  console.log('[EMAIL] Removing account:', accountId);
-
-  // Check if it's an IMAP account (starts with 'imap-')
-  if (accountId && accountId.startsWith('imap-')) {
-    if (imapAccountManager) {
-      const email = accountId.replace('imap-', '');
-      // Find and remove by email
-      const accounts = imapAccountManager.getAccounts();
-      const account = accounts.find(a => a.email === email);
-      if (account) {
-        imapAccountManager.accounts.delete(account.id);
-        imapAccountManager.saveAccounts();
-        console.log('[EMAIL] IMAP account removed:', email);
-        return { success: true };
-      }
-    }
-    return { success: false, error: 'IMAP account not found' };
-  }
-
-  // Otherwise use emailProviderManager
   if (!emailProviderManager) {
     return { success: false, error: 'Provider manager not initialized' };
   }
@@ -5644,67 +4371,26 @@ ipcMain.handle('email:getUnreadCounts', async () => {
   }
 });
 
-ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 0, existingIds = []) => {
+ipcMain.handle('email:getEmailsFromAccount', async (_, accountId, maxResults = 20) => {
   if (!emailProviderManager) {
     return { success: false, error: 'Provider manager not initialized' };
   }
   try {
-    const result = await emailProviderManager.getEmails({ accountId, maxResults, existingIds });
-    // Inkrementelles Ergebnis verarbeiten
-    if (result && result.isIncremental) {
-      return { success: true, emails: result.emails, isIncremental: true, skipped: result.skipped };
-    }
-    return { success: true, emails: result };
+    const emails = await emailProviderManager.getEmails({ accountId, maxResults });
+    return { success: true, emails };
   } catch (error) {
     return { success: false, error: error.message };
   }
 });
 
-ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 0, existingIds = []) => {
-  console.log('[IPC] email:getUnifiedInbox aufgerufen, maxResults:', maxResults, 'existingIds:', existingIds.length);
-  if (!emailProviderManager) {
-    console.log('[IPC] Provider manager nicht initialisiert');
-    return { success: false, error: 'Provider manager not initialized' };
-  }
-  try {
-    console.log('[IPC] Rufe emailProviderManager.getEmails auf...');
-    const result = await emailProviderManager.getEmails({ unified: true, maxResults, existingIds });
-
-    // Inkrementelles Ergebnis verarbeiten
-    if (result && result.isIncremental) {
-      console.log('[IPC] Inkrementell: ${result.emails.length} neue E-Mails, ${result.skipped} übersprungen');
-      return { success: true, emails: result.emails, isIncremental: true, skipped: result.skipped };
-    }
-
-    console.log('[IPC] E-Mails erhalten:', result?.length || 0);
-    return { success: true, emails: result };
-  } catch (error) {
-    console.error('[IPC] Fehler bei getUnifiedInbox:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Progressive Loading: E-Mails in Batches laden und per Event senden
-ipcMain.handle('email:startProgressiveLoading', async (event, batchSize = 30) => {
+ipcMain.handle('email:getUnifiedInbox', async (_, maxResults = 20) => {
   if (!emailProviderManager) {
     return { success: false, error: 'Provider manager not initialized' };
   }
-
   try {
-    // Finde das Fenster das die Anfrage gesendet hat
-    const webContents = event.sender;
-
-    await emailProviderManager.getEmailsProgressive(async (batchData) => {
-      // Sende jeden Batch als Event an den Renderer
-      webContents.send('email:progressiveBatch', batchData);
-    }, batchSize);
-
-    // Signal dass alles fertig ist
-    webContents.send('email:progressiveComplete');
-
-    return { success: true };
+    const emails = await emailProviderManager.getEmails({ unified: true, maxResults });
+    return { success: true, emails };
   } catch (error) {
-    console.error('[EMAIL] Progressive loading error:', error);
     return { success: false, error: error.message };
   }
 });
@@ -5871,8 +4557,6 @@ ipcMain.handle('imap:disconnect', async () => {
 // Legacy single-account support (backwards compatibility)
 ipcMain.handle('imap:configure', async (_, settings) => {
   try {
-    console.log('[IMAP] Configure called with:', { ...settings, password: '***' });
-
     // Add as new account if not exists
     const existing = imapAccountManager.getAccounts().find(a => a.email === settings.user);
     if (!existing) {
@@ -5881,12 +4565,9 @@ ipcMain.handle('imap:configure', async (_, settings) => {
         host: settings.host,
         port: settings.port,
         tls: settings.tls,
-        user: settings.user,  // WICHTIG: 'user' nicht 'email'!
+        email: settings.user,
         password: settings.password
       });
-      console.log('[IMAP] New account added:', settings.user);
-    } else {
-      console.log('[IMAP] Account already exists:', settings.user);
     }
     return { success: true };
   } catch (error) {
@@ -5913,7 +4594,7 @@ ipcMain.handle('imap:test', async (_, settings) => {
   return imapAccountManager.testConnection(settings);
 });
 
-ipcMain.handle('imap:getEmails', async (_, count = 0) => {
+ipcMain.handle('imap:getEmails', async (_, count = 20) => {
   try {
     const accounts = imapAccountManager.getAccounts();
     if (accounts.length === 0) {
@@ -5966,23 +4647,13 @@ app.whenReady().then(() => {
       clientId: store.get('outlook_client_id') || OUTLOOK_CONFIG.clientId
     }
   });
-  // Multi-Account: kein gmailService Parameter mehr nötig
-  emailProviderManager.initialize().catch(err => {
+  emailProviderManager.initialize(gmailService).catch(err => {
     console.error('[EMAIL] Provider manager init error:', err);
   });
 
   // Initialize IMAP Account Manager
   imapAccountManager.initialize(store);
   console.log('[IMAP] Account manager initialized');
-
-  // Initialize Classified Emails Store
-  emailClassifier.initializeStore().then(result => {
-    if (result.success) {
-      console.log('[CLASSIFIER] Store ready:', result.stats.total, 'E-Mails gespeichert');
-    }
-  }).catch(err => {
-    console.error('[CLASSIFIER] Store init error:', err);
-  });
 
   createWindow();
   createTray();

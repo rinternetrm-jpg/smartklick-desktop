@@ -2,10 +2,12 @@
 const API_BASE = 'http://188.40.97.126:8080';
 
 const TONES = {
-  native: { name: 'Normal', color: '#f97316', desc: 'normal orange muttersprachlich' },
+  native: { name: 'Muttersprachlich', color: '#f97316', desc: 'native orange muttersprachlich' },
   private: { name: 'Privat', color: '#ef4444', desc: 'privat rot liebevoll' },
   formal: { name: 'Formell', color: '#3b82f6', desc: 'formell blau geschäftlich' },
-  friendly: { name: 'Freundlich', color: '#22c55e', desc: 'freundlich grün' },
+  coach: { name: 'Coach', color: '#eab308', desc: 'coach lerncoach gelb' },
+  casual: { name: 'Coach', color: '#eab308', desc: 'coach lerncoach gelb' },  // Alias
+  friendly: { name: 'Coach', color: '#eab308', desc: 'coach lerncoach gelb' },  // Alias
   learning: { name: 'Learning', color: '#8b5cf6', desc: 'learning violett' },
   smartklick: { name: 'Smartklick', color: '#06b6d4', desc: 'smartklick agent assistent' }
 };
@@ -629,7 +631,16 @@ function setTone(tone) {
 }
 
 function updateToneUI() {
-  const tone = TONES[state.currentTone];
+  // Fallback: "friendly" -> "casual", unbekannte Töne -> "native"
+  if (!TONES[state.currentTone]) {
+    console.warn('[Tone] Unknown tone:', state.currentTone, '-> fallback to native');
+    state.currentTone = (state.currentTone === 'friendly') ? 'casual' : 'native';
+  }
+  const tone = TONES[state.currentTone] || TONES.native;
+  if (!tone) {
+    console.error('[Tone] CRITICAL: No tone found, TONES=', TONES);
+    return;
+  }
   const isSmartklick = state.currentTone === 'smartklick';
 
   // Update mini tone button
