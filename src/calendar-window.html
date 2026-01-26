@@ -118,6 +118,29 @@
       </div>
     </div>
 
+    <!-- Create Event Modal -->
+    <div id="createEventModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Neuer Termin</h2>
+          <button id="closeCreateModal" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="newEventTitle">Titel</label>
+            <input type="text" id="newEventTitle" class="form-input" placeholder="Termin-Titel eingeben..." autofocus>
+          </div>
+          <div class="form-group">
+            <label id="newEventTimeLabel">Zeit</label>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="cancelCreateEvent" class="action-btn secondary">Abbrechen</button>
+          <button id="confirmCreateEvent" class="action-btn primary">Erstellen</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay hidden">
       <div class="spinner large"></div>

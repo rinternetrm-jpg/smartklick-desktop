@@ -316,8 +316,8 @@ class CalendarApp {
       clearSelection();
       isDragging = false;
 
-      // Create event with prompt
-      const title = await this.promptForEventTitle();
+      // Create event with modal
+      const title = await this.promptForEventTitle(startHour, endHour, date);
       if (title) {
         await this.createEventAtTime(date, startHour, endHour, title);
       }
@@ -338,11 +338,55 @@ class CalendarApp {
     });
   }
 
-  // Prompt for event title
-  async promptForEventTitle() {
+  // Prompt for event title using modal
+  async promptForEventTitle(startHour, endHour, date) {
     return new Promise((resolve) => {
-      const title = prompt('Termin-Titel:', '');
-      resolve(title);
+      const modal = document.getElementById('createEventModal');
+      const input = document.getElementById('newEventTitle');
+      const timeLabel = document.getElementById('newEventTimeLabel');
+      const confirmBtn = document.getElementById('confirmCreateEvent');
+      const cancelBtn = document.getElementById('cancelCreateEvent');
+      const closeBtn = document.getElementById('closeCreateModal');
+
+      // Format time display
+      const dateStr = date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+      const startStr = `${startHour.toString().padStart(2, '0')}:00`;
+      const endStr = `${endHour.toString().padStart(2, '0')}:00`;
+      timeLabel.textContent = `${dateStr}, ${startStr} - ${endStr}`;
+
+      // Show modal
+      modal.classList.remove('hidden');
+      input.value = '';
+      input.focus();
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        confirmBtn.removeEventListener('click', onConfirm);
+        cancelBtn.removeEventListener('click', onCancel);
+        closeBtn.removeEventListener('click', onCancel);
+        input.removeEventListener('keydown', onKeydown);
+      };
+
+      const onConfirm = () => {
+        const title = input.value.trim();
+        cleanup();
+        resolve(title || null);
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      const onKeydown = (e) => {
+        if (e.key === 'Enter') onConfirm();
+        if (e.key === 'Escape') onCancel();
+      };
+
+      confirmBtn.addEventListener('click', onConfirm);
+      cancelBtn.addEventListener('click', onCancel);
+      closeBtn.addEventListener('click', onCancel);
+      input.addEventListener('keydown', onKeydown);
     });
   }
 

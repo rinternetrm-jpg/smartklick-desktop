@@ -168,15 +168,38 @@ class CalendarService {
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                         'July', 'August', 'September', 'October', 'November', 'December'];
 
+    let result = text;
+
+    // Step 1: Handle "X Uhr" or "X:YY Uhr" → "at X:00" or "at X:YY" FIRST
+    // "18 Uhr" → "at 18:00", "17:30 Uhr" → "at 17:30"
+    result = result.replace(/(\d{1,2})[:.]?(\d{2})?\s*uhr/gi, (match, hour, minutes) => {
+      const h = hour.padStart(2, '0');
+      const m = minutes || '00';
+      return `at ${h}:${m}`;
+    });
+
+    // Step 2: Handle time without "Uhr": "17:30" or "17.30" → "at 17:30"
+    result = result.replace(/\b(\d{1,2})[:.](\d{2})\b/gi, (match, hour, minutes) => {
+      const h = parseInt(hour, 10);
+      if (h >= 0 && h <= 23) {
+        return `at ${hour.padStart(2, '0')}:${minutes}`;
+      }
+      return match;
+    });
+
+    // Step 3: Convert German date format DD.MM or DD.MM.YYYY to English
+    result = result.replace(/(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?/g, (match, day, month, year) => {
+      const monthIndex = parseInt(month, 10) - 1;
+      const monthName = monthNames[monthIndex] || month;
+      const dayNum = parseInt(day, 10);
+      return year ? `${monthName} ${dayNum} ${year}` : `${monthName} ${dayNum}`;
+    });
+
+    // Step 4: Word replacements (German → English)
     const replacements = {
-      // Days
       'morgen': 'tomorrow',
       'heute': 'today',
       'übermorgen': 'day after tomorrow',
-      'gestern': 'yesterday',
-      // Time
-      'uhr': '',
-      // Weekdays
       'montag': 'Monday',
       'dienstag': 'Tuesday',
       'mittwoch': 'Wednesday',
@@ -184,17 +207,13 @@ class CalendarService {
       'freitag': 'Friday',
       'samstag': 'Saturday',
       'sonntag': 'Sunday',
-      // Relative
       'nächste woche': 'next week',
       'nächsten': 'next',
       'nächster': 'next',
-      'nächstes': 'next',
-      // Time of day
       'vormittag': 'morning',
       'nachmittag': 'afternoon',
       'abend': 'evening',
       'mittag': 'noon',
-      // German months
       'januar': 'January',
       'februar': 'February',
       'märz': 'March',
@@ -207,39 +226,16 @@ class CalendarService {
       'oktober': 'October',
       'november': 'November',
       'dezember': 'December',
-      // Prefix
-      'am': 'on'
+      'am': 'on',
+      'um': 'at'
     };
 
-    let result = text;
-
-    // Convert German date format DD.MM or DD.MM.YYYY to English
-    // "02.02" → "February 2", "02.02.2026" → "February 2 2026"
-    result = result.replace(/(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?/g, (match, day, month, year) => {
-      const monthIndex = parseInt(month, 10) - 1;
-      const monthName = monthNames[monthIndex] || month;
-      const dayNum = parseInt(day, 10);
-      return year ? `${monthName} ${dayNum} ${year}` : `${monthName} ${dayNum}`;
-    });
-
-    // Apply word replacements
     for (const [german, english] of Object.entries(replacements)) {
       result = result.replace(new RegExp(`\\b${german}\\b`, 'gi'), english);
     }
 
-    // Fix time format: "17:30" or "17.30" → "at 17:30"
-    // Handle time with colon or dot
-    result = result.replace(/(\d{1,2})[:.](\d{2})\s*(?=\S)/gi, 'at $1:$2 ');
-    result = result.replace(/\s(\d{1,2})[:.](\d{2})$/gi, ' at $1:$2');
-
-    // Handle standalone hour like "18 Uhr" (now just "18 ")
-    result = result.replace(/\b(\d{1,2})\s+(?=\w)/gi, (match, hour) => {
-      const h = parseInt(hour, 10);
-      if (h >= 0 && h <= 23) return `at ${hour}:00 `;
-      return match;
-    });
-
-    // Clean up multiple spaces
+    // Step 5: Clean up
+    result = result.replace(/,\s*,/g, ',');  // Remove double commas
     result = result.replace(/\s+/g, ' ').trim();
 
     console.log('[Calendar] German→English:', text, '→', result);
