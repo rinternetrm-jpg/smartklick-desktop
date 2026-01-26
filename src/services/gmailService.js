@@ -1,35 +1,25 @@
-// Gmail Service for Smartklick Desktop - Multi-Account Support
+// Gmail Service for Smartklick Desktop
 const { google } = require('googleapis');
 const googleAuth = require('./googleAuth');
 
 class GmailService {
-  constructor(accountId = null) {
-    this.accountId = accountId;
+  constructor() {
     this.gmail = null;
   }
 
   getGmail() {
-    if (!googleAuth.isConnected(this.accountId)) {
+    if (!googleAuth.isConnected()) {
       throw new Error('Google nicht verbunden');
     }
 
     if (!this.gmail) {
-      const client = googleAuth.getClient(this.accountId);
-      if (!client) {
-        throw new Error('OAuth Client nicht verfügbar');
-      }
       this.gmail = google.gmail({
         version: 'v1',
-        auth: client
+        auth: googleAuth.getClient()
       });
     }
 
     return this.gmail;
-  }
-
-  // Hole Account Info
-  getAccountInfo() {
-    return googleAuth.getUserInfo(this.accountId);
   }
 
   // Get unread emails count
@@ -69,195 +59,26 @@ class GmailService {
   }
 
   // Get recent emails (inbox)
-  // maxResults: 0 = alle, sonst die gewünschte Anzahl (10, 50, 100, 250, 500, etc.)
-  // existingIds: Array von IDs die bereits geladen sind (für inkrementelles Laden)
-  async getRecentEmails(maxResults = 100, existingIds = []) {
+  async getRecentEmails(maxResults = 10) {
     const gmail = this.getGmail();
 
-    // 0 bedeutet "alle E-Mails"
-    const limit = maxResults === 0 ? Infinity : maxResults;
-    const existingIdSet = new Set(existingIds);
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      labelIds: ['INBOX'],
+      maxResults: maxResults
+    });
 
-    const accountInfo = this.getAccountInfo();
-    const accountEmail = accountInfo?.email || this.accountId;
-    console.log(`[GMAIL:${accountEmail}] Lade ${maxResults === 0 ? 'ALLE' : maxResults} E-Mails... (${existingIds.length} bereits vorhanden)`);
-
-    const allMessages = [];
-    let pageToken = null;
-    let pageCount = 0;
-
-    // Pagination: Solange laden bis genug E-Mails oder keine mehr
-    do {
-      // Pro Request maximal 500 (Gmail API Limit)
-      const perPage = Math.min(500, limit - allMessages.length);
-
-      const response = await gmail.users.messages.list({
-        userId: 'me',
-        labelIds: ['INBOX'],
-        maxResults: perPage,
-        pageToken: pageToken
-      });
-
-      const messages = response.data.messages || [];
-      allMessages.push(...messages);
-      pageToken = response.data.nextPageToken;
-      pageCount++;
-
-      console.log(`[GMAIL:${accountEmail}] Seite ${pageCount}: ${messages.length} E-Mails (Gesamt: ${allMessages.length})`);
-
-      // Aufhören wenn genug E-Mails oder keine weiteren Seiten
-      if (allMessages.length >= limit || !pageToken) {
-        break;
-      }
-    } while (true);
-
-    // Auf gewünschte Anzahl begrenzen
-    const messagesToLoad = maxResults === 0 ? allMessages : allMessages.slice(0, maxResults);
-
-    // Nur neue E-Mails laden (die wir noch nicht haben)
-    const newMessages = messagesToLoad.filter(msg => !existingIdSet.has(msg.id));
-
-    console.log(`[GMAIL:${accountEmail}] ${messagesToLoad.length} E-Mail-IDs, davon ${newMessages.length} neu zu laden`);
-
-    if (newMessages.length === 0) {
-      console.log(`[GMAIL:${accountEmail}] Keine neuen E-Mails zu laden`);
-      return { emails: [], skipped: existingIds.length, isIncremental: true };
-    }
-
-    // E-Mail-Details laden (nur für neue)
+    const messages = response.data.messages || [];
     const emails = [];
-    for (let i = 0; i < newMessages.length; i++) {
-      const msg = newMessages[i];
+
+    for (const msg of messages) {
       const email = await this.getEmail(msg.id);
       if (email) {
         emails.push(email);
       }
-
-      // Progress alle 50 E-Mails loggen
-      if ((i + 1) % 50 === 0 || i + 1 === newMessages.length) {
-        console.log(`[GMAIL:${accountEmail}] Details geladen: ${i + 1}/${newMessages.length}`);
-      }
-    }
-
-    console.log(`[GMAIL:${accountEmail}] Fertig: ${emails.length} neue E-Mails geladen`);
-
-    // Bei inkrementellem Laden: Rückgabe mit Metadaten
-    if (existingIds.length > 0) {
-      return { emails, skipped: existingIds.length, isIncremental: true };
     }
 
     return emails;
-  }
-
-  // Progressive Loading: Lädt E-Mails in Batches und ruft onBatch für jeden Batch auf
-  // @param {Function} onBatch - Callback für jeden Batch, return false zum Stoppen
-  // @param {number} batchSize - Anzahl E-Mails pro Batch
-  // @param {number} limit - Maximale Anzahl E-Mails (0 = alle)
-  // @param {Object} options - Zusätzliche Optionen (categoryQuery, resumeToken, etc.)
-  async getRecentEmailsProgressive(onBatch, batchSize = 30, limit = 0, options = {}) {
-    const gmail = this.getGmail();
-
-    const accountInfo = this.getAccountInfo();
-    const accountEmail = accountInfo?.email || this.accountId;
-    const effectiveLimit = limit > 0 ? limit : Infinity;
-
-    // Kategorie-Filter Query (z.B. "-category:promotions -category:social")
-    const categoryQuery = options.categoryQuery || '';
-    const resumeToken = options.resumeToken || null;
-
-    console.log(`[GMAIL:${accountEmail}] Progressive Loading gestartet (Batch: ${batchSize}, Limit: ${limit || 'alle'}, Query: "${categoryQuery}")`);
-
-    let pageToken = resumeToken;
-    let totalLoaded = options.startCount || 0;
-    let batchNumber = options.startBatch || 0;
-    let shouldStop = false;
-
-    // Pagination: E-Mail-IDs laden (nur bis zum Limit)
-    const allMessageIds = [];
-    do {
-      // Query-Parameter aufbauen
-      const listParams = {
-        userId: 'me',
-        maxResults: Math.min(500, effectiveLimit - allMessageIds.length),
-        pageToken: pageToken
-      };
-
-      // Kategorie-Filter via q Parameter (wichtig: nur wenn query vorhanden)
-      if (categoryQuery) {
-        listParams.q = `in:inbox ${categoryQuery}`;
-      } else {
-        listParams.labelIds = ['INBOX'];
-      }
-
-      const response = await gmail.users.messages.list(listParams);
-
-      const messages = response.data.messages || [];
-      allMessageIds.push(...messages);
-      pageToken = response.data.nextPageToken;
-
-      console.log(`[GMAIL:${accountEmail}] IDs geladen: ${allMessageIds.length}${limit > 0 ? '/' + limit : ''}${categoryQuery ? ' (gefiltert)' : ''}`);
-
-      // Stoppe wenn Limit erreicht
-      if (limit > 0 && allMessageIds.length >= limit) {
-        break;
-      }
-    } while (pageToken);
-
-    // Auf Limit beschränken
-    const messageIdsToLoad = limit > 0 ? allMessageIds.slice(0, limit) : allMessageIds;
-    console.log(`[GMAIL:${accountEmail}] Lade ${messageIdsToLoad.length} E-Mails...`);
-
-    // E-Mails in Batches laden
-    for (let i = 0; i < messageIdsToLoad.length && !shouldStop; i += batchSize) {
-      const batchIds = messageIdsToLoad.slice(i, i + batchSize);
-      const batchEmails = [];
-
-      // Details für diesen Batch laden
-      for (const msg of batchIds) {
-        if (shouldStop) break;
-        const email = await this.getEmail(msg.id);
-        if (email) {
-          batchEmails.push(email);
-        }
-      }
-
-      totalLoaded += batchEmails.length;
-      batchNumber++;
-
-      console.log(`[GMAIL:${accountEmail}] Batch ${batchNumber}: ${batchEmails.length} E-Mails (Gesamt: ${totalLoaded}/${messageIdsToLoad.length})`);
-
-      // Callback mit dem Batch aufrufen
-      if (onBatch && batchEmails.length > 0) {
-        const isFirst = batchNumber === 1;
-        const isLast = i + batchSize >= messageIdsToLoad.length;
-        const progress = Math.round((totalLoaded / messageIdsToLoad.length) * 100);
-
-        const result = await onBatch({
-          emails: batchEmails,
-          batchNumber,
-          totalLoaded,
-          totalCount: messageIdsToLoad.length,
-          progress,
-          isFirst,
-          isLast
-        });
-
-        // Callback kann false zurückgeben um zu stoppen
-        if (result === false) {
-          console.log(`[GMAIL:${accountEmail}] Stopp-Signal vom Callback erhalten`);
-          shouldStop = true;
-        }
-      }
-    }
-
-    console.log(`[GMAIL:${accountEmail}] Progressive Loading abgeschlossen: ${totalLoaded} E-Mails`);
-    return {
-      success: true,
-      totalLoaded,
-      lastPageToken: pageToken,
-      wasInterrupted: shouldStop,
-      categoryQuery: categoryQuery
-    };
   }
 
   // Get single email details
@@ -271,10 +92,7 @@ class GmailService {
         format: 'full'
       });
 
-      const email = this.formatEmail(response.data);
-      // Account-ID hinzufügen
-      email.accountId = this.accountId;
-      return email;
+      return this.formatEmail(response.data);
     } catch (error) {
       console.error('Failed to get email:', error);
       return null;
@@ -323,7 +141,7 @@ class GmailService {
   async sendEmail(to, subject, body, isHtml = false) {
     const gmail = this.getGmail();
 
-    const userInfo = this.getAccountInfo();
+    const userInfo = googleAuth.getUserInfo();
     const from = userInfo?.email || 'me';
 
     const message = [
@@ -364,7 +182,7 @@ class GmailService {
       throw new Error('Original-E-Mail nicht gefunden');
     }
 
-    const userInfo = this.getAccountInfo();
+    const userInfo = googleAuth.getUserInfo();
     const from = userInfo?.email || 'me';
 
     const message = [
@@ -410,29 +228,6 @@ class GmailService {
     return { success: true };
   }
 
-  // Anhang herunterladen
-  async getAttachment(messageId, attachmentId) {
-    const gmail = this.getGmail();
-
-    try {
-      const response = await gmail.users.messages.attachments.get({
-        userId: 'me',
-        messageId: messageId,
-        id: attachmentId
-      });
-
-      // Data ist Base64-kodiert
-      return {
-        success: true,
-        data: response.data.data,
-        size: response.data.size
-      };
-    } catch (error) {
-      console.error('[GMAIL] Attachment download error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
   // Format email for display
   formatEmail(message) {
     const headers = message.payload?.headers || [];
@@ -441,63 +236,25 @@ class GmailService {
       return header?.value || '';
     };
 
-    // Rekursiv durch alle Parts gehen um Text, HTML und Anhänge zu finden
-    let textBody = '';
-    let htmlBody = '';
-    const attachments = [];
+    // Get email body
+    let body = '';
+    let snippet = message.snippet || '';
 
-    const extractParts = (part) => {
-      if (!part) return;
-
-      const mimeType = part.mimeType || '';
-      const filename = part.filename || '';
-
-      // Anhang gefunden (hat Dateiname oder ist nicht text/html/plain)
-      if (filename && filename.length > 0) {
-        attachments.push({
-          id: part.body?.attachmentId || part.partId || '',
-          partId: part.partId || '',
-          filename: filename,
-          mimeType: mimeType,
-          size: part.body?.size || 0
-        });
-        return;
-      }
-
-      // Text/Plain
-      if (mimeType === 'text/plain' && part.body?.data) {
-        textBody = Buffer.from(part.body.data, 'base64').toString('utf-8');
-      }
-
-      // Text/HTML
-      if (mimeType === 'text/html' && part.body?.data) {
-        htmlBody = Buffer.from(part.body.data, 'base64').toString('utf-8');
-      }
-
-      // Rekursiv durch verschachtelte Parts (multipart/*)
-      if (part.parts && Array.isArray(part.parts)) {
-        for (const subPart of part.parts) {
-          extractParts(subPart);
-        }
-      }
-    };
-
-    // Haupt-Payload verarbeiten
     if (message.payload?.body?.data) {
-      // Einfache E-Mail ohne Parts
-      const content = Buffer.from(message.payload.body.data, 'base64').toString('utf-8');
-      if (message.payload.mimeType === 'text/html') {
-        htmlBody = content;
-      } else {
-        textBody = content;
+      body = Buffer.from(message.payload.body.data, 'base64').toString('utf-8');
+    } else if (message.payload?.parts) {
+      // Multipart email - find text/plain or text/html
+      const textPart = message.payload.parts.find(p => p.mimeType === 'text/plain');
+      const htmlPart = message.payload.parts.find(p => p.mimeType === 'text/html');
+
+      if (textPart?.body?.data) {
+        body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
+      } else if (htmlPart?.body?.data) {
+        body = Buffer.from(htmlPart.body.data, 'base64').toString('utf-8');
+        // Strip HTML tags for speech
+        body = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       }
     }
-
-    // Parts durchsuchen
-    extractParts(message.payload);
-
-    // Body für Text-Anzeige (ohne HTML-Tags)
-    const body = textBody || (htmlBody ? htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : '');
 
     const date = new Date(parseInt(message.internalDate));
     const labels = message.labelIds || [];
@@ -510,19 +267,14 @@ class GmailService {
       fromEmail: this.extractEmail(getHeader('From')),
       to: getHeader('To'),
       subject: getHeader('Subject') || 'Kein Betreff',
-      snippet: message.snippet || '',
-      body: body.substring(0, 2000),
-      html: htmlBody, // HTML-Version für Anzeige
-      date: parseInt(message.internalDate),
+      snippet: snippet,
+      body: body.substring(0, 2000), // Limit body length
+      date: message.internalDate,
       dateFormatted: this.formatDate(date),
       isUnread: labels.includes('UNREAD'),
       isImportant: labels.includes('IMPORTANT'),
       isStarred: labels.includes('STARRED'),
-      hasAttachments: attachments.length > 0,
-      attachments: attachments,
-      labels: labels,
-      provider: 'gmail',
-      accountId: this.accountId
+      labels: labels
     };
   }
 
@@ -732,8 +484,7 @@ class GmailService {
           date: emailResponse.data.internalDate,
           isUnread: labels.includes('UNREAD'),
           isImportant: labels.includes('IMPORTANT'),
-          isStarred: labels.includes('STARRED'),
-          accountId: this.accountId
+          isStarred: labels.includes('STARRED')
         });
       } catch (error) {
         console.error('Failed to get email for briefing:', error);
@@ -744,34 +495,7 @@ class GmailService {
   }
 }
 
-// Factory function statt Singleton
-function createGmailService(accountId = null) {
-  return new GmailService(accountId);
-}
+// Singleton instance
+const gmailService = new GmailService();
 
-// Legacy Singleton für Abwärtskompatibilität
-const defaultGmailService = new GmailService();
-
-module.exports = {
-  GmailService,
-  createGmailService,
-  // Legacy export für Abwärtskompatibilität
-  default: defaultGmailService,
-  getRecentEmails: (...args) => defaultGmailService.getRecentEmails(...args),
-  getEmail: (...args) => defaultGmailService.getEmail(...args),
-  sendEmail: (...args) => defaultGmailService.sendEmail(...args),
-  replyToEmail: (...args) => defaultGmailService.replyToEmail(...args),
-  markAsRead: (...args) => defaultGmailService.markAsRead(...args),
-  deleteEmail: (...args) => defaultGmailService.deleteEmail(...args),
-  archiveEmail: (...args) => defaultGmailService.archiveEmail(...args),
-  searchEmails: (...args) => defaultGmailService.searchEmails(...args),
-  getUnreadCount: (...args) => defaultGmailService.getUnreadCount(...args),
-  getUnreadEmails: (...args) => defaultGmailService.getUnreadEmails(...args),
-  getThread: (...args) => defaultGmailService.getThread(...args),
-  markAsStarred: (...args) => defaultGmailService.markAsStarred(...args),
-  unstar: (...args) => defaultGmailService.unstar(...args),
-  getAttachment: (...args) => defaultGmailService.getAttachment(...args),
-  getEmailsForBriefing: (...args) => defaultGmailService.getEmailsForBriefing(...args),
-  getRecentEmailsProgressive: (...args) => defaultGmailService.getRecentEmailsProgressive(...args),
-  getEmailsFromSender: (...args) => defaultGmailService.getEmailsFromSender(...args)
-};
+module.exports = gmailService;

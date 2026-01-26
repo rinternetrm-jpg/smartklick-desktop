@@ -238,8 +238,137 @@ class CalendarApp {
 
     weekGrid.innerHTML = gridHtml;
 
+    // Add drag-to-create event listeners
+    this.setupDragToCreate(weekGrid);
+
     // Scroll to current time
     this.scrollToCurrentTime(weekGrid);
+  }
+
+  // Setup drag to create events in week view
+  setupDragToCreate(weekGrid) {
+    let isDragging = false;
+    let startSlot = null;
+    let startColumn = null;
+    let currentSlot = null;
+
+    const getSlotInfo = (element) => {
+      const slot = element.closest('.time-slot');
+      const column = element.closest('.week-day-column');
+      if (!slot || !column) return null;
+      return {
+        slot,
+        column,
+        hour: parseInt(slot.dataset.hour),
+        date: new Date(column.dataset.date)
+      };
+    };
+
+    const clearSelection = () => {
+      weekGrid.querySelectorAll('.time-slot').forEach(s => {
+        s.classList.remove('drag-start', 'drag-over', 'drag-preview');
+      });
+    };
+
+    const updateSelection = (start, end, column) => {
+      clearSelection();
+      const slots = column.querySelectorAll('.time-slot');
+      const startHour = Math.min(start, end);
+      const endHour = Math.max(start, end);
+
+      slots.forEach(slot => {
+        const hour = parseInt(slot.dataset.hour);
+        if (hour >= startHour && hour <= endHour) {
+          slot.classList.add('drag-preview');
+        }
+      });
+    };
+
+    weekGrid.addEventListener('mousedown', (e) => {
+      const info = getSlotInfo(e.target);
+      if (!info) return;
+
+      isDragging = true;
+      startSlot = info.hour;
+      startColumn = info.column;
+      currentSlot = info.hour;
+      info.slot.classList.add('drag-start');
+      e.preventDefault();
+    });
+
+    weekGrid.addEventListener('mousemove', (e) => {
+      if (!isDragging || !startColumn) return;
+
+      const info = getSlotInfo(e.target);
+      if (!info || info.column !== startColumn) return;
+
+      currentSlot = info.hour;
+      updateSelection(startSlot, currentSlot, startColumn);
+    });
+
+    weekGrid.addEventListener('mouseup', async (e) => {
+      if (!isDragging) return;
+
+      const startHour = Math.min(startSlot, currentSlot);
+      const endHour = Math.max(startSlot, currentSlot) + 1;
+      const date = new Date(startColumn.dataset.date);
+
+      clearSelection();
+      isDragging = false;
+
+      // Create event with prompt
+      const title = await this.promptForEventTitle();
+      if (title) {
+        await this.createEventAtTime(date, startHour, endHour, title);
+      }
+
+      startSlot = null;
+      startColumn = null;
+      currentSlot = null;
+    });
+
+    weekGrid.addEventListener('mouseleave', () => {
+      if (isDragging) {
+        clearSelection();
+        isDragging = false;
+        startSlot = null;
+        startColumn = null;
+        currentSlot = null;
+      }
+    });
+  }
+
+  // Prompt for event title
+  async promptForEventTitle() {
+    return new Promise((resolve) => {
+      const title = prompt('Termin-Titel:', '');
+      resolve(title);
+    });
+  }
+
+  // Create event at specific time
+  async createEventAtTime(date, startHour, endHour, title) {
+    try {
+      const startDate = new Date(date);
+      startDate.setHours(startHour, 0, 0, 0);
+
+      const endDate = new Date(date);
+      endDate.setHours(endHour, 0, 0, 0);
+
+      const result = await ipcRenderer.invoke('calendar:createEvent', {
+        summary: title,
+        start: { dateTime: startDate.toISOString() },
+        end: { dateTime: endDate.toISOString() }
+      });
+
+      if (result.success) {
+        await this.loadEvents();
+        this.renderCurrentView();
+      }
+    } catch (err) {
+      console.error('Error creating event:', err);
+      alert('Fehler beim Erstellen des Termins');
+    }
   }
 
   // Month View

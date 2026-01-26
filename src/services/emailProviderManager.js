@@ -2,9 +2,8 @@
 const { v4: uuidv4 } = require('uuid');
 const Store = require('electron-store');
 
-const { GmailService, createGmailService } = require('./gmailService');
+const GmailService = require('./gmailService');
 const OutlookProvider = require('./outlookProvider');
-const googleAuth = require('./googleAuth');
 
 class EmailProviderManager {
   constructor(config = {}) {
@@ -12,62 +11,40 @@ class EmailProviderManager {
     this.store = new Store({ name: 'email-accounts' });
     this.providers = new Map();  // accountId -> Provider
     this.accounts = [];
-    this.gmailServices = new Map();  // accountId -> GmailService (Multi-Account)
+    this.gmailService = null;  // Existing Gmail service reference
   }
 
   // ==================== INITIALISIERUNG ====================
 
   async initialize(gmailService = null) {
+    // Referenz zum bestehenden Gmail Service
+    this.gmailService = gmailService;
+
     // Gespeicherte Konten laden
     this.accounts = this.store.get('accounts', []);
 
-    // Alle Gmail-Konten von googleAuth laden
-    const gmailAccounts = googleAuth.getAllAccounts();
-    console.log(`[EMAIL] Found ${gmailAccounts.length} Gmail accounts in googleAuth`);
-
-    for (const gmailAccount of gmailAccounts) {
-      // Prüfe ob Account bereits in accounts-Liste
-      let existingAccount = this.accounts.find(a => a.id === gmailAccount.id);
-
-      if (!existingAccount) {
-        // Neues Gmail-Konto hinzufügen
-        existingAccount = {
-          id: gmailAccount.id,
-          name: gmailAccount.name || 'Gmail',
-          email: gmailAccount.email,
-          provider: 'gmail',
-          isDefault: this.accounts.filter(a => a.provider === 'gmail').length === 0,
-          isActive: true,
-          createdAt: new Date().toISOString()
-        };
-        this.accounts.push(existingAccount);
-        console.log(`[EMAIL] Added Gmail account: ${gmailAccount.email}`);
-      } else {
-        // Email/Name aktualisieren falls geändert
-        existingAccount.email = gmailAccount.email;
-        existingAccount.name = gmailAccount.name || existingAccount.name;
+    // Gmail als erstes Konto hinzufuegen (wenn verbunden)
+    if (this.gmailService) {
+      const gmailAccount = this.accounts.find(a => a.provider === 'gmail');
+      if (!gmailAccount) {
+        // Gmail-Konto aus bestehendem Service erstellen
+        const userInfo = this.gmailService.googleAuth?.getUserInfo?.();
+        if (userInfo?.email) {
+          const account = {
+            id: 'gmail-default',
+            name: 'Gmail',
+            email: userInfo.email,
+            provider: 'gmail',
+            isDefault: true,
+            isActive: true,
+            createdAt: new Date().toISOString()
+          };
+          this.accounts.push(account);
+          this.saveAccounts();
+        }
       }
-
-      // GmailService-Instanz erstellen
-      const service = createGmailService(gmailAccount.id);
-      this.gmailServices.set(gmailAccount.id, service);
-      this.providers.set(gmailAccount.id, service);
-      console.log(`[EMAIL] Gmail provider registered: ${gmailAccount.id}`);
+      this.providers.set('gmail-default', this.gmailService);
     }
-
-    // Alte Gmail-Accounts entfernen die nicht mehr in googleAuth sind
-    const validGmailIds = new Set(gmailAccounts.map(a => a.id));
-    this.accounts = this.accounts.filter(a => {
-      if (a.provider === 'gmail' && !validGmailIds.has(a.id)) {
-        console.log(`[EMAIL] Removing orphaned Gmail account: ${a.email}`);
-        this.providers.delete(a.id);
-        this.gmailServices.delete(a.id);
-        return false;
-      }
-      return true;
-    });
-
-    this.saveAccounts();
 
     // Outlook-Konten initialisieren
     for (const account of this.accounts) {
@@ -77,67 +54,6 @@ class EmailProviderManager {
     }
 
     console.log(`[EMAIL] Initialized ${this.providers.size} email providers`);
-  }
-
-  // Gmail-Konten nach Verbindung aktualisieren (Multi-Account)
-  refreshGmailAccounts() {
-    const gmailAccounts = googleAuth.getAllAccounts();
-    console.log(`[EMAIL] Refreshing ${gmailAccounts.length} Gmail accounts`);
-
-    if (gmailAccounts.length === 0) {
-      console.log('[EMAIL] No Gmail accounts connected');
-      return false;
-    }
-
-    let addedCount = 0;
-    let updatedCount = 0;
-
-    for (const gmailAccount of gmailAccounts) {
-      // Prüfe ob Gmail-Konto bereits existiert
-      let existingAccount = this.accounts.find(a => a.id === gmailAccount.id);
-
-      if (!existingAccount) {
-        // Neues Gmail-Konto erstellen
-        existingAccount = {
-          id: gmailAccount.id,
-          name: gmailAccount.name || 'Gmail',
-          email: gmailAccount.email,
-          provider: 'gmail',
-          isDefault: this.accounts.filter(a => a.provider === 'gmail').length === 0,
-          isActive: true,
-          createdAt: new Date().toISOString()
-        };
-        this.accounts.push(existingAccount);
-        addedCount++;
-        console.log(`[EMAIL] Gmail account added: ${gmailAccount.email}`);
-      } else if (existingAccount.email !== gmailAccount.email) {
-        // E-Mail aktualisieren falls geändert
-        existingAccount.email = gmailAccount.email;
-        existingAccount.name = gmailAccount.name || existingAccount.name;
-        updatedCount++;
-        console.log(`[EMAIL] Gmail account updated: ${gmailAccount.email}`);
-      }
-
-      // GmailService erstellen falls noch nicht vorhanden
-      if (!this.gmailServices.has(gmailAccount.id)) {
-        const service = createGmailService(gmailAccount.id);
-        this.gmailServices.set(gmailAccount.id, service);
-        this.providers.set(gmailAccount.id, service);
-        console.log(`[EMAIL] Gmail provider registered: ${gmailAccount.id}`);
-      }
-    }
-
-    if (addedCount > 0 || updatedCount > 0) {
-      this.saveAccounts();
-    }
-
-    console.log(`[EMAIL] Gmail refresh complete: ${addedCount} added, ${updatedCount} updated, total providers: ${this.providers.size}`);
-    return true;
-  }
-
-  // Legacy-Alias für Abwärtskompatibilität
-  refreshGmailAccount() {
-    return this.refreshGmailAccounts();
   }
 
   async initializeOutlookProvider(account) {
@@ -203,87 +119,22 @@ class EmailProviderManager {
   }
 
   async removeAccount(accountId) {
-    const account = this.accounts.find(a => a.id === accountId);
-    if (!account) {
-      return { success: false, error: 'Account not found' };
-    }
-
-    // Gmail-Account über googleAuth entfernen
-    if (account.provider === 'gmail') {
-      const result = await googleAuth.removeAccount(accountId);
-      if (!result.success) {
-        return result;
-      }
-      // GmailService entfernen
-      this.gmailServices.delete(accountId);
-    } else {
-      // Outlook: Credentials loeschen
-      this.store.delete(`credentials_${accountId}`);
+    // Gmail kann nicht entfernt werden (wird ueber Google-Einstellungen verwaltet)
+    if (accountId === 'gmail-default') {
+      return { success: false, error: 'Gmail account cannot be removed here' };
     }
 
     // Provider stoppen
     this.providers.delete(accountId);
 
+    // Credentials loeschen
+    this.store.delete(`credentials_${accountId}`);
+
     // Aus Liste entfernen
     this.accounts = this.accounts.filter(a => a.id !== accountId);
     this.saveAccounts();
 
-    console.log(`[EMAIL] Account removed: ${accountId}`);
     return { success: true };
-  }
-
-  // Neues Gmail-Konto hinzufügen (startet OAuth-Flow)
-  async addGmailAccount() {
-    try {
-      console.log('[EMAIL] Starting Gmail OAuth flow for new account...');
-      const result = await googleAuth.startAuthFlow();
-
-      if (result.success) {
-        // Account-Info erstellen
-        const account = {
-          id: result.accountId,
-          name: result.user.name || 'Gmail',
-          email: result.user.email,
-          provider: 'gmail',
-          isDefault: this.accounts.filter(a => a.provider === 'gmail').length === 0,
-          isActive: true,
-          createdAt: new Date().toISOString()
-        };
-
-        // Prüfen ob schon vorhanden (re-auth)
-        const existingIndex = this.accounts.findIndex(a => a.id === result.accountId);
-        if (existingIndex >= 0) {
-          this.accounts[existingIndex] = account;
-          console.log(`[EMAIL] Gmail account re-authenticated: ${account.email}`);
-        } else {
-          this.accounts.push(account);
-          console.log(`[EMAIL] Gmail account added: ${account.email}`);
-        }
-
-        // GmailService erstellen
-        const service = createGmailService(result.accountId);
-        this.gmailServices.set(result.accountId, service);
-        this.providers.set(result.accountId, service);
-
-        this.saveAccounts();
-
-        return {
-          success: true,
-          account,
-          isNew: result.isNew
-        };
-      }
-
-      return { success: false, error: 'OAuth flow failed' };
-    } catch (error) {
-      console.error('[EMAIL] Gmail OAuth error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Alle Gmail-Konten abrufen
-  getGmailAccounts() {
-    return this.accounts.filter(a => a.provider === 'gmail');
   }
 
   setDefaultAccount(accountId) {
@@ -346,19 +197,16 @@ class EmailProviderManager {
 
   /**
    * E-Mails von allen oder einem bestimmten Konto abrufen
-   * existingIds: Array von E-Mail-IDs die bereits geladen sind (für inkrementelles Laden)
    */
   async getEmails(options = {}) {
-    const { accountId, accountName, unified = false, existingIds = [], ...emailOptions } = options;
-    // 0 bedeutet "alle E-Mails", daher nicht mit || ersetzen
-    const maxResults = emailOptions.maxResults !== undefined ? emailOptions.maxResults : 100;
+    const { accountId, accountName, unified = false, ...emailOptions } = options;
 
     // Bestimmtes Konto nach ID?
     if (accountId) {
       const provider = this.providers.get(accountId);
       if (!provider) throw new Error('Account not found');
-      const result = await provider.getRecentEmails(maxResults, existingIds);
-      return this.handleIncrementalResult(result, accountId);
+      const emails = await provider.getRecentEmails(emailOptions.maxResults || 20);
+      return this.addAccountInfo(emails, accountId);
     }
 
     // Konto nach Name?
@@ -367,13 +215,13 @@ class EmailProviderManager {
       if (!account) throw new Error(`Account "${accountName}" not found`);
       const provider = this.providers.get(account.id);
       if (!provider) throw new Error('Provider not initialized');
-      const result = await provider.getRecentEmails(maxResults, existingIds);
-      return this.handleIncrementalResult(result, account.id);
+      const emails = await provider.getRecentEmails(emailOptions.maxResults || 20);
+      return this.addAccountInfo(emails, account.id);
     }
 
     // Unified Inbox (alle Konten)?
     if (unified) {
-      return await this.getUnifiedInbox({ ...emailOptions, existingIds });
+      return await this.getUnifiedInbox(emailOptions);
     }
 
     // Standard: Default Account
@@ -383,46 +231,18 @@ class EmailProviderManager {
     const provider = this.providers.get(defaultAccount.id);
     if (!provider) throw new Error('Default provider not initialized');
 
-    const result = await provider.getRecentEmails(maxResults, existingIds);
-    return this.handleIncrementalResult(result, defaultAccount.id);
-  }
-
-  // Hilfsfunktion für inkrementelle Ergebnisse
-  handleIncrementalResult(result, accountId) {
-    // Wenn inkrementelles Laden, Struktur beibehalten
-    if (result && result.isIncremental) {
-      return {
-        emails: this.addAccountInfo(result.emails, accountId),
-        skipped: result.skipped,
-        isIncremental: true
-      };
-    }
-    // Normales Laden (Array)
-    return this.addAccountInfo(result, accountId);
+    const emails = await provider.getRecentEmails(emailOptions.maxResults || 20);
+    return this.addAccountInfo(emails, defaultAccount.id);
   }
 
   async getUnifiedInbox(options = {}) {
-    // 0 bedeutet "alle E-Mails"
-    const maxResults = options.maxResults !== undefined ? options.maxResults : 100;
-    const existingIds = options.existingIds || [];
+    const { maxResults = 20 } = options;
     const allEmails = [];
-    let totalSkipped = 0;
-    let isIncremental = existingIds.length > 0;
 
     for (const [accountId, provider] of this.providers) {
       try {
-        // GEÄNDERT: Bei "Alle Konten" das volle Limit pro Provider laden
-        // So bekommt der User bei 50 Limit: 50 von jedem Konto
-        const perProvider = maxResults === 0 ? 500 : maxResults;
-        const result = await provider.getRecentEmails(perProvider, existingIds);
-
-        // Inkrementelles Ergebnis verarbeiten
-        if (result && result.isIncremental) {
-          allEmails.push(...this.addAccountInfo(result.emails, accountId));
-          totalSkipped += result.skipped;
-        } else {
-          allEmails.push(...this.addAccountInfo(result, accountId));
-        }
+        const emails = await provider.getRecentEmails(Math.ceil(maxResults / this.providers.size) + 5);
+        allEmails.push(...this.addAccountInfo(emails, accountId));
       } catch (error) {
         console.error(`[EMAIL] Error fetching from ${accountId}:`, error);
       }
@@ -431,66 +251,7 @@ class EmailProviderManager {
     // Nach Datum sortieren
     allEmails.sort((a, b) => b.date - a.date);
 
-    // Bei inkrementellem Laden: Metadaten zurückgeben
-    if (isIncremental) {
-      return {
-        emails: allEmails,  // Kein Limit mehr - alle geladenen E-Mails zurückgeben
-        skipped: totalSkipped,
-        isIncremental: true
-      };
-    }
-
-    // Alle geladenen E-Mails zurückgeben (Limit wurde bereits pro Provider angewendet)
-    return allEmails;
-  }
-
-  // Progressive Loading: Lädt E-Mails in Batches und sendet sie via Callback
-  async getEmailsProgressive(onBatch, batchSize = 30) {
-    console.log('[EMAIL] Progressive Loading gestartet...');
-
-    // Für jeden Provider progressive laden
-    for (const [accountId, provider] of this.providers) {
-      try {
-        // Gmail hat eigene progressive Methode
-        if (provider.getRecentEmailsProgressive) {
-          await provider.getRecentEmailsProgressive(async (batchData) => {
-            // Account-Info hinzufügen
-            const emailsWithAccount = this.addAccountInfo(batchData.emails, accountId);
-
-            // Callback aufrufen
-            await onBatch({
-              ...batchData,
-              emails: emailsWithAccount,
-              accountId
-            });
-          }, batchSize);
-        } else {
-          // Fallback: Alle E-Mails auf einmal laden (für andere Provider)
-          const emails = await provider.getRecentEmails(0);
-          const emailsWithAccount = this.addAccountInfo(emails, accountId);
-
-          // In Batches aufteilen
-          for (let i = 0; i < emailsWithAccount.length; i += batchSize) {
-            const batch = emailsWithAccount.slice(i, i + batchSize);
-            await onBatch({
-              emails: batch,
-              batchNumber: Math.floor(i / batchSize) + 1,
-              totalLoaded: i + batch.length,
-              totalCount: emailsWithAccount.length,
-              progress: Math.round(((i + batch.length) / emailsWithAccount.length) * 100),
-              isFirst: i === 0,
-              isLast: i + batchSize >= emailsWithAccount.length,
-              accountId
-            });
-          }
-        }
-      } catch (error) {
-        console.error(`[EMAIL] Progressive loading error for ${accountId}:`, error);
-      }
-    }
-
-    console.log('[EMAIL] Progressive Loading abgeschlossen');
-    return { success: true };
+    return allEmails.slice(0, maxResults);
   }
 
   addAccountInfo(emails, accountId) {

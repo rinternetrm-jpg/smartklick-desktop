@@ -4207,6 +4207,16 @@ ipcMain.handle('calendar:getWeekEvents', async () => {
   }
 });
 
+ipcMain.handle('calendar:createEvent', async (_, eventData) => {
+  try {
+    const result = await calendarService.createEvent(eventData);
+    return result;
+  } catch (error) {
+    console.error('[CALENDAR] Error creating event:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // =============================================================================
 // OUTLOOK OAUTH AND MULTI-ACCOUNT HANDLERS
 // =============================================================================

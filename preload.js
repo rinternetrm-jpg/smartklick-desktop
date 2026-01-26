@@ -94,13 +94,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Google Services
   google: {
-    // Auth - Multi-Account Support
+    // Auth
     getAuthStatus: () => ipcRenderer.invoke('google-auth-status'),
-    getAccounts: () => ipcRenderer.invoke('google-auth-accounts'),
     connect: () => ipcRenderer.invoke('google-auth-connect'),
     disconnect: () => ipcRenderer.invoke('google-auth-disconnect'),
-    removeAccount: (accountId) => ipcRenderer.invoke('google-auth-remove-account', accountId),
-    setActiveAccount: (accountId) => ipcRenderer.invoke('google-auth-set-active', accountId),
     onAuthChanged: (callback) => ipcRenderer.on('google-auth-changed', (_, data) => callback(data)),
 
     // Calendar

@@ -65,19 +65,11 @@ class ImapAccountManager {
 
   // Add a new account
   async addAccount(settings) {
-    // Validate required fields
-    if (!settings.user) {
-      throw new Error('E-Mail-Adresse ist erforderlich');
-    }
-    if (!settings.password) {
-      throw new Error('Passwort ist erforderlich');
-    }
-
     const preset = IMAP_PRESETS[settings.provider] || IMAP_PRESETS.custom;
 
     const account = {
       id: this.generateId(),
-      name: settings.name || (settings.user ? settings.user.split('@')[0] : 'Unbekannt'),
+      name: settings.name || settings.user.split('@')[0],
       email: settings.user,
       provider: settings.provider,
       host: settings.host || preset.host,
@@ -366,8 +358,7 @@ class ImapAccountManager {
   }
 
   // Get emails from account
-  // count = 0 bedeutet ALLE E-Mails abrufen (kein Limit)
-  async getEmails(accountId, folder = 'INBOX', count = 0) {
+  async getEmails(accountId, folder = 'INBOX', count = 30) {
     try {
       const imap = await this.getConnection(accountId);
       const account = this.accounts.get(accountId);
@@ -390,18 +381,9 @@ class ImapAccountManager {
             return;
           }
 
-          // count = 0 oder count > total bedeutet ALLE E-Mails
-          const effectiveCount = (count === 0 || count > total) ? total : count;
-          const start = Math.max(1, total - effectiveCount + 1);
+          const start = Math.max(1, total - count + 1);
           const range = `${start}:${total}`;
           const emails = [];
-
-          console.log(`[IMAP] Fetching ${effectiveCount} of ${total} emails (range: ${range})`);
-
-          // Warnung bei sehr vielen E-Mails
-          if (total > 5000) {
-            console.warn(`[IMAP] WARNUNG: ${total} E-Mails im Ordner - das kann dauern!`);
-          }
 
           const fetch = imap.seq.fetch(range, {
             bodies: ['HEADER.FIELDS (FROM TO SUBJECT DATE)'],
@@ -507,7 +489,7 @@ class ImapAccountManager {
           console.log(`[IMAP] Fetching UID range: ${uidRange}`);
 
           const fetch = imap.fetch(uidRange, {
-            bodies: '',  // Nur komplette Nachricht, nicht doppelt
+            bodies: ['HEADER', 'TEXT', ''],
             struct: true
           });
 

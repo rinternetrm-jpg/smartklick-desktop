@@ -124,14 +124,21 @@ class CalendarService {
   async createEvent(eventData) {
     const calendar = this.getCalendar();
 
+    // Support both formats: {title, startTime, endTime} and {summary, start: {dateTime}, end: {dateTime}}
     const event = {
-      summary: eventData.title,
+      summary: eventData.summary || eventData.title,
       description: eventData.description || '',
-      start: {
+      start: eventData.start ? {
+        dateTime: eventData.start.dateTime,
+        timeZone: eventData.start.timeZone || 'Europe/Berlin'
+      } : {
         dateTime: eventData.startTime,
         timeZone: 'Europe/Berlin'
       },
-      end: {
+      end: eventData.end ? {
+        dateTime: eventData.end.dateTime,
+        timeZone: eventData.end.timeZone || 'Europe/Berlin'
+      } : {
         dateTime: eventData.endTime,
         timeZone: 'Europe/Berlin'
       }

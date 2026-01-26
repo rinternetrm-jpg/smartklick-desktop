@@ -3,1541 +3,3678 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smartklick E-Mail Manager</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles/email.css">
+  <title>Smartklick E-Mail</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e5e7eb;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Main Layout */
+    .app-container {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Account Sidebar (Left) */
+    .account-sidebar {
+      width: 220px;
+      background: #0f0f1a;
+      border-right: 1px solid #2d2d44;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid #2d2d44;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      -webkit-app-region: drag;
+    }
+
+    .sidebar-header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #14b8a6;
+    }
+
+    .add-account-btn {
+      width: 28px;
+      height: 28px;
+      background: rgba(20, 184, 166, 0.2);
+      border: none;
+      border-radius: 6px;
+      color: #14b8a6;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-app-region: no-drag;
+    }
+
+    .add-account-btn:hover {
+      background: rgba(20, 184, 166, 0.3);
+    }
+
+    /* Account List */
+    .account-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .account-item {
+      margin-bottom: 4px;
+    }
+
+    .account-header {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .account-header:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .account-header.active {
+      background: rgba(20, 184, 166, 0.15);
+    }
+
+    .account-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      margin-right: 10px;
+      flex-shrink: 0;
+    }
+
+    .account-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .account-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .account-email {
+      font-size: 11px;
+      color: #6b7280;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .account-badge {
+      background: #ef4444;
+      color: white;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      margin-left: 8px;
+    }
+
+    /* Folder List */
+    .folder-list {
+      padding-left: 20px;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .folder-list.expanded {
+      display: block;
+    }
+
+    .folder-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #9ca3af;
+      transition: background 0.2s;
+    }
+
+    .folder-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #e5e7eb;
+    }
+
+    .folder-item.active {
+      background: rgba(20, 184, 166, 0.1);
+      color: #14b8a6;
+    }
+
+    .folder-icon {
+      width: 16px;
+      margin-right: 8px;
+      text-align: center;
+    }
+
+    .folder-name {
+      flex: 1;
+    }
+
+    .folder-count {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    /* Main Content Area */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #1a1a2e;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      background: #16162a;
+      border-bottom: 1px solid #2d2d44;
+      gap: 8px;
+    }
+
+    .toolbar-btn {
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: none;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .toolbar-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .toolbar-btn.primary {
+      background: #14b8a6;
+      color: white;
+    }
+
+    .toolbar-btn.primary:hover {
+      background: #0d9488;
+    }
+
+    .toolbar-spacer {
+      flex: 1;
+    }
+
+    .current-folder-info {
+      font-size: 14px;
+      color: #9ca3af;
+    }
+
+    /* Email List */
+    .email-list-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .email-list {
+      width: 350px;
+      border-right: 1px solid #2d2d44;
+      overflow-y: auto;
+      background: #16162a;
+    }
+
+    .email-item {
+      padding: 14px 16px;
+      border-bottom: 1px solid #2d2d44;
+      cursor: pointer;
+      transition: background 0.2s;
+      position: relative;
+    }
+
+    .email-item:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .email-item.active {
+      background: rgba(20, 184, 166, 0.1);
+      border-left: 3px solid #14b8a6;
+    }
+
+    .email-item.unread {
+      background: rgba(59, 130, 246, 0.08);
+    }
+
+    .email-item.unread .email-subject {
+      font-weight: 600;
+    }
+
+    .email-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .email-from {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .email-account-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .email-date {
+      font-size: 11px;
+      color: #6b7280;
+      flex-shrink: 0;
+    }
+
+    .email-subject {
+      font-size: 13px;
+      color: #d1d5db;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .email-preview {
+      font-size: 12px;
+      color: #6b7280;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .email-flags {
+      position: absolute;
+      top: 14px;
+      right: 16px;
+      display: flex;
+      gap: 4px;
+    }
+
+    .flag-star {
+      color: #f59e0b;
+      font-size: 12px;
+    }
+
+    /* Email Detail */
+    .email-detail {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .detail-placeholder {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #6b7280;
+    }
+
+    .detail-placeholder svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+
+    .detail-header {
+      padding: 20px;
+      border-bottom: 1px solid #2d2d44;
+    }
+
+    .detail-subject {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .detail-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .detail-from-info {
+      font-size: 14px;
+    }
+
+    .detail-from-label {
+      color: #6b7280;
+      font-size: 12px;
+    }
+
+    .detail-date {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .action-btn {
+      padding: 6px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #2d2d44;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .action-btn.danger:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
+    .detail-body {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #d1d5db;
+    }
+
+    /* Add Account Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-overlay.visible {
+      display: flex;
+    }
+
+    .modal {
+      background: #1e1e32;
+      border-radius: 12px;
+      width: 420px;
+      max-height: 80vh;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #2d2d44;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h2 {
+      font-size: 16px;
+      color: #14b8a6;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: #6b7280;
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: #e5e7eb;
+    }
+
+    .modal-body {
+      padding: 20px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: #9ca3af;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      background: #2d2d44;
+      border: 1px solid #3d3d5c;
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 14px;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #14b8a6;
+    }
+
+    .form-group select option {
+      background: #2d2d44;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .form-row .form-group {
+      flex: 1;
+    }
+
+    .form-hint {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 6px;
+    }
+
+    .custom-server-fields {
+      background: rgba(0, 0, 0, 0.2);
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid #2d2d44;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-secondary {
+      background: #2d2d44;
+      color: #e5e7eb;
+    }
+
+    .btn-secondary:hover {
+      background: #3d3d5c;
+    }
+
+    .btn-primary {
+      background: #14b8a6;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #0d9488;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Loading & Empty States */
+    .loading-state,
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      color: #6b7280;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #2d2d44;
+      border-top-color: #14b8a6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 12px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Context Menu */
+    .context-menu {
+      position: fixed;
+      background: #1e1e32;
+      border: 1px solid #2d2d44;
+      border-radius: 8px;
+      padding: 4px;
+      min-width: 160px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+      z-index: 1000;
+      display: none;
+    }
+
+    .context-menu.visible {
+      display: block;
+    }
+
+    .context-menu-item {
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #e5e7eb;
+      cursor: pointer;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .context-menu-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .context-menu-item.danger {
+      color: #ef4444;
+    }
+
+    .context-menu-divider {
+      height: 1px;
+      background: #2d2d44;
+      margin: 4px 0;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #2d2d44;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3d3d5c;
+    }
+
+    /* Detail Content */
+    .detail-content {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .detail-content.hidden {
+      display: none;
+    }
+
+    .detail-header {
+      padding: 16px;
+      border-bottom: 1px solid #2d2d44;
+    }
+
+    .detail-subject {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .detail-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 12px;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      padding: 6px 12px;
+      background: #2d2d44;
+      border: none;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .action-btn:hover {
+      background: #3d3d5c;
+    }
+
+    .action-btn.danger:hover {
+      background: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    .detail-body {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Attachments */
+    .attachments-section {
+      padding: 16px;
+      border-top: 1px solid #2d2d44;
+      background: rgba(20, 184, 166, 0.05);
+    }
+
+    .attachments-section.hidden {
+      display: none;
+    }
+
+    .attachments-header {
+      font-size: 13px;
+      font-weight: 600;
+      color: #14b8a6;
+      margin-bottom: 12px;
+    }
+
+    .attachments-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .attachment-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #2d2d44;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .attachment-item:hover {
+      background: rgba(20, 184, 166, 0.2);
+      border-color: #14b8a6;
+    }
+
+    .attachment-icon {
+      font-size: 20px;
+    }
+
+    .attachment-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .attachment-name {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.9);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .attachment-size {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* Side Panel (Analysis & Reply) */
+    .side-panel {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 350px;
+      height: 100%;
+      background: #1a1a2e;
+      border-left: 1px solid #2d2d44;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+    }
+
+    .side-panel.hidden {
+      display: none;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #2d2d44;
+      font-weight: 600;
+    }
+
+    .panel-close {
+      width: 28px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 6px;
+      color: #9ca3af;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .panel-close:hover {
+      background: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    .panel-content {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    /* Analysis Styles */
+    .analysis-section {
+      margin-bottom: 16px;
+    }
+
+    .analysis-label {
+      font-size: 11px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .analysis-value {
+      font-size: 14px;
+      color: #e5e7eb;
+    }
+
+    .analysis-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .analysis-badge.urgency-hoch { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .analysis-badge.urgency-mittel { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .analysis-badge.urgency-niedrig { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+    .analysis-badge.sentiment-positiv { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+    .analysis-badge.sentiment-neutral { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
+    .analysis-badge.sentiment-negativ { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    .key-points {
+      list-style: disc;
+      padding-left: 20px;
+      font-size: 14px;
+    }
+
+    .key-points li {
+      margin-bottom: 6px;
+    }
+
+    /* Reply Panel Styles */
+    .reply-to {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 12px;
+    }
+
+    .reply-types {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .reply-type-btn {
+      padding: 6px 12px;
+      background: #2d2d44;
+      border: none;
+      border-radius: 6px;
+      color: #9ca3af;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .reply-type-btn.active {
+      background: #14b8a6;
+      color: white;
+    }
+
+    .quick-replies {
+      margin-bottom: 16px;
+    }
+
+    .quick-reply-btn {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: #2d2d44;
+      border: none;
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .quick-reply-btn:hover {
+      background: #3d3d5c;
+    }
+
+    .reply-textarea {
+      width: 100%;
+      min-height: 150px;
+      padding: 12px;
+      background: #2d2d44;
+      border: 1px solid #3d3d5c;
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 14px;
+      resize: vertical;
+      margin-bottom: 12px;
+    }
+
+    .reply-textarea:focus {
+      outline: none;
+      border-color: #14b8a6;
+    }
+
+    .reply-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* Briefing Styles */
+    .briefing-text {
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .briefing-stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .stat-item {
+      flex: 1;
+      text-align: center;
+      padding: 12px;
+      background: #2d2d44;
+      border-radius: 8px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #14b8a6;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .highlights-section {
+      margin-top: 20px;
+    }
+
+    .highlights-title {
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .highlight-item {
+      padding: 12px;
+      background: #2d2d44;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .highlight-sender {
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .highlight-subject {
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    .highlight-reason {
+      font-size: 12px;
+      color: #f59e0b;
+      margin-top: 6px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      background: #1e1e32;
+      border: 1px solid #2d2d44;
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 14px;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 2000;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      border-color: #22c55e;
+    }
+
+    .toast.error {
+      border-color: #ef4444;
+    }
+
+    /* Compose Modal */
+    .compose-modal {
+      width: 700px;
+      max-width: 90vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .compose-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .compose-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .compose-label {
+      width: 60px;
+      font-size: 13px;
+      color: #9ca3af;
+      flex-shrink: 0;
+    }
+
+    .compose-input {
+      flex: 1;
+      padding: 10px 14px;
+      background: #1e1e32;
+      border: 1px solid #2d2d44;
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 14px;
+    }
+
+    .compose-input:focus {
+      outline: none;
+      border-color: #14b8a6;
+    }
+
+    .compose-select {
+      flex: 1;
+      padding: 10px 14px;
+      background: #1e1e32;
+      border: 1px solid #2d2d44;
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .compose-select:focus {
+      outline: none;
+      border-color: #14b8a6;
+    }
+
+    .compose-select option {
+      background: #1e1e32;
+      color: #e5e7eb;
+    }
+
+    .compose-body-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 250px;
+    }
+
+    .compose-body {
+      flex: 1;
+      padding: 12px 14px;
+      background: #1e1e32;
+      border: 1px solid #2d2d44;
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 14px;
+      line-height: 1.5;
+      resize: none;
+      font-family: inherit;
+    }
+
+    .compose-body:focus {
+      outline: none;
+      border-color: #14b8a6;
+    }
+
+    .compose-ai-bar {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .ai-btn {
+      padding: 8px 14px;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ai-btn:hover {
+      opacity: 0.9;
+    }
+
+    .ai-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .ai-prompt-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: #1e1e32;
+      border: 1px solid #2d2d44;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 12px;
+    }
+
+    .ai-prompt-input:focus {
+      outline: none;
+      border-color: #8b5cf6;
+    }
+
+    .ai-prompt-input::placeholder {
+      color: #6b7280;
+    }
+
+    .compose-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid #2d2d44;
+      margin-top: 12px;
+    }
+
+    .compose-footer-left {
+      display: flex;
+      gap: 8px;
+    }
+
+    .compose-footer-right {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* Compose Attachments */
+    .compose-attachments {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #2d2d44;
+    }
+
+    .compose-attachments:empty {
+      display: none;
+    }
+
+    .compose-attachments-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .compose-attachment-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: rgba(20, 184, 166, 0.1);
+      border: 1px solid rgba(20, 184, 166, 0.3);
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .compose-attachment-item .filename {
+      max-width: 150px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .compose-attachment-item .size {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .compose-attachment-item .remove-btn {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      padding: 0 4px;
+      font-size: 14px;
+    }
+
+    .compose-attachment-item .remove-btn:hover {
+      color: #f87171;
+    }
+
+    /* ========================================
+       KI-DASHBOARD PANEL (Rechts)
+       ======================================== */
+    .dashboard-panel {
+      width: 300px;
+      background: #0f0f1a;
+      border-left: 1px solid #2d2d44;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .dashboard-header {
+      padding: 16px;
+      border-bottom: 1px solid #2d2d44;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .dashboard-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #14b8a6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dashboard-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    /* Stats Section */
+    .dashboard-section {
+      margin-bottom: 16px;
+    }
+
+    .dashboard-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid #2d2d44;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 24px;
+      font-weight: 700;
+      color: #14b8a6;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    /* Category Stats */
+    .category-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .category-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .category-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .category-item.active {
+      background: rgba(20, 184, 166, 0.15);
+      border: 1px solid rgba(20, 184, 166, 0.3);
+    }
+
+    .category-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .category-icon {
+      font-size: 16px;
+    }
+
+    .category-name {
+      font-size: 13px;
+      color: #e5e7eb;
+    }
+
+    .category-count {
+      font-size: 12px;
+      font-weight: 600;
+      color: #9ca3af;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .category-count.urgent {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .category-count.action {
+      background: rgba(251, 146, 60, 0.2);
+      color: #fb923c;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .quick-action-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid #2d2d44;
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quick-action-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: #14b8a6;
+    }
+
+    .quick-action-btn.primary {
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      border: none;
+    }
+
+    .quick-action-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    /* Auto-Reply Status */
+    .auto-reply-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 8px;
+    }
+
+    .auto-reply-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .auto-reply-icon {
+      font-size: 20px;
+    }
+
+    .auto-reply-text {
+      font-size: 13px;
+      color: #e5e7eb;
+    }
+
+    .auto-reply-count {
+      font-size: 11px;
+      color: #22c55e;
+    }
+
+    /* Toggle Switch */
+    .toggle-switch {
+      width: 40px;
+      height: 22px;
+      background: #2d2d44;
+      border-radius: 11px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle-switch.active {
+      background: #14b8a6;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s;
+    }
+
+    .toggle-switch.active::after {
+      transform: translateX(18px);
+    }
+
+    /* Week Stats (Mini Chart) */
+    .week-chart {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      height: 60px;
+      padding: 0 4px;
+    }
+
+    .chart-bar {
+      flex: 1;
+      margin: 0 2px;
+      background: linear-gradient(to top, #14b8a6, #0d9488);
+      border-radius: 3px 3px 0 0;
+      min-height: 8px;
+      position: relative;
+    }
+
+    .chart-bar::after {
+      content: attr(data-day);
+      position: absolute;
+      bottom: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: #6b7280;
+    }
+
+    .chart-bar.spam {
+      background: linear-gradient(to top, #6b7280, #4b5563);
+    }
+
+    .chart-bar.newsletter {
+      background: linear-gradient(to top, #8b5cf6, #7c3aed);
+    }
+
+    /* KI Analysis Progress */
+    .analysis-progress {
+      padding: 12px;
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 8px;
+      display: none;
+    }
+
+    .analysis-progress.active {
+      display: block;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .progress-title {
+      font-size: 13px;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .progress-count {
+      font-size: 12px;
+      color: #8b5cf6;
+    }
+
+    .progress-bar-container {
+      height: 6px;
+      background: #2d2d44;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #8b5cf6, #6366f1);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    /* Sidebar Categories Enhancement */
+    .sidebar-categories {
+      border-top: 1px solid #2d2d44;
+      padding: 12px 8px;
+      margin-top: auto;
+    }
+
+    .sidebar-section-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0 12px;
+      margin-bottom: 8px;
+    }
+
+    .analyze-all-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: calc(100% - 16px);
+      margin: 12px 8px 0 8px;
+      padding: 12px;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .analyze-all-btn:hover {
+      opacity: 0.9;
+    }
+
+    .analyze-all-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Priority Badge */
+    .priority-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+
+    .priority-badge.urgent {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .priority-badge.high {
+      background: rgba(251, 146, 60, 0.2);
+      color: #fb923c;
+    }
+
+    .priority-badge.normal {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    .priority-badge.low {
+      background: rgba(107, 114, 128, 0.2);
+      color: #9ca3af;
+    }
+
+    /* Category Tag */
+    .category-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      margin-left: 4px;
+    }
+
+    .category-tag.spam {
+      background: rgba(107, 114, 128, 0.2);
+      color: #9ca3af;
+    }
+
+    .category-tag.newsletter {
+      background: rgba(139, 92, 246, 0.2);
+      color: #a78bfa;
+    }
+
+    .category-tag.important {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .category-tag.action {
+      background: rgba(251, 146, 60, 0.2);
+      color: #fb923c;
+    }
+  </style>
 </head>
 <body>
-
   <div class="app-container">
-
-    <!-- Left Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <div class="logo-icon">
-          <svg viewBox="0 0 24 24">
-            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>
-          </svg>
-        </div>
-        <div class="logo-text">Smart<span>klick</span></div>
-        <button class="settings-btn" id="settingsBtn" title="Einstellungen">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
-        </button>
+    <!-- Account Sidebar -->
+    <div class="account-sidebar">
+      <div class="sidebar-header">
+        <h1>E-Mail</h1>
+        <button class="add-account-btn" id="addAccountBtn" title="Konto hinzufügen">+</button>
       </div>
-
-      <!-- Account Selector -->
-      <div class="account-selector" id="accountSelector">
-        <div class="account-info">
-          <div class="account-avatar" id="currentAccountAvatar">✉</div>
-          <div class="account-details">
-            <div class="account-name" id="currentAccountName">Alle Konten</div>
-            <div class="account-email" id="currentAccountEmail"></div>
-          </div>
-          <div class="account-dropdown">▼</div>
+      <div class="account-list" id="accountList">
+        <!-- Accounts werden hier eingefügt -->
+        <div class="empty-state" id="noAccountsMsg">
+          <p style="font-size: 13px; text-align: center; padding: 20px;">
+            Noch keine Konten.<br>
+            <span style="color: #14b8a6; cursor: pointer;" onclick="openAddAccountModal()">+ Konto hinzufügen</span>
+          </p>
         </div>
       </div>
-
-      <!-- Account Dropdown -->
-      <div class="account-dropdown-menu hidden" id="accountDropdownMenu">
-        <div class="account-dropdown-item active" data-account="all">
-          <div class="dropdown-avatar all">✉</div>
-          <div class="dropdown-info">
-            <div class="dropdown-name">Alle Konten</div>
-            <div class="dropdown-email" id="dropdownAllCount"></div>
-          </div>
-        </div>
-        <!-- Dynamic accounts will be inserted here -->
-      </div>
-
-      <!-- Stats -->
-      <div class="stats-section">
-        <div class="stats-title">Heute</div>
-        <div class="stats-grid">
-          <div class="stat-card highlight">
-            <div class="stat-number" id="statReceived">0</div>
-            <div class="stat-label">Empfangen</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-number" id="statReplied">0</div>
-            <div class="stat-label">Beantwortet</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Categories -->
-      <div class="categories">
-        <div class="stats-title">Kategorien</div>
-
-        <div class="category-item" data-category="important">
-          <div class="category-icon red">🔴</div>
-          <div class="category-info">
-            <div class="category-name">Wichtig</div>
-            <div class="category-count" id="catImportant">0 E-Mails</div>
-          </div>
-          <div class="category-badge hidden" id="badgeImportant">0</div>
-        </div>
-
-        <div class="category-item" data-category="termine">
-          <div class="category-icon cyan">📅</div>
-          <div class="category-info">
-            <div class="category-name">Termine</div>
-            <div class="category-count" id="catTermine">0 E-Mails</div>
-          </div>
-          <div class="category-badge hidden" id="badgeTermine">0</div>
-        </div>
-
-        <div class="category-item" data-category="rechnung">
-          <div class="category-icon green">📄</div>
-          <div class="category-info">
-            <div class="category-name">Rechnungen</div>
-            <div class="category-count" id="catRechnung">0 E-Mails</div>
-          </div>
-        </div>
-
-        <div class="category-item active" data-category="inbox">
-          <div class="category-icon blue">✉️</div>
-          <div class="category-info">
-            <div class="category-name">Posteingang</div>
-            <div class="category-count" id="catInbox">0 E-Mails</div>
-          </div>
-        </div>
-
-        <div class="category-item" data-category="info">
-          <div class="category-icon gray">ℹ️</div>
-          <div class="category-info">
-            <div class="category-name">Info</div>
-            <div class="category-count" id="catInfo">0 E-Mails</div>
-          </div>
-        </div>
-
-        <div class="category-item" data-category="werbung">
-          <div class="category-icon yellow">📢</div>
-          <div class="category-info">
-            <div class="category-name">Werbung</div>
-            <div class="category-count" id="catWerbung">0 E-Mails</div>
-          </div>
-        </div>
-
-        <div class="category-item" data-category="newsletter">
-          <div class="category-icon purple">📰</div>
-          <div class="category-info">
-            <div class="category-name">Newsletter</div>
-            <div class="category-count" id="catNewsletter">0 E-Mails</div>
-          </div>
-        </div>
-
-        <div class="category-item" data-category="sent">
-          <div class="category-icon teal">📤</div>
-          <div class="category-info">
-            <div class="category-name">Gesendet</div>
-            <div class="category-count" id="catSent">0 E-Mails</div>
-          </div>
-        </div>
-
-        <div class="category-item" data-category="papierkorb">
-          <div class="category-icon gray">🗑️</div>
-          <div class="category-info">
-            <div class="category-name">Papierkorb</div>
-            <div class="category-count" id="catPapierkorb">0 E-Mails</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Analyze Button -->
-      <div class="analyze-btn-container">
-        <button class="analyze-btn" id="analyzeAllBtn">
-          <div class="spinner"></div>
-          <span class="btn-text"><span>🤖</span> KI-Analyse starten</span>
-        </button>
-        <button class="stop-btn hidden" id="stopAnalysisBtn">
-          <span>⏹️</span> Stoppen
-        </button>
-      </div>
-    </aside>
+    </div>
 
     <!-- Main Content -->
-    <main class="main-content">
+    <div class="main-content">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <button class="toolbar-btn primary" id="composeBtn">
+          <span>✏️</span> Neue E-Mail
+        </button>
+        <button class="toolbar-btn" id="refreshBtn">
+          <span>⟳</span> Aktualisieren
+        </button>
+        <button class="toolbar-btn" id="briefingBtn" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">
+          <span>📊</span> Tages-Briefing
+        </button>
+        <div class="toolbar-spacer"></div>
+        <span class="current-folder-info" id="currentFolderInfo">Posteingang</span>
+      </div>
 
-      <!-- Header -->
-      <header class="header">
-        <div class="header-left">
-          <h1 id="headerTitle">Posteingang</h1>
-          <p id="headerSubtitle">Lade E-Mails...</p>
-        </div>
-        <div class="header-center">
-          <div class="pagination-controls">
-            <select class="pagination-select" id="paginationSelect">
-              <option value="30">30 E-Mails</option>
-              <option value="50">50 E-Mails</option>
-              <option value="100">100 E-Mails</option>
-              <option value="all">Alle</option>
-            </select>
-            <div class="pagination-nav">
-              <button class="pagination-btn" id="prevPageBtn" disabled>◀</button>
-              <span class="pagination-info" id="paginationInfo">1-30 von 100</span>
-              <button class="pagination-btn" id="nextPageBtn">▶</button>
-            </div>
-          </div>
-        </div>
-        <div class="header-actions">
-          <button class="header-btn" id="refreshBtn">
-            <span>🔄</span>
-            Aktualisieren
-          </button>
-          <button class="header-btn" id="filterBtn">
-            <span>⚙️</span>
-            Filter
-          </button>
-          <button class="header-btn primary" id="composeBtn">
-            <span>✏️</span>
-            Neue E-Mail
-          </button>
-        </div>
-      </header>
-
-      <!-- Email List Container -->
+      <!-- Email List & Detail -->
       <div class="email-list-container">
-
-        <!-- Email List -->
         <div class="email-list" id="emailList">
-          <!-- Loading State -->
-          <div class="loading-state" id="loadingState">
-            <div class="spinner"></div>
-            <span>E-Mails werden geladen...</span>
+          <div class="empty-state" id="emailListEmpty">
+            <p>Wähle ein Konto aus</p>
           </div>
-
-          <!-- Empty State -->
-          <div class="empty-state hidden" id="emptyState">
-            <span style="font-size: 48px;">📭</span>
-            <p>Keine E-Mails gefunden</p>
-          </div>
-
-          <!-- Email Items Container -->
-          <div id="emailItems"></div>
         </div>
 
-        <!-- Email Detail -->
         <div class="email-detail" id="emailDetail">
-          <!-- Placeholder -->
           <div class="detail-placeholder" id="detailPlaceholder">
-            <span style="font-size: 64px; opacity: 0.3;">📧</span>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+            </svg>
             <p>Wähle eine E-Mail aus</p>
           </div>
-
-          <!-- Detail Content -->
           <div class="detail-content hidden" id="detailContent">
             <div class="detail-header">
-              <div class="detail-subject" id="detailSubject">Betreff</div>
+              <div class="detail-subject" id="detailSubject"></div>
               <div class="detail-meta">
-                <span>Von: <strong id="detailFrom">Absender</strong></span>
-                <span id="detailDate">Datum</span>
+                <span class="detail-from" id="detailFrom"></span>
+                <span class="detail-date" id="detailDate"></span>
               </div>
               <div class="detail-actions">
-                <button class="action-btn primary" id="replyBtn">↩️ Antworten</button>
-                <button class="action-btn" id="analyzeBtn">🤖 Analysieren</button>
-                <button class="action-btn" id="archiveBtn">📁 Archivieren</button>
+                <button class="action-btn" id="analyzeBtn">🔍 Analysieren</button>
+                <button class="action-btn" id="replyBtn">↩️ Antworten</button>
                 <button class="action-btn" id="starBtn">⭐ Markieren</button>
                 <button class="action-btn danger" id="deleteBtn">🗑️ Löschen</button>
               </div>
             </div>
-
-            <!-- Contact Card -->
-            <div class="contact-card hidden" id="contactCard">
-              <div class="contact-card-header">
-                <span class="contact-card-icon">👤</span>
-                <span class="contact-card-title" id="contactCardTitle">Neuer Kontakt erkannt</span>
-                <button class="contact-card-close" id="contactCardClose">✕</button>
-              </div>
-              <div class="contact-card-body">
-                <div class="contact-avatar" id="contactAvatar">
-                  <span id="contactInitials">?</span>
-                </div>
-                <div class="contact-info">
-                  <div class="contact-name" id="contactName">Name</div>
-                  <div class="contact-company" id="contactCompany"></div>
-                  <div class="contact-position" id="contactPosition"></div>
-                </div>
-              </div>
-              <div class="contact-details" id="contactDetails">
-                <!-- Dynamisch gefüllt -->
-              </div>
-              <div class="contact-card-actions">
-                <button class="contact-action-btn primary" id="addContactBtn">
-                  ✓ Zu Kontakten hinzufügen
-                </button>
-                <button class="contact-action-btn" id="dismissContactBtn">
-                  Ignorieren
-                </button>
-              </div>
-            </div>
-
-            <!-- Payment Card (Rechnungs-Erkennung) -->
-            <div class="payment-card hidden" id="paymentCard">
-              <div class="payment-card-header">
-                <span class="payment-card-icon">💳</span>
-                <span class="payment-card-title">Rechnung erkannt</span>
-                <span class="payment-card-type" id="paymentType">Rechnung</span>
-                <button class="payment-card-close" id="paymentCardClose">✕</button>
-              </div>
-
-              <div class="payment-amounts">
-                <div class="payment-amount-box primary" id="paymentMainAmount">
-                  <div class="payment-amount-label">Betrag</div>
-                  <div class="payment-amount-value" id="paymentAmount">0,00 €</div>
-                  <div class="payment-amount-due" id="paymentDue"></div>
-                </div>
-                <div class="payment-amount-box" id="paymentMinBox">
-                  <div class="payment-amount-label">Mindestbetrag</div>
-                  <div class="payment-amount-value" id="paymentMinAmount">-</div>
-                </div>
-              </div>
-
-              <div class="payment-details" id="paymentDetails">
-                <div class="payment-detail-row">
-                  <span class="payment-detail-label">Empfänger</span>
-                  <span class="payment-detail-value" id="paymentRecipient">-</span>
-                </div>
-                <div class="payment-detail-row">
-                  <span class="payment-detail-label">IBAN</span>
-                  <span class="payment-detail-value payment-iban" id="paymentIban">-</span>
-                </div>
-                <div class="payment-detail-row">
-                  <span class="payment-detail-label">BIC</span>
-                  <span class="payment-detail-value" id="paymentBic">-</span>
-                </div>
-                <div class="payment-detail-row">
-                  <span class="payment-detail-label">Verwendungszweck</span>
-                  <span class="payment-detail-value" id="paymentReference">-</span>
-                </div>
-                <div class="payment-detail-row">
-                  <span class="payment-detail-label">Fällig am</span>
-                  <span class="payment-detail-value" id="paymentDueDate">-</span>
-                </div>
-              </div>
-
-              <div class="payment-timeline" id="paymentTimeline">
-                <div class="timeline-title">📅 Empfohlene Timeline</div>
-                <div class="timeline-track">
-                  <div class="timeline-point today">
-                    <div class="timeline-dot"></div>
-                    <div class="timeline-label">Heute</div>
-                  </div>
-                  <div class="timeline-line"></div>
-                  <div class="timeline-point reminder" id="timelineReminder">
-                    <div class="timeline-dot"></div>
-                    <div class="timeline-label">Erinnerung</div>
-                    <div class="timeline-date" id="timelineReminderDate">-</div>
-                  </div>
-                  <div class="timeline-line"></div>
-                  <div class="timeline-point transfer" id="timelineTransfer">
-                    <div class="timeline-dot"></div>
-                    <div class="timeline-label">Überweisung</div>
-                    <div class="timeline-date" id="timelineTransferDate">-</div>
-                  </div>
-                  <div class="timeline-line"></div>
-                  <div class="timeline-point due" id="timelineDue">
-                    <div class="timeline-dot"></div>
-                    <div class="timeline-label">Fällig</div>
-                    <div class="timeline-date" id="timelineDueDate">-</div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="payment-card-actions">
-                <button class="payment-action-btn" id="createReminderBtn">
-                  🔔 Erinnerung erstellen
-                </button>
-                <button class="payment-action-btn primary" id="preparePaymentBtn">
-                  💳 Überweisung vorbereiten
-                </button>
-              </div>
-            </div>
-
-            <!-- Conversation Overview Card (Konversations-Übersicht) - Mockup Design -->
-            <div class="conversation-card hidden" id="conversationCard">
-              <div class="conversation-card-header">
-                <div class="conversation-card-icon">🤖</div>
-                <span class="conversation-card-title">KI-Zusammenfassung der Konversation</span>
-                <span class="conversation-count" id="conversationCount">Automatisch aktualisiert</span>
-                <button class="conversation-card-close" id="conversationCardClose">✕</button>
-              </div>
-
-              <!-- KI-Zusammenfassung -->
-              <div class="conversation-summary" id="conversationSummary">
-                <div class="summary-text" id="conversationSummaryText">
-                  Lade Zusammenfassung...
-                </div>
-              </div>
-
-              <!-- Korrespondenz-Statistiken - Mockup Style (Liste) -->
-              <div class="conversation-stats">
-                <div class="conversation-stats-header">
-                  <span class="stats-icon">📊</span>
-                  <span class="stats-title">Korrespondenz-Übersicht</span>
-                </div>
-                <div class="conv-stat-item">
-                  <span class="conv-stat-label">Erster Kontakt</span>
-                  <span class="conv-stat-value" id="convStatFirstContact">-</span>
-                </div>
-                <div class="conv-stat-item">
-                  <span class="conv-stat-label">Anzahl E-Mails</span>
-                  <span class="conv-stat-value" id="convStatEmailCount">0</span>
-                </div>
-                <div class="conv-stat-item">
-                  <span class="conv-stat-label">Ø Antwortzeit</span>
-                  <span class="conv-stat-value highlight" id="convStatResponseTime">-</span>
-                </div>
-                <div class="conv-stat-item">
-                  <span class="conv-stat-label">Status</span>
-                  <span class="conv-stat-value warning" id="convStatStatus">-</span>
-                </div>
-              </div>
-
-              <!-- Besprochene Themen - Mockup Style mit Status -->
-              <div class="conversation-topics" id="conversationTopics">
-                <div class="topics-header">
-                  <span class="topics-icon">📋</span>
-                  <span class="topics-title">Besprochene Themen</span>
-                </div>
-                <div class="topics-list" id="topicsList">
-                  <!-- Dynamisch gefüllt mit topic-item -->
-                </div>
-              </div>
-
-              <!-- E-Mail Timeline - Mockup Style mit View-Toggle -->
-              <div class="conversation-timeline" id="conversationTimeline">
-                <div class="conv-timeline-header">
-                  <div class="timeline-left">
-                    <span class="timeline-icon">📧</span>
-                    <span class="timeline-title">E-Mail Verlauf</span>
-                    <span class="email-count-badge" id="timelineCount">0</span>
-                  </div>
-                  <div class="view-toggle">
-                    <button class="view-btn active" id="viewCompact">Kompakt</button>
-                    <button class="view-btn" id="viewDetails">Alle Details</button>
-                  </div>
-                </div>
-                <div class="conv-timeline-list" id="convTimelineList">
-                  <!-- Dynamisch gefüllt mit expandierbaren E-Mails -->
-                </div>
-              </div>
-
-              <!-- Schnellaktionen - Mockup Style -->
-              <div class="conversation-quick-actions">
-                <div class="quick-actions-header">
-                  <span class="quick-icon">⚡</span>
-                  <span class="quick-title">Schnellaktionen</span>
-                </div>
-                <button class="conv-quick-btn" id="convQuickReplyBtn">
-                  <span class="quick-btn-icon">↩️</span>
-                  <span class="quick-btn-text">Kontext-Antwort generieren</span>
-                </button>
-                <button class="conv-quick-btn" id="convViewAllBtn">
-                  <span class="quick-btn-icon">📧</span>
-                  <span class="quick-btn-text">Alle E-Mails anzeigen</span>
-                </button>
-                <button class="conv-quick-btn" id="convArchiveBtn">
-                  <span class="quick-btn-icon">📁</span>
-                  <span class="quick-btn-text">Konversation archivieren</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Image Banner -->
-            <div class="image-banner hidden" id="imageBanner">
-              <div class="image-banner-content">
-                <span class="image-banner-icon">🖼️</span>
-                <span class="image-banner-text">Externe Bilder werden blockiert</span>
-                <button class="image-banner-btn" id="loadImagesOnceBtn">Einmal laden</button>
-                <button class="image-banner-btn primary" id="loadImagesAlwaysBtn">Immer von diesem Absender</button>
-              </div>
-            </div>
-
             <div class="detail-body" id="detailBody"></div>
-
-            <!-- Attachments -->
             <div class="attachments-section hidden" id="attachmentsSection">
               <div class="attachments-header">📎 Anhänge</div>
               <div class="attachments-list" id="attachmentsList"></div>
             </div>
-
-            <!-- Feedback Bar - für ALLE E-Mails -->
-            <div class="email-feedback-bar" id="emailFeedbackBar">
-              <span class="feedback-question">Ist die Kategorisierung richtig?</span>
-
-              <div class="feedback-buttons">
-                <button class="feedback-btn positive" id="feedbackJaBtn">
-                  👍 Ja
-                </button>
-                <button class="feedback-btn negative" id="feedbackNeinBtn">
-                  👎 Nein
-                </button>
-                <button class="feedback-btn" id="feedbackTextBtn">
-                  ✏️ Feedback
-                </button>
-
-                <div class="dropdown-container">
-                  <button class="feedback-btn dropdown-trigger" id="verschiebenBtn">
-                    📁 Verschieben ▼
-                  </button>
-                  <div class="dropdown-menu hidden" id="kategorieDropdown">
-                    <div class="dropdown-item" data-kategorie="essenz">🔴 Essenz</div>
-                    <div class="dropdown-item" data-kategorie="wichtig">🟠 Wichtig</div>
-                    <div class="dropdown-item" data-kategorie="normal">🔵 Normal</div>
-                    <div class="dropdown-item" data-kategorie="info">ℹ️ Info</div>
-                    <div class="dropdown-item" data-kategorie="newsletter">📰 Newsletter</div>
-                    <div class="dropdown-item" data-kategorie="papierkorb">🗑️ Papierkorb</div>
-                  </div>
-                </div>
-
-                <button class="ki-analyse-btn" id="kiAnalyseBtn" title="KI-Analyse anzeigen">
-                  <span class="ki-logo">S</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Feedback Textfeld (versteckt bis Klick) -->
-            <div class="feedback-input-container hidden" id="feedbackInputContainer">
-              <textarea
-                class="feedback-textarea"
-                id="feedbackTextareaNew"
-                placeholder="Erkläre der KI warum diese Kategorisierung falsch ist..."></textarea>
-              <button class="feedback-submit" id="feedbackSubmitNewBtn">
-                💾 Speichern
-              </button>
-            </div>
-
-            <!-- KI-Analyse Box (versteckt bis Klick auf S) -->
-            <div class="ki-analyse-box hidden" id="kiAnalyseBox">
-              <div class="ki-analyse-header">
-                <div class="ki-logo">S</div>
-                <span class="ki-analyse-title">KI-Analyse</span>
-                <button class="ki-analyse-close" id="kiAnalyseCloseBtn">✕</button>
-              </div>
-
-              <div class="ki-analyse-content">
-                <div class="ki-kategorie">
-                  Kategorie: <span id="kiKategorie">🔵 Normal</span>
-                </div>
-
-                <div class="ki-begruendung">
-                  <strong>Begründung:</strong>
-                  <p id="kiBegruendung">Lade...</p>
-                </div>
-
-                <div class="ki-sicherheit">
-                  Sicherheit: <span id="kiSicherheit">-</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- KI-Gedanken Box - NUR für Wichtig/Essenz (automatisch) -->
-            <div class="ki-gedanken-box hidden" id="kiGedankenBox" data-email-id="">
-              <div class="ki-gedanken-header">
-                <div class="ki-logo">S</div>
-                <span class="ki-gedanken-title">Warum ist das wichtig?</span>
-              </div>
-
-              <div class="ki-gedanken-text" id="kiGedankenText">
-                <!-- GPT Erklärung hier -->
-              </div>
-
-              <div class="ki-feedback">
-                <div class="ki-feedback-question">Stimmt diese Einschätzung?</div>
-
-                <div class="ki-feedback-buttons" id="kiFeedbackButtons">
-                  <button class="feedback-btn positive" id="feedbackPositiveBtn">
-                    👍 Ja, richtig
-                  </button>
-                  <button class="feedback-btn negative" id="feedbackNegativeBtn">
-                    👎 Nein, falsch
-                  </button>
-                  <button class="feedback-btn explain" id="feedbackExplainBtn">
-                    ✏️ Erklären warum
-                  </button>
-                </div>
-
-                <div class="ki-feedback-input hidden" id="feedbackInput">
-                  <textarea
-                    class="feedback-textarea"
-                    id="feedbackTextarea"
-                    placeholder="Erkläre der KI warum diese Einschätzung falsch ist. Z.B.: 'Das ist ein Vertriebler, ignorieren.' oder 'IONOS ist Marketing, nicht wichtig.'"></textarea>
-                  <button class="feedback-submit" id="feedbackSubmitBtn">
-                    💾 Feedback speichern
-                  </button>
-                </div>
-
-                <div class="feedback-success hidden" id="feedbackSuccess">
-                  ✅ Danke! Die KI wird das beim nächsten Mal berücksichtigen.
-                </div>
-              </div>
-            </div>
           </div>
+        </div>
 
-          <!-- Analysis Panel -->
-          <div class="side-panel hidden" id="analysisPanel">
-            <div class="panel-header">
-              <span>🤖 KI-Analyse</span>
-              <button class="panel-close" id="closeAnalysisBtn">✕</button>
-            </div>
-            <div class="panel-content" id="analysisContent"></div>
+        <!-- Analysis Panel -->
+        <div class="side-panel hidden" id="analysisPanel">
+          <div class="panel-header">
+            <span>KI-Analyse</span>
+            <button class="panel-close" id="closeAnalysisBtn">&times;</button>
           </div>
+          <div class="panel-content" id="analysisContent"></div>
+        </div>
 
-          <!-- Reply Panel -->
-          <div class="side-panel hidden" id="replyPanel">
-            <div class="panel-header reply-header">
-              <span>✉️ Antworten</span>
-              <button class="panel-close" id="closeReplyBtn">✕</button>
+        <!-- Reply Panel -->
+        <div class="side-panel hidden" id="replyPanel">
+          <div class="panel-header">
+            <span>Antworten</span>
+            <button class="panel-close" id="closeReplyBtn">&times;</button>
+          </div>
+          <div class="panel-content">
+            <div class="reply-to">An: <span id="replyToAddress"></span></div>
+            <div class="reply-types">
+              <button class="reply-type-btn active" data-type="professional">Professionell</button>
+              <button class="reply-type-btn" data-type="friendly">Freundlich</button>
+              <button class="reply-type-btn" data-type="short">Kurz</button>
             </div>
-            <div class="panel-content">
-              <div class="reply-to">
-                An: <span id="replyToAddress">email@example.com</span>
-              </div>
-
-              <div class="quick-replies">
-                <div class="quick-replies-header">
-                  <span>Schnellantworten</span>
-                  <button class="refresh-btn" id="refreshQuickReplies">🔄</button>
-                </div>
-                <div id="quickRepliesList">
-                  <div class="quick-reply-loading">
-                    <div class="spinner small"></div>
-                    Generiere Vorschläge...
-                  </div>
-                </div>
-              </div>
-
-              <div class="reply-types">
-                <button class="reply-type-btn active" data-type="professional">Professionell</button>
-                <button class="reply-type-btn" data-type="friendly">Freundlich</button>
-                <button class="reply-type-btn" data-type="short">Kurz</button>
-              </div>
-
-              <textarea class="reply-textarea" id="replyText" placeholder="Schreibe deine Antwort..."></textarea>
-
-              <div class="reply-actions">
-                <button class="action-btn generate" id="generateReplyBtn">🤖 KI generieren</button>
-                <button class="action-btn" id="discardReplyBtn">Verwerfen</button>
-                <button class="action-btn primary" id="sendReplyBtn">📤 Senden</button>
-              </div>
+            <div class="quick-replies" id="quickRepliesList"></div>
+            <textarea class="reply-textarea" id="replyText" placeholder="Deine Antwort..."></textarea>
+            <div class="reply-actions">
+              <button class="btn btn-secondary" id="generateReplyBtn">✨ KI-Antwort</button>
+              <button class="btn btn-primary" id="sendReplyBtn">📤 Senden</button>
             </div>
           </div>
         </div>
       </div>
-
-    </main>
-
-    <!-- Right Panel - Dashboard -->
-    <aside class="right-panel">
-
-      <div class="panel-title">
-        📊 <span>Dashboard</span>
-      </div>
-
-      <!-- Chart -->
-      <div class="chart-container">
-        <div class="chart-header">
-          <span class="chart-title">E-Mail Verteilung</span>
-          <span class="chart-period">Diese Woche</span>
-        </div>
-        <div class="chart-bars" id="chartBars">
-          <!-- Chart bars will be rendered dynamically -->
-        </div>
-        <div class="chart-legend">
-          <div class="legend-item">
-            <div class="legend-dot" style="background: #71717a;"></div>
-            Spam
-          </div>
-          <div class="legend-item">
-            <div class="legend-dot" style="background: #a855f7;"></div>
-            Newsletter
-          </div>
-          <div class="legend-item">
-            <div class="legend-dot" style="background: #3b82f6;"></div>
-            Normal
-          </div>
-          <div class="legend-item">
-            <div class="legend-dot" style="background: #14b8a6;"></div>
-            Wichtig
-          </div>
-        </div>
-      </div>
-
-      <!-- Auto-Reply -->
-      <div class="auto-reply-section">
-        <div class="auto-reply-header">
-          <span class="auto-reply-title">🤖 Auto-Antworten</span>
-          <div class="auto-reply-toggle" id="autoReplyToggle"></div>
-        </div>
-        <div class="auto-reply-stat">
-          <div class="auto-reply-stat-icon">✉️</div>
-          <div class="auto-reply-stat-info">
-            <div class="auto-reply-stat-number" id="autoReplyCount">0</div>
-            <div class="auto-reply-stat-label">Auto-Antworten heute gesendet</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Actions -->
-      <div class="quick-actions">
-        <div class="quick-actions-title">⚡ Schnellaktionen</div>
-        <button class="quick-action-btn" id="briefingBtn">
-          <span>📊</span>
-          Tagesbriefing generieren
-        </button>
-        <button class="quick-action-btn" id="emptySpamBtn">
-          <span>🗑️</span>
-          Papierkorb leeren (<span id="papierkorbCount">0</span>)
-        </button>
-        <button class="quick-action-btn" id="archiveNewsletterBtn">
-          <span>📰</span>
-          Newsletter archivieren
-        </button>
-        <button class="quick-action-btn danger" id="markAllReadBtn">
-          <span>🔴</span>
-          Alle als gelesen markieren
-        </button>
-      </div>
-
-    </aside>
-
-  </div>
-
-  <!-- Settings Overlay -->
-  <div class="settings-overlay hidden" id="settingsOverlay"></div>
-
-  <!-- Settings Panel -->
-  <div class="settings-panel" id="settingsPanel">
-    <div class="settings-header">
-      <h2>⚙️ Einstellungen</h2>
-      <button class="settings-close" id="closeSettingsBtn">✕</button>
     </div>
 
-    <div class="settings-content">
-
-      <!-- E-Mail Konten -->
-      <div class="settings-section">
-        <div class="settings-section-title">
-          📧 E-Mail Konten
-        </div>
-
-        <!-- Account Cards Container -->
-        <div id="accountCardsContainer">
-          <!-- Account cards will be rendered dynamically -->
-        </div>
-
-        <!-- Add Account Button -->
-        <button class="add-account-btn" id="addAccountBtn">
-          <span>➕</span>
-          Neues Konto hinzufügen
-        </button>
+    <!-- Dashboard Panel (Rechts) -->
+    <div class="dashboard-panel" id="dashboardPanel">
+      <div class="dashboard-header">
+        <h2>📊 Dashboard</h2>
       </div>
-
-      <!-- Gmail Sync Einstellungen -->
-      <div class="settings-section" id="gmailSyncSection">
-        <div class="settings-section-title">
-          📥 Gmail Sync-Filter
-        </div>
-
-        <div class="sync-filter-info">
-          Wähle welche E-Mail-Kategorien beim Sync übersprungen werden sollen.
-          Dies reduziert die Anzahl der zu ladenden E-Mails erheblich.
-        </div>
-
-        <div class="setting-card">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar orange">📢</div>
-            <div class="setting-card-info">
-              <h4>Werbung ausschließen</h4>
-              <p>Gmail "Promotions" Kategorie überspringen</p>
+      <div class="dashboard-content">
+        <!-- Heute Stats -->
+        <div class="dashboard-section">
+          <div class="dashboard-section-title">Heute</div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-number" id="statReceived">0</div>
+              <div class="stat-label">Empfangen</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="statReplied">0</div>
+              <div class="stat-label">Beantwortet</div>
             </div>
           </div>
-          <div class="setting-toggle active" id="excludePromotionsToggle"></div>
         </div>
 
-        <div class="setting-card">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar blue">👥</div>
-            <div class="setting-card-info">
-              <h4>Soziales ausschließen</h4>
-              <p>Gmail "Social" Kategorie überspringen</p>
-            </div>
+        <!-- KI-Analyse Progress -->
+        <div class="analysis-progress" id="analysisProgress">
+          <div class="progress-header">
+            <span class="progress-title">🤖 Analysiere...</span>
+            <span class="progress-count" id="analysisCount">0/0</span>
           </div>
-          <div class="setting-toggle active" id="excludeSocialToggle"></div>
-        </div>
-
-        <div class="setting-card">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar purple">💬</div>
-            <div class="setting-card-info">
-              <h4>Foren ausschließen</h4>
-              <p>Gmail "Forums" Kategorie überspringen</p>
-            </div>
-          </div>
-          <div class="setting-toggle active" id="excludeForumsToggle"></div>
-        </div>
-
-        <div class="setting-card">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar teal">🔔</div>
-            <div class="setting-card-info">
-              <h4>Updates ausschließen</h4>
-              <p>Gmail "Updates" Kategorie überspringen</p>
-            </div>
-          </div>
-          <div class="setting-toggle" id="excludeUpdatesToggle"></div>
-        </div>
-      </div>
-
-      <!-- KI-Einstellungen -->
-      <div class="settings-section">
-        <div class="settings-section-title">
-          🤖 KI-Einstellungen
-        </div>
-
-        <div class="setting-card">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar ai">AI</div>
-            <div class="setting-card-info">
-              <h4>Auto-Klassifizierung</h4>
-              <p>E-Mails automatisch sortieren</p>
-            </div>
-          </div>
-          <div class="setting-toggle active" id="autoClassifyToggle"></div>
-        </div>
-
-        <div class="setting-card">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar blue">📧</div>
-            <div class="setting-card-info">
-              <h4>E-Mail Limit</h4>
-              <p>Anzahl E-Mails beim Laden</p>
-            </div>
-          </div>
-          <select id="emailLimitSelect" class="setting-select">
-            <option value="50" selected>50 E-Mails</option>
-            <option value="100">100 E-Mails</option>
-            <option value="250">250 E-Mails</option>
-            <option value="500">500 E-Mails</option>
-            <option value="1000">1000 E-Mails</option>
-            <option value="0">Alle E-Mails</option>
-          </select>
-        </div>
-
-        <div class="setting-card">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar teal">🧠</div>
-            <div class="setting-card-info">
-              <h4>KI-Erklärungen anzeigen</h4>
-              <p>Zeigt bei wichtigen E-Mails warum die KI sie als wichtig eingestuft hat</p>
-            </div>
-          </div>
-          <div class="setting-toggle active" id="showKIGedankenToggle"></div>
-        </div>
-
-        <div class="setting-card">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar purple">💬</div>
-            <div class="setting-card-info">
-              <h4>Auto-Antworten</h4>
-              <p>Einfache Anfragen automatisch beantworten</p>
-            </div>
-          </div>
-          <div class="setting-toggle" id="autoReplySettingToggle"></div>
-        </div>
-      </div>
-
-      <!-- KI-Regeln Verwaltung -->
-      <div class="settings-section">
-        <div class="settings-section-title">
-          📚 KI-Regeln
-        </div>
-
-        <div class="ki-regeln-info">
-          Die KI lernt aus deinem Feedback und erstellt Regeln für zukünftige E-Mails.
-        </div>
-
-        <!-- Regeln-Liste -->
-        <div class="ki-regeln-liste" id="kiRegelnListe">
-          <!-- Regeln werden dynamisch geladen -->
-          <div class="ki-regeln-empty">Noch keine Regeln gelernt.</div>
-        </div>
-
-        <!-- Buttons -->
-        <div class="ki-regeln-actions">
-          <button class="btn-secondary" id="addRegelBtn">
-            ➕ Neue Regel
-          </button>
-          <button class="btn-danger-outline" id="deleteAllRegelnBtn">
-            🗑️ Alle löschen
-          </button>
-        </div>
-      </div>
-
-      <!-- Darstellung -->
-      <div class="settings-section">
-        <div class="settings-section-title">
-          🎨 Darstellung
-        </div>
-
-        <div class="setting-card">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar theme" id="themeIcon">🌙</div>
-            <div class="setting-card-info">
-              <h4>Design-Modus</h4>
-              <p id="themeDescription">Aktuell: Dunkler Modus</p>
-            </div>
-          </div>
-          <div class="theme-switcher">
-            <button class="theme-btn active" id="themeDarkBtn" title="Dunkler Modus">🌙</button>
-            <button class="theme-btn" id="themeLightBtn" title="Heller Modus">☀️</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Danger Zone -->
-      <div class="settings-section danger-zone">
-        <h3>⚠️ Gefahrenzone</h3>
-        <div class="setting-card danger">
-          <div class="setting-card-header">
-            <div class="setting-card-avatar red">🗑️</div>
-            <div class="setting-card-info">
-              <h4>Alle Daten löschen</h4>
-              <p>Alle Konten, Klassifizierungen und Lerndaten zurücksetzen</p>
-            </div>
-          </div>
-          <button class="btn-danger" id="clearAllDataBtn">Alles löschen</button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Add Account Modal -->
-  <div class="modal-overlay hidden" id="addAccountModal">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>📧 Konto hinzufügen</h2>
-        <button class="modal-close" id="closeAddAccountBtn">✕</button>
-      </div>
-      <div class="modal-body">
-
-        <!-- Account Options -->
-        <div class="account-options" id="accountOptions">
-          <button class="account-option-btn" data-provider="gmail">
-            <div class="option-avatar gmail">G</div>
-            <div>
-              <span>Gmail (Google)</span>
-              <small>Mit Google-Konto anmelden</small>
-            </div>
-          </button>
-
-          <button class="account-option-btn" data-provider="outlook">
-            <div class="option-avatar outlook">O</div>
-            <div>
-              <span>Outlook (Microsoft)</span>
-              <small>Mit Microsoft-Konto anmelden</small>
-            </div>
-          </button>
-
-          <button class="account-option-btn" data-provider="imap">
-            <div class="option-avatar imap">@</div>
-            <div>
-              <span>IMAP/SMTP</span>
-              <small>Manuell konfigurieren</small>
-            </div>
-          </button>
-        </div>
-
-        <!-- Gmail Setup -->
-        <div class="provider-setup hidden" id="gmailSetup">
-          <button class="back-btn" id="backFromGmailBtn">← Zurück</button>
-          <div class="setup-content">
-            <div class="setup-icon gmail">G</div>
-            <h3>Gmail verbinden</h3>
-            <p>Klicke auf den Button um dich mit deinem Google-Konto anzumelden.</p>
-            <button class="btn-primary large" id="connectGmailBtn">Mit Google anmelden</button>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="analysisProgressBar" style="width: 0%"></div>
           </div>
         </div>
 
-        <!-- Outlook Setup -->
-        <div class="provider-setup hidden" id="outlookSetup">
-          <button class="back-btn" id="backFromOutlookBtn">← Zurück</button>
-          <div class="setup-content">
-            <div class="setup-icon outlook">O</div>
-            <h3>Outlook verbinden</h3>
-            <p>Klicke auf den Button um dich mit deinem Microsoft-Konto anzumelden.</p>
-            <button class="btn-primary large" id="connectOutlookBtn">Mit Microsoft anmelden</button>
-          </div>
-        </div>
-
-        <!-- IMAP Setup -->
-        <div class="provider-setup hidden" id="imapSetup">
-          <button class="back-btn" id="backFromImapBtn">← Zurück</button>
-          <div class="imap-form">
-            <div class="form-group">
-              <label>E-Mail Anbieter</label>
-              <select id="imapProvider">
-                <option value="">Anbieter wählen...</option>
-                <option value="1und1">1&1 / IONOS</option>
-                <option value="gmx">GMX</option>
-                <option value="webde">Web.de</option>
-                <option value="tonline">T-Online</option>
-                <option value="yahoo">Yahoo</option>
-                <option value="custom">Andere (manuell)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>E-Mail Adresse</label>
-              <input type="email" id="imapEmail" placeholder="deine@email.de">
-            </div>
-
-            <div class="form-group">
-              <label>Passwort</label>
-              <input type="password" id="imapPassword" placeholder="••••••••">
-            </div>
-
-            <div id="imapCustomFields" class="hidden">
-              <div class="form-row">
-                <div class="form-group">
-                  <label>IMAP Server</label>
-                  <input type="text" id="imapServer" placeholder="imap.example.com">
-                </div>
-                <div class="form-group small">
-                  <label>Port</label>
-                  <input type="number" id="imapPort" value="993">
-                </div>
+        <!-- Kategorien -->
+        <div class="dashboard-section">
+          <div class="dashboard-section-title">Kategorien</div>
+          <div class="category-list" id="categoryList">
+            <div class="category-item" data-category="all">
+              <div class="category-left">
+                <span class="category-icon">📥</span>
+                <span class="category-name">Alle E-Mails</span>
               </div>
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="imapTls" checked>
-                  SSL/TLS verwenden
-                </label>
+              <span class="category-count" id="countAll">0</span>
+            </div>
+            <div class="category-item" data-category="important">
+              <div class="category-left">
+                <span class="category-icon">🔴</span>
+                <span class="category-name">Wichtig</span>
+              </div>
+              <span class="category-count urgent" id="countImportant">0</span>
+            </div>
+            <div class="category-item" data-category="action">
+              <div class="category-left">
+                <span class="category-icon">⚡</span>
+                <span class="category-name">Aktion nötig</span>
+              </div>
+              <span class="category-count action" id="countAction">0</span>
+            </div>
+            <div class="category-item" data-category="normal">
+              <div class="category-left">
+                <span class="category-icon">✉️</span>
+                <span class="category-name">Normal</span>
+              </div>
+              <span class="category-count" id="countNormal">0</span>
+            </div>
+            <div class="category-item" data-category="newsletter">
+              <div class="category-left">
+                <span class="category-icon">📰</span>
+                <span class="category-name">Newsletter</span>
+              </div>
+              <span class="category-count" id="countNewsletter">0</span>
+            </div>
+            <div class="category-item" data-category="spam">
+              <div class="category-left">
+                <span class="category-icon">🗑️</span>
+                <span class="category-name">Spam / Werbung</span>
+              </div>
+              <span class="category-count" id="countSpam">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Auto-Antwort Status -->
+        <div class="dashboard-section">
+          <div class="dashboard-section-title">Auto-Antworten</div>
+          <div class="auto-reply-status">
+            <div class="auto-reply-info">
+              <span class="auto-reply-icon">🤖</span>
+              <div>
+                <div class="auto-reply-text">Auto-Antworten</div>
+                <div class="auto-reply-count" id="autoReplyCount">0 heute gesendet</div>
               </div>
             </div>
-
-            <div class="form-actions">
-              <button class="btn-secondary" id="testImapBtn">Verbindung testen</button>
-              <button class="btn-primary" id="connectImapBtn">Verbinden</button>
-            </div>
+            <div class="toggle-switch" id="autoReplyToggle"></div>
           </div>
         </div>
 
-        <!-- Loading State -->
-        <div class="account-loading hidden" id="accountLoadingState">
-          <div class="spinner"></div>
-          <span>Verbinde...</span>
+        <!-- Schnellaktionen -->
+        <div class="dashboard-section">
+          <div class="dashboard-section-title">Schnellaktionen</div>
+          <div class="quick-actions">
+            <button class="quick-action-btn primary" id="analyzeAllBtn">
+              <span>🤖</span> KI-Analyse starten
+            </button>
+            <button class="quick-action-btn" id="quickBriefingBtn">
+              <span>📊</span> Tages-Briefing
+            </button>
+            <button class="quick-action-btn" id="quickArchiveNewsletterBtn">
+              <span>📰</span> Newsletter archivieren
+            </button>
+            <button class="quick-action-btn" id="quickDeleteSpamBtn">
+              <span>🗑️</span> Spam leeren
+            </button>
+          </div>
         </div>
-
-      </div>
-    </div>
-  </div>
-
-  <!-- Analysis Modal -->
-  <div class="modal-overlay hidden" id="analysisModal">
-    <div class="modal analysis-modal">
-      <div class="modal-header">
-        <div class="modal-icon">🤖</div>
-        <div>
-          <div class="modal-title">KI-Analyse läuft...</div>
-          <div class="modal-subtitle" id="analysisSubtitle">E-Mails werden analysiert</div>
-        </div>
-      </div>
-
-      <div class="analysis-progress">
-        <div class="progress-bar">
-          <div class="progress-fill" id="analysisProgressFill"></div>
-        </div>
-        <div class="progress-text" id="analysisProgressText">Analysiere Absender, Inhalt und Priorität...</div>
-      </div>
-
-      <div class="analysis-results" id="analysisResults">
-        <div class="analysis-result-item">
-          <div class="analysis-result-icon">🗑️</div>
-          <div class="analysis-result-number papierkorb" id="resultPapierkorb">0</div>
-          <div class="analysis-result-label">Spam erkannt</div>
-        </div>
-        <div class="analysis-result-item">
-          <div class="analysis-result-icon">🔴</div>
-          <div class="analysis-result-number important" id="resultImportant">0</div>
-          <div class="analysis-result-label">Wichtig</div>
-        </div>
-        <div class="analysis-result-item">
-          <div class="analysis-result-icon">⚡</div>
-          <div class="analysis-result-number action" id="resultAction">0</div>
-          <div class="analysis-result-label">Aktion nötig</div>
-        </div>
-        <div class="analysis-result-item">
-          <div class="analysis-result-icon">🤖</div>
-          <div class="analysis-result-number auto" id="resultAuto">0</div>
-          <div class="analysis-result-label">Auto-Antwort möglich</div>
-        </div>
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn-primary" id="closeAnalysisModalBtn">Fertig</button>
       </div>
     </div>
   </div>
 
   <!-- Briefing Modal -->
   <div class="modal-overlay hidden" id="briefingModal">
-    <div class="modal briefing-modal">
+    <div class="modal" style="max-width: 600px;">
       <div class="modal-header">
-        <div class="modal-icon">📊</div>
-        <div>
-          <div class="modal-title">Tagesbriefing</div>
-          <div class="modal-subtitle">Dein E-Mail Überblick für heute</div>
-        </div>
-        <button class="modal-close" id="closeBriefingBtn">✕</button>
+        <h2>📊 Tages-Briefing</h2>
+        <button class="modal-close" id="closeBriefingBtn">&times;</button>
       </div>
       <div class="modal-body" id="briefingContent">
-        <!-- Briefing content will be rendered dynamically -->
+        <div class="loading-state"><div class="spinner"></div><span>Erstelle Briefing...</span></div>
       </div>
     </div>
   </div>
 
-  <!-- Compose Email Modal -->
+  <!-- Compose Modal -->
   <div class="modal-overlay hidden" id="composeModal">
     <div class="modal compose-modal">
       <div class="modal-header">
-        <div class="modal-icon">✉️</div>
-        <div>
-          <div class="modal-title">Neue E-Mail</div>
-          <div class="modal-subtitle">Verfasse eine neue Nachricht</div>
-        </div>
-        <button class="modal-close" id="closeComposeBtn">✕</button>
+        <h2>✏️ Neue E-Mail</h2>
+        <button class="modal-close" id="closeComposeBtn">&times;</button>
       </div>
-      <div class="modal-body compose-body">
-        <div class="compose-field">
-          <label>An:</label>
-          <input type="email" id="composeTo" placeholder="empfaenger@beispiel.de" />
-        </div>
-        <div class="compose-field">
-          <label>CC:</label>
-          <input type="email" id="composeCc" placeholder="Optional" />
-        </div>
-        <div class="compose-field">
-          <label>Betreff:</label>
-          <input type="text" id="composeSubject" placeholder="Betreff der E-Mail" />
-        </div>
-        <div class="compose-field compose-body-field">
-          <label>Nachricht:</label>
-          <textarea id="composeBody" placeholder="Deine Nachricht..."></textarea>
-        </div>
-        <div class="compose-ai-section">
-          <div class="compose-ai-header">
-            <span>🤖 KI-Assistent</span>
+      <div class="modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="compose-form">
+          <!-- Absender -->
+          <div class="compose-row">
+            <span class="compose-label">Von:</span>
+            <select class="compose-select" id="composeFrom">
+              <!-- Wird dynamisch gefüllt -->
+            </select>
           </div>
-          <div class="compose-ai-input">
-            <input type="text" id="composeAiPrompt" placeholder="Beschreibe was du schreiben möchtest..." />
-            <button class="btn-secondary" id="composeAiBtn">Generieren</button>
+
+          <!-- Empfänger -->
+          <div class="compose-row">
+            <span class="compose-label">An:</span>
+            <input type="email" class="compose-input" id="composeTo" placeholder="empfaenger@example.com">
+          </div>
+
+          <!-- CC (optional, eingeklappt) -->
+          <div class="compose-row" id="composeCcRow" style="display: none;">
+            <span class="compose-label">CC:</span>
+            <input type="email" class="compose-input" id="composeCc" placeholder="cc@example.com">
+          </div>
+
+          <!-- Betreff -->
+          <div class="compose-row">
+            <span class="compose-label">Betreff:</span>
+            <input type="text" class="compose-input" id="composeSubject" placeholder="Betreff eingeben...">
+          </div>
+
+          <!-- Body -->
+          <div class="compose-body-container">
+            <textarea class="compose-body" id="composeBody" placeholder="Nachricht schreiben..."></textarea>
+
+            <!-- KI-Hilfe Leiste -->
+            <div class="compose-ai-bar">
+              <input type="text" class="ai-prompt-input" id="aiPromptInput" placeholder="z.B. 'Schreibe eine freundliche Anfrage...'">
+              <button class="ai-btn" id="aiComposeBtn">✨ KI schreiben</button>
+              <button class="ai-btn" id="aiImproveBtn" style="background: linear-gradient(135deg, #14b8a6, #0d9488);">🔧 Verbessern</button>
+            </div>
+          </div>
+
+          <!-- Anhänge -->
+          <div class="compose-attachments" id="composeAttachments">
+            <div class="compose-attachments-list" id="composeAttachmentsList"></div>
           </div>
         </div>
-        <div class="compose-attachments" id="composeAttachments">
-          <!-- Attachments will be added here -->
-        </div>
-      </div>
-      <div class="modal-actions compose-actions">
-        <button class="btn-secondary" id="composeAttachBtn">📎 Anhang</button>
-        <div class="compose-actions-right">
-          <button class="btn-secondary" id="composeDiscardBtn">Verwerfen</button>
-          <button class="btn-primary" id="composeSendBtn">📤 Senden</button>
+
+        <!-- Footer -->
+        <div class="compose-footer">
+          <div class="compose-footer-left">
+            <button class="btn btn-secondary" id="showCcBtn">+ CC</button>
+            <button class="btn btn-secondary" id="addAttachmentBtn">📎 Anhang</button>
+          </div>
+          <div class="compose-footer-right">
+            <button class="btn btn-secondary" id="cancelComposeBtn">Abbrechen</button>
+            <button class="btn btn-primary" id="sendComposeBtn">📤 Senden</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Debug Modal - GPT Gedanken -->
-  <div class="modal-overlay hidden" id="debugModal">
-    <div class="modal debug-modal">
+  <!-- Add Account Modal -->
+  <div class="modal-overlay" id="addAccountModal">
+    <div class="modal">
       <div class="modal-header">
-        <div class="modal-icon">🧠</div>
-        <div>
-          <div class="modal-title">KI-Klassifizierung</div>
-          <div class="modal-subtitle" id="debugModalSubtitle">Warum wurde diese E-Mail so sortiert?</div>
-        </div>
-        <button class="modal-close" id="closeDebugBtn">✕</button>
-      </div>
-      <div class="modal-body debug-body">
-        <!-- Debug Log Container -->
-        <div class="debug-log" id="debugLog">
-          <!-- Debug entries will be added here -->
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn-secondary" id="clearDebugBtn">Log leeren</button>
-        <button class="btn-primary" id="closeDebugModalBtn">Schließen</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Debug Toggle Button (fixed position) -->
-  <button class="debug-toggle-btn" id="debugToggleBtn" title="KI-Debug anzeigen">
-    🧠
-  </button>
-
-  <!-- Regel bearbeiten/hinzufügen Modal -->
-  <div class="modal-overlay hidden" id="regelModal">
-    <div class="modal modal-small">
-      <div class="modal-header">
-        <h2 id="regelModalTitle">➕ Neue Regel</h2>
-        <button class="modal-close" id="closeRegelModalBtn">✕</button>
+        <h2>E-Mail-Konto hinzufügen</h2>
+        <button class="modal-close" id="closeModalBtn">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>Wenn... (Bedingung):</label>
-          <textarea
-            id="regelTextInput"
-            class="regel-textarea"
-            placeholder="z.B. E-Mail enthält 'bitte anrufen' oder 'rückruf'"
-            rows="3"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label>Dann... (Kategorie):</label>
-          <select id="regelKategorieSelect" class="regel-select">
-            <option value="essenz">🔴 Essenz (IMMER wichtig)</option>
-            <option value="wichtig">🟠 Wichtig</option>
-            <option value="normal">🔵 Normal</option>
-            <option value="info">ℹ️ Info</option>
-            <option value="newsletter">📰 Newsletter</option>
-            <option value="werbung">📢 Werbung</option>
-            <option value="papierkorb">🗑️ Papierkorb</option>
+          <label>Anbieter</label>
+          <select id="providerSelect">
+            <option value="gmail">Gmail</option>
+            <option value="1und1">1&1</option>
+            <option value="gmx">GMX</option>
+            <option value="webde">Web.de</option>
+            <option value="tonline">T-Online</option>
+            <option value="outlook">Outlook / Hotmail</option>
+            <option value="yahoo">Yahoo</option>
+            <option value="ionos">IONOS</option>
+            <option value="custom">Benutzerdefiniert</option>
           </select>
         </div>
 
-        <div class="modal-actions">
-          <button class="btn-secondary" id="cancelRegelBtn">Abbrechen</button>
-          <button class="btn-primary" id="saveRegelBtn">💾 Speichern</button>
+        <!-- Gmail OAuth Section -->
+        <div id="gmailOAuthSection" style="display: block;">
+          <div style="text-align: center; padding: 20px 0;">
+            <p style="margin-bottom: 16px; color: #9ca3af;">Gmail erfordert eine sichere Anmeldung über Google.</p>
+            <button class="btn" id="googleConnectBtn" style="background: #4285f4; padding: 12px 24px; font-size: 15px; display: inline-flex; align-items: center; gap: 10px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Mit Google verbinden
+            </button>
+            <p id="googleStatus" style="margin-top: 12px; font-size: 13px; color: #22c55e; display: none;"></p>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- Regel löschen Bestätigung -->
-  <div class="modal-overlay hidden" id="deleteRegelModal">
-    <div class="modal modal-small">
-      <div class="modal-header">
-        <h2>⚠️ Regel löschen?</h2>
-        <button class="modal-close" id="closeDeleteRegelBtn">✕</button>
-      </div>
-      <div class="modal-body">
-        <p class="delete-regel-text" id="deleteRegelText">
-          Diese Regel wirklich löschen?
-        </p>
-        <p class="delete-regel-warning">
-          Die KI wird diese Regel nicht mehr berücksichtigen.
-        </p>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="cancelDeleteRegelBtn">Abbrechen</button>
-          <button class="btn-danger" id="confirmDeleteRegelBtn">🗑️ Löschen</button>
-        </div>
-      </div>
-    </div>
-  </div>
+        <!-- Standard IMAP Section -->
+        <div id="standardImapSection" style="display: none;">
 
-  <!-- Alle Regeln löschen Bestätigung -->
-  <div class="modal-overlay hidden" id="deleteAllRegelnModal">
-    <div class="modal modal-small">
-      <div class="modal-header">
-        <h2>⚠️ ALLE Regeln löschen?</h2>
-        <button class="modal-close" id="closeDeleteAllRegelnBtn">✕</button>
-      </div>
-      <div class="modal-body">
-        <p class="delete-regel-text">
-          Bist du sicher? <span id="regelCountText">Alle gelernten Regeln</span> werden gelöscht.
-        </p>
-        <p class="delete-regel-warning">
-          Die KI fängt komplett von vorne an.
-        </p>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="cancelDeleteAllRegelnBtn">Abbrechen</button>
-          <button class="btn-danger" id="confirmDeleteAllRegelnBtn">🗑️ Ja, alle löschen</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Import Options Modal - Vor dem Sync -->
-  <div class="modal-overlay hidden" id="importOptionsModal">
-    <div class="import-options-modal">
-      <!-- Provider Icon -->
-      <div class="provider-icon-large gmail" id="optionsProviderIcon">G</div>
-
-      <div class="import-options-title">Import-Einstellungen</div>
-      <div class="import-options-subtitle" id="optionsAccountName">example@gmail.com</div>
-
-      <!-- Gesamtanzahl -->
-      <div class="import-total-count">
-        <div class="import-total-label">Gesamt im Postfach:</div>
-        <div class="import-total-value" id="optionsTotalCount">
-          <span class="loading-dots">Wird geladen...</span>
-        </div>
-      </div>
-
-      <!-- Kategorien Filter -->
-      <div class="import-section">
-        <div class="import-section-title">Kategorien ausschließen</div>
-        <div class="import-section-hint">Diese E-Mails werden nicht importiert</div>
-
-        <div class="import-checkboxes">
-          <label class="import-checkbox">
-            <input type="checkbox" id="optionExcludePromotions" checked>
-            <span class="checkbox-mark"></span>
-            <span class="checkbox-label">Werbung</span>
-            <span class="checkbox-count" id="countPromotions">--</span>
-          </label>
-
-          <label class="import-checkbox">
-            <input type="checkbox" id="optionExcludeSocial" checked>
-            <span class="checkbox-mark"></span>
-            <span class="checkbox-label">Soziales</span>
-            <span class="checkbox-count" id="countSocial">--</span>
-          </label>
-
-          <label class="import-checkbox">
-            <input type="checkbox" id="optionExcludeForums" checked>
-            <span class="checkbox-mark"></span>
-            <span class="checkbox-label">Foren</span>
-            <span class="checkbox-count" id="countForums">--</span>
-          </label>
-
-          <label class="import-checkbox">
-            <input type="checkbox" id="optionExcludeUpdates">
-            <span class="checkbox-mark"></span>
-            <span class="checkbox-label">Updates</span>
-            <span class="checkbox-count" id="countUpdates">--</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- E-Mail Anzahl -->
-      <div class="import-section">
-        <div class="import-section-title">Anzahl E-Mails</div>
-
-        <div class="import-limit-options">
-          <label class="import-radio">
-            <input type="radio" name="emailLimit" value="0" checked>
-            <span class="radio-mark"></span>
-            <span class="radio-label">Alle E-Mails</span>
-          </label>
-
-          <label class="import-radio">
-            <input type="radio" name="emailLimit" value="500">
-            <span class="radio-mark"></span>
-            <span class="radio-label">Letzte 500</span>
-          </label>
-
-          <label class="import-radio">
-            <input type="radio" name="emailLimit" value="1000">
-            <span class="radio-mark"></span>
-            <span class="radio-label">Letzte 1.000</span>
-          </label>
-
-          <label class="import-radio">
-            <input type="radio" name="emailLimit" value="2000">
-            <span class="radio-mark"></span>
-            <span class="radio-label">Letzte 2.000</span>
-          </label>
-
-          <label class="import-radio">
-            <input type="radio" name="emailLimit" value="5000">
-            <span class="radio-mark"></span>
-            <span class="radio-label">Letzte 5.000</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Info -->
-      <div class="import-info">
-        <span class="import-info-icon">💡</span>
-        <span>Der Import kann jederzeit pausiert und später fortgesetzt werden.</span>
-      </div>
-
-      <!-- Buttons -->
-      <div class="import-options-buttons">
-        <button class="import-btn secondary" id="cancelImportOptionsBtn">Abbrechen</button>
-        <button class="import-btn primary" id="startImportBtn">
-          <span>▶️</span> Import starten
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Sync Modal - Initial E-Mail Synchronisation (Neues Design) -->
-  <div class="modal-overlay" id="syncModal" style="display: none;">
-    <div class="loading-modal">
-      <!-- Provider Icon -->
-      <div class="provider-icon-large gmail" id="syncProviderIcon">G</div>
-
-      <div class="loading-title" id="syncTitle">Gmail wird verbunden...</div>
-      <div class="loading-subtitle" id="syncAccountName">E-Mail wird geladen...</div>
-
-      <!-- Progress Bar -->
-      <div class="progress-container">
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" id="syncProgressFill"></div>
-        </div>
-      </div>
-
-      <!-- Status Steps -->
-      <div class="status-steps">
-        <div class="status-step completed" id="syncStep1">
-          <div class="status-icon">✓</div>
-          <span>Mit Server verbunden</span>
-        </div>
-        <div class="status-step active" id="syncStep2">
-          <div class="status-icon"><div class="spinner"></div></div>
-          <span id="syncStep2Text">E-Mails werden geladen...</span>
-        </div>
-        <div class="status-step" id="syncStep3">
-          <div class="status-icon">3</div>
-          <span>Konversationen analysieren</span>
-        </div>
-        <div class="status-step" id="syncStep4">
-          <div class="status-icon">4</div>
-          <span>Fertigstellen</span>
-        </div>
-      </div>
-
-      <!-- Stats -->
-      <div class="sync-stats-row">
-        <div class="sync-stat-item">
-          <span class="sync-stat-value" id="syncLoadedCount">0</span>
-          <span class="sync-stat-label">geladen</span>
-        </div>
-        <div class="sync-stat-divider">/</div>
-        <div class="sync-stat-item">
-          <span class="sync-stat-value" id="syncTotalCount">?</span>
-          <span class="sync-stat-label">gesamt</span>
-        </div>
-      </div>
-
-      <!-- Time Estimate -->
-      <div class="time-estimate">
-        <span class="time-estimate-icon">⏱️</span>
-        <span id="syncTimeText">Berechne...</span>
-      </div>
-
-      <button class="cancel-btn" id="syncCancelBtn">Abbrechen</button>
-    </div>
-  </div>
-
-  <!-- Cancel Confirmation Modal -->
-  <div class="modal-overlay hidden" id="cancelConfirmModal">
-    <div class="confirm-modal">
-      <div class="confirm-icon warning">⚠️</div>
-      <div class="confirm-title">Import abbrechen?</div>
-      <div class="confirm-text">
-        Der Import-Fortschritt wird gespeichert. Du kannst später an dieser Stelle fortfahren.
-      </div>
-
-      <div class="confirm-status">
-        <div class="confirm-status-label">Aktueller Fortschritt:</div>
-        <div class="confirm-status-value" id="cancelProgressText">0 von 1000 E-Mails geladen</div>
-      </div>
-
-      <div class="confirm-buttons">
-        <button class="confirm-btn secondary" id="continueImportBtn">Weiter importieren</button>
-        <button class="confirm-btn danger" id="confirmCancelBtn">Abbrechen & Speichern</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Import Cancelled Confirmation -->
-  <div class="modal-overlay hidden" id="cancelledModal">
-    <div class="cancelled-modal">
-      <div class="cancelled-icon">💾</div>
-      <div class="cancelled-title">Import pausiert</div>
-      <div class="cancelled-text">
-        Dein Fortschritt wurde gespeichert. Du kannst den Import jederzeit fortsetzen.
-      </div>
-
-      <div class="cancelled-summary">
-        <div class="cancelled-summary-item">
-          <span class="cancelled-summary-icon">📧</span>
-          <span id="cancelledAccountText">Gmail: ...</span>
-        </div>
-        <div class="cancelled-summary-item">
-          <span class="cancelled-summary-icon">📊</span>
-          <span id="cancelledProgressText">0 E-Mails geladen</span>
-        </div>
-        <div class="cancelled-summary-item">
-          <span class="cancelled-summary-icon">📅</span>
-          <span>Gespeichert: Jetzt</span>
-        </div>
-      </div>
-
-      <button class="cancelled-btn" id="closeCancelledBtn">Verstanden</button>
-    </div>
-  </div>
-
-  <!-- Resume Import Modal (Neues Design) -->
-  <div class="modal-overlay hidden" id="resumeImportModal">
-    <div class="resume-modal">
-      <div class="resume-icon">
-        <div class="resume-icon-provider gmail" id="resumeProviderIcon">G</div>
-        <div class="resume-icon-badge">⏸️</div>
-      </div>
-
-      <div class="resume-title">Vorherigen Import fortsetzen?</div>
-      <div class="resume-subtitle" id="resumeImportAccount">E-Mail Adresse</div>
-
-      <div class="resume-info-card">
-        <div class="resume-info-row">
-          <span class="resume-info-label">Abgebrochen am:</span>
-          <span class="resume-info-value" id="resumeInterruptedAt">-</span>
-        </div>
-        <div class="resume-info-row">
-          <span class="resume-info-label">Fortschritt:</span>
-          <span class="resume-info-value">
-            <div class="mini-progress">
-              <div class="mini-progress-fill" id="resumeProgressBar" style="width: 0%;"></div>
+        <div class="custom-server-fields" id="customServerFields" style="display: none;">
+          <div class="form-row">
+            <div class="form-group">
+              <label>IMAP Server</label>
+              <input type="text" id="imapHost" placeholder="imap.example.com">
             </div>
-            <span id="resumeProgressPercent">0%</span>
-          </span>
-        </div>
-      </div>
-
-      <div class="resume-cache-info">
-        <div class="resume-cache-title">📊 Bereits importiert:</div>
-        <div class="resume-cache-stats">
-          <div class="resume-cache-stat">
-            <span class="resume-cache-value" id="resumeImportedCount">0</span>
-            <span class="resume-cache-label">E-Mails geladen</span>
-          </div>
-          <div class="resume-cache-stat">
-            <span class="resume-cache-value" id="resumeTotalCount">0</span>
-            <span class="resume-cache-label">geplant</span>
+            <div class="form-group" style="max-width: 100px;">
+              <label>Port</label>
+              <input type="number" id="imapPort" value="993">
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="resume-buttons">
-        <button class="resume-btn secondary" id="restartImportBtn">
-          <span>🔄</span> Neu starten
-        </button>
-        <button class="resume-btn primary" id="resumeImportBtn">
-          <span>▶️</span> Fortsetzen
-        </button>
-      </div>
+        <div class="form-group">
+          <label>Kontoname (optional)</label>
+          <input type="text" id="accountName" placeholder="z.B. Privat, Arbeit...">
+        </div>
 
-      <div class="resume-hint">
-        💡 Bei "Fortsetzen" werden nur die fehlenden E-Mails geladen.
-      </div>
+        <div class="form-group">
+          <label>E-Mail-Adresse</label>
+          <input type="email" id="emailAddress" placeholder="deine@email.de">
+        </div>
 
-      <button class="resume-discard-btn" id="discardImportBtn">Verwerfen und schließen</button>
+        <div class="form-group">
+          <label>Passwort</label>
+          <input type="password" id="emailPassword" placeholder="••••••••">
+          <p class="form-hint">Bei manchen Anbietern musst du IMAP aktivieren oder ein App-Passwort erstellen.</p>
+        </div>
+
+        </div><!-- End standardImapSection -->
+      </div>
+      <div class="modal-footer" id="imapModalFooter">
+        <button class="btn btn-secondary" id="testConnectionBtn">Testen</button>
+        <button class="btn btn-primary" id="addAccountSubmit">Hinzufügen</button>
+      </div>
     </div>
   </div>
 
-  <!-- Toast Notification -->
+  <!-- Context Menu -->
+  <div class="context-menu" id="contextMenu">
+    <div class="context-menu-item" data-action="rename">✏️ Umbenennen</div>
+    <div class="context-menu-item" data-action="color">🎨 Farbe ändern</div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item danger" data-action="remove">🗑️ Konto entfernen</div>
+  </div>
+
+  <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <script src="scripts/email-app.js"></script>
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // State
+    let accounts = [];
+    let currentAccountId = null;
+    let currentFolder = 'INBOX';
+    let emails = [];
+    let currentEmail = null;
+    let expandedAccounts = new Set();
+    let accountFolders = {}; // accountId -> { inbox, sent, drafts, trash }
+    let currentReplyType = 'professional';
+    let isGeneratingReply = false;
+    let composeAttachments = []; // {filename, content (base64), contentType, size}
+
+    // Elements
+    const accountList = document.getElementById('accountList');
+    const emailList = document.getElementById('emailList');
+    const emailDetail = document.getElementById('emailDetail');
+    const noAccountsMsg = document.getElementById('noAccountsMsg');
+    const currentFolderInfo = document.getElementById('currentFolderInfo');
+
+    // IMAP Presets
+    const PRESETS = {
+      '1und1': { host: 'imap.1und1.de', port: 993 },
+      'gmx': { host: 'imap.gmx.net', port: 993 },
+      'webde': { host: 'imap.web.de', port: 993 },
+      'tonline': { host: 'secureimap.t-online.de', port: 993 },
+      'outlook': { host: 'outlook.office365.com', port: 993 },
+      'yahoo': { host: 'imap.mail.yahoo.com', port: 993 },
+      'ionos': { host: 'imap.ionos.de', port: 993 }
+    };
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadAccounts();
+      setupEventListeners();
+    });
+
+    function setupEventListeners() {
+      // Add account button
+      document.getElementById('addAccountBtn').addEventListener('click', openAddAccountModal);
+      document.getElementById('closeModalBtn').addEventListener('click', closeAddAccountModal);
+      document.getElementById('addAccountModal').addEventListener('click', (e) => {
+        if (e.target.id === 'addAccountModal') closeAddAccountModal();
+      });
+
+      // Provider change - show/hide OAuth vs IMAP sections
+      document.getElementById('providerSelect').addEventListener('change', (e) => {
+        const provider = e.target.value;
+        const gmailSection = document.getElementById('gmailOAuthSection');
+        const imapSection = document.getElementById('standardImapSection');
+        const modalFooter = document.getElementById('imapModalFooter');
+        const customFields = document.getElementById('customServerFields');
+
+        if (provider === 'gmail') {
+          gmailSection.style.display = 'block';
+          imapSection.style.display = 'none';
+          modalFooter.style.display = 'none';
+          checkGoogleStatus();
+        } else {
+          gmailSection.style.display = 'none';
+          imapSection.style.display = 'block';
+          modalFooter.style.display = 'flex';
+          customFields.style.display = provider === 'custom' ? 'block' : 'none';
+        }
+      });
+
+      // Google connect button
+      document.getElementById('googleConnectBtn').addEventListener('click', connectGoogle);
+
+      // Test connection
+      document.getElementById('testConnectionBtn').addEventListener('click', testConnection);
+
+      // Add account
+      document.getElementById('addAccountSubmit').addEventListener('click', addAccount);
+
+      // Refresh
+      document.getElementById('refreshBtn').addEventListener('click', () => {
+        if (currentAccountId) loadEmails(currentAccountId, currentFolder);
+      });
+
+      // Context menu
+      document.addEventListener('click', () => {
+        document.getElementById('contextMenu').classList.remove('visible');
+      });
+
+      document.querySelectorAll('.context-menu-item').forEach(item => {
+        item.addEventListener('click', handleContextMenuAction);
+      });
+
+      // Briefing button
+      document.getElementById('briefingBtn').addEventListener('click', showBriefing);
+      document.getElementById('closeBriefingBtn').addEventListener('click', () => {
+        document.getElementById('briefingModal').classList.add('hidden');
+      });
+
+      // Analysis button
+      document.getElementById('analyzeBtn').addEventListener('click', analyzeCurrentEmail);
+      document.getElementById('closeAnalysisBtn').addEventListener('click', () => {
+        document.getElementById('analysisPanel').classList.add('hidden');
+      });
+
+      // Reply button
+      document.getElementById('replyBtn').addEventListener('click', openReplyPanel);
+      document.getElementById('closeReplyBtn').addEventListener('click', closeReplyPanel);
+      document.getElementById('generateReplyBtn').addEventListener('click', generateKiReply);
+      document.getElementById('sendReplyBtn').addEventListener('click', sendReply);
+
+      // Reply type buttons
+      document.querySelectorAll('.reply-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.reply-type-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentReplyType = btn.dataset.type;
+        });
+      });
+
+      // Star and Delete buttons
+      document.getElementById('starBtn').addEventListener('click', toggleStar);
+      document.getElementById('deleteBtn').addEventListener('click', deleteEmail);
+
+      // Compose button
+      document.getElementById('composeBtn').addEventListener('click', openComposeModal);
+      document.getElementById('closeComposeBtn').addEventListener('click', closeComposeModal);
+      document.getElementById('cancelComposeBtn').addEventListener('click', closeComposeModal);
+      document.getElementById('sendComposeBtn').addEventListener('click', sendComposedEmail);
+      document.getElementById('showCcBtn').addEventListener('click', toggleCcField);
+      document.getElementById('addAttachmentBtn').addEventListener('click', addComposeAttachment);
+      document.getElementById('aiComposeBtn').addEventListener('click', aiComposeEmail);
+      document.getElementById('aiImproveBtn').addEventListener('click', aiImproveEmail);
+
+      // Dashboard event listeners
+      document.getElementById('analyzeAllBtn').addEventListener('click', analyzeAllEmails);
+      document.getElementById('quickBriefingBtn').addEventListener('click', showBriefing);
+      document.getElementById('quickArchiveNewsletterBtn').addEventListener('click', archiveNewsletters);
+      document.getElementById('quickDeleteSpamBtn').addEventListener('click', deleteAllSpam);
+      document.getElementById('autoReplyToggle').addEventListener('click', toggleAutoReply);
+
+      // Category filter clicks
+      document.querySelectorAll('.category-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const category = item.dataset.category;
+          filterByCategory(category);
+          document.querySelectorAll('.category-item').forEach(i => i.classList.remove('active'));
+          item.classList.add('active');
+        });
+      });
+    }
+
+    // Load accounts
+    async function loadAccounts() {
+      try {
+        const result = await ipcRenderer.invoke('imap:getAccounts');
+        if (result.success) {
+          accounts = result.accounts || [];
+        } else {
+          accounts = [];
+          console.error('Error loading accounts:', result.error);
+        }
+        renderAccountList();
+
+        if (accounts.length > 0 && !currentAccountId) {
+          selectAccount(accounts[0].id);
+        }
+      } catch (err) {
+        console.error('Error loading accounts:', err);
+        accounts = [];
+        renderAccountList();
+      }
+    }
+
+    // Render account list
+    function renderAccountList() {
+      noAccountsMsg.style.display = accounts.length === 0 ? 'block' : 'none';
+
+      const accountsHtml = accounts.map(account => {
+        const initials = account.name.substring(0, 2).toUpperCase();
+        const isExpanded = expandedAccounts.has(account.id);
+        const isActive = currentAccountId === account.id;
+
+        // Get actual folder paths for this account
+        const folders = accountFolders[account.id] || {};
+        const inboxPath = folders.inbox || 'INBOX';
+        const sentPath = folders.sent;
+        const draftsPath = folders.drafts;
+        const trashPath = folders.trash;
+
+        return `
+          <div class="account-item" data-id="${account.id}">
+            <div class="account-header ${isActive ? 'active' : ''}"
+                 onclick="selectAccount('${account.id}')"
+                 oncontextmenu="showContextMenu(event, '${account.id}')">
+              <div class="account-icon" style="background: ${account.color}">${initials}</div>
+              <div class="account-info">
+                <div class="account-name">${escapeHtml(account.name)}</div>
+                <div class="account-email">${escapeHtml(account.email)}</div>
+              </div>
+            </div>
+            <div class="folder-list ${isExpanded ? 'expanded' : ''}" id="folders-${account.id}">
+              <div class="folder-item ${currentFolder === inboxPath && isActive ? 'active' : ''}"
+                   onclick="selectFolder('${account.id}', '${inboxPath}')">
+                <span class="folder-icon">📥</span>
+                <span class="folder-name">Posteingang</span>
+              </div>
+              ${sentPath ? `
+              <div class="folder-item ${currentFolder === sentPath && isActive ? 'active' : ''}"
+                   onclick="selectFolder('${account.id}', '${sentPath}')">
+                <span class="folder-icon">📤</span>
+                <span class="folder-name">Gesendet</span>
+              </div>` : ''}
+              ${draftsPath ? `
+              <div class="folder-item ${currentFolder === draftsPath && isActive ? 'active' : ''}"
+                   onclick="selectFolder('${account.id}', '${draftsPath}')">
+                <span class="folder-icon">📝</span>
+                <span class="folder-name">Entwürfe</span>
+              </div>` : ''}
+              ${trashPath ? `
+              <div class="folder-item ${currentFolder === trashPath && isActive ? 'active' : ''}"
+                   onclick="selectFolder('${account.id}', '${trashPath}')">
+                <span class="folder-icon">🗑️</span>
+                <span class="folder-name">Papierkorb</span>
+              </div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      accountList.innerHTML = accountsHtml || noAccountsMsg.outerHTML;
+    }
+
+    // Select account
+    async function selectAccount(accountId) {
+      currentAccountId = accountId;
+      currentFolder = 'INBOX';
+
+      // Toggle expansion
+      if (expandedAccounts.has(accountId)) {
+        // Keep expanded
+      } else {
+        expandedAccounts.add(accountId);
+      }
+
+      // Load standard folders for this account if not cached
+      if (!accountFolders[accountId]) {
+        try {
+          const result = await ipcRenderer.invoke('imap:getStandardFolders', accountId);
+          if (result.success) {
+            accountFolders[accountId] = result.folders;
+            console.log('Folders for', accountId, ':', result.folders);
+          }
+        } catch (err) {
+          console.error('Error loading folders:', err);
+        }
+      }
+
+      renderAccountList();
+      loadEmails(accountId, currentFolder);
+    }
+
+    // Select folder
+    function selectFolder(accountId, folder) {
+      currentAccountId = accountId;
+      currentFolder = folder;
+      renderAccountList();
+      loadEmails(accountId, folder);
+
+      // Update folder info - detect type from folder path
+      const folders = accountFolders[accountId] || {};
+      let displayName = folder;
+
+      if (folder === 'INBOX' || folder === folders.inbox) {
+        displayName = 'Posteingang';
+      } else if (folder === folders.sent) {
+        displayName = 'Gesendet';
+      } else if (folder === folders.drafts) {
+        displayName = 'Entwürfe';
+      } else if (folder === folders.trash) {
+        displayName = 'Papierkorb';
+      }
+
+      currentFolderInfo.textContent = displayName;
+    }
+
+    // Load emails
+    async function loadEmails(accountId, folder) {
+      emailList.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Lade E-Mails...</span></div>';
+
+      try {
+        const result = await ipcRenderer.invoke('imap:getAccountEmails', accountId, folder, 50);
+
+        if (result.success) {
+          emails = result.emails || [];
+          renderEmailList();
+        } else {
+          emailList.innerHTML = `<div class="empty-state"><p>${result.error || 'Fehler beim Laden'}</p></div>`;
+        }
+      } catch (err) {
+        emailList.innerHTML = `<div class="empty-state"><p>Fehler: ${err.message}</p></div>`;
+      }
+    }
+
+    // Render email list
+    function renderEmailList() {
+      if (emails.length === 0) {
+        emailList.innerHTML = '<div class="empty-state"><p>Keine E-Mails</p></div>';
+        return;
+      }
+
+      const account = accounts.find(a => a.id === currentAccountId);
+
+      emailList.innerHTML = emails.map(email => `
+        <div class="email-item ${email.isRead ? '' : 'unread'} ${currentEmail?.uid === email.uid ? 'active' : ''}"
+             data-uid="${email.uid}" onclick="selectEmail(${email.uid})">
+          <div class="email-top-row">
+            <span class="email-from">
+              <span class="email-account-dot" style="background: ${account?.color || '#666'}"></span>
+              ${escapeHtml(extractName(email.from))}
+            </span>
+            <span class="email-date">${formatDate(email.date)}</span>
+          </div>
+          <div class="email-subject">${email.hasAttachments ? '📎 ' : ''}${escapeHtml(email.subject)}</div>
+          <div class="email-preview">${escapeHtml(email.preview || '')}</div>
+          ${email.isStarred ? '<div class="email-flags"><span class="flag-star">★</span></div>' : ''}
+        </div>
+      `).join('');
+    }
+
+    // Select email
+    async function selectEmail(uid) {
+      // Convert to number for comparison (UIDs are numbers from IMAP)
+      const uidNum = parseInt(uid, 10);
+      console.log(`[EMAIL] Selecting email UID: ${uid} (parsed: ${uidNum}), folder: ${currentFolder}`);
+
+      const email = emails.find(e => parseInt(e.uid, 10) === uidNum);
+      if (!email) {
+        console.error(`[EMAIL] Email not found in cache for UID ${uidNum}`);
+        showToast('E-Mail nicht im Cache gefunden', 'error');
+        return;
+      }
+
+      currentEmail = email;
+      renderEmailList();
+
+      // Hide panels
+      document.getElementById('analysisPanel').classList.add('hidden');
+      document.getElementById('replyPanel').classList.add('hidden');
+
+      // Show detail panel with loading
+      document.getElementById('detailPlaceholder').classList.add('hidden');
+      const detailContent = document.getElementById('detailContent');
+      detailContent.classList.remove('hidden');
+      document.getElementById('detailBody').innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Lade E-Mail...</span></div>';
+
+      try {
+        console.log(`[EMAIL] Fetching content: account=${currentAccountId}, uid=${uidNum}, folder=${currentFolder}`);
+        const result = await ipcRenderer.invoke('imap:getEmailContent', currentAccountId, uidNum, currentFolder);
+
+        if (result.success) {
+          const fullEmail = result.email;
+          // Store full body for analysis
+          currentEmail.body = fullEmail.text || '';
+          currentEmail.html = fullEmail.html || '';
+          currentEmail.attachments = fullEmail.attachments || [];
+
+          document.getElementById('detailSubject').textContent = fullEmail.subject;
+          document.getElementById('detailFrom').textContent = fullEmail.from;
+          document.getElementById('detailDate').textContent = formatDateFull(fullEmail.date);
+          document.getElementById('detailBody').innerHTML = fullEmail.html || escapeHtml(fullEmail.text || 'Kein Inhalt');
+
+          // Show attachments
+          const attachmentsSection = document.getElementById('attachmentsSection');
+          const attachmentsList = document.getElementById('attachmentsList');
+
+          // Debug: Log all attachments
+          console.log('[EMAIL] Raw attachments from server:', fullEmail.attachments?.length || 0);
+          if (fullEmail.attachments && fullEmail.attachments.length > 0) {
+            fullEmail.attachments.forEach((att, i) => {
+              console.log(`[EMAIL] Attachment ${i+1}: filename=${att.filename}, contentId=${att.contentId}, hasContent=${!!att.content}, contentLen=${att.content?.length || 0}, size=${att.size}`);
+            });
+          }
+
+          // Show ALL attachments - don't filter by contentId (Gmail sets contentId for all attachments)
+          // Remove duplicates by filename
+          const seen = new Set();
+          const realAttachments = (fullEmail.attachments || []).filter(a => {
+            if (seen.has(a.filename)) return false;
+            seen.add(a.filename);
+            return true;
+          });
+          console.log('[EMAIL] Real attachments after dedup:', realAttachments.length);
+
+          if (realAttachments.length > 0) {
+            attachmentsSection.classList.remove('hidden');
+            attachmentsList.innerHTML = realAttachments.map((att, idx) => `
+              <div class="attachment-item" onclick="downloadAttachment(${idx})">
+                <span class="attachment-icon">${getFileIcon(att.filename)}</span>
+                <div class="attachment-info">
+                  <span class="attachment-name">${escapeHtml(att.filename)}</span>
+                  <span class="attachment-size">${formatSize(att.size)}</span>
+                </div>
+              </div>
+            `).join('');
+          } else {
+            attachmentsSection.classList.add('hidden');
+            attachmentsList.innerHTML = '';
+          }
+
+          // Mark as read
+          if (!email.isRead) {
+            await ipcRenderer.invoke('imap:markAsRead', currentAccountId, uidNum, currentFolder);
+            email.isRead = true;
+            renderEmailList();
+          }
+        } else {
+          console.error(`[EMAIL] Failed to load content: ${result.error}`);
+          document.getElementById('detailBody').innerHTML = `<div class="empty-state"><p>Fehler: ${result.error}</p></div>`;
+        }
+      } catch (err) {
+        console.error(`[EMAIL] Exception loading email:`, err);
+        document.getElementById('detailBody').innerHTML = `<div class="empty-state"><p>Fehler: ${err.message}</p></div>`;
+      }
+    }
+
+    // Toggle star
+    async function toggleStar() {
+      if (!currentEmail) return;
+
+      try {
+        const result = await ipcRenderer.invoke('imap:toggleStar', currentAccountId, currentEmail.uid, currentFolder);
+        if (result.success) {
+          currentEmail.isStarred = result.starred;
+          renderEmailList();
+          showToast(result.starred ? 'Markiert' : 'Markierung entfernt', 'success');
+        }
+      } catch (err) {
+        showToast('Fehler: ' + err.message, 'error');
+      }
+    }
+
+    // Delete email
+    async function deleteEmail() {
+      if (!currentEmail) return;
+      if (!confirm('E-Mail wirklich löschen?')) return;
+
+      try {
+        await ipcRenderer.invoke('imap:deleteEmail', currentAccountId, currentEmail.uid, currentFolder);
+        emails = emails.filter(e => e.uid !== currentEmail.uid);
+        currentEmail = null;
+        renderEmailList();
+        emailDetail.innerHTML = '<div class="detail-placeholder"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg><p>Wähle eine E-Mail aus</p></div>';
+        showToast('E-Mail gelöscht', 'success');
+      } catch (err) {
+        showToast('Fehler: ' + err.message, 'error');
+      }
+    }
+
+    // Context menu
+    function showContextMenu(event, accountId) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const menu = document.getElementById('contextMenu');
+      menu.style.left = event.clientX + 'px';
+      menu.style.top = event.clientY + 'px';
+      menu.dataset.accountId = accountId;
+      menu.classList.add('visible');
+    }
+
+    function handleContextMenuAction(e) {
+      const action = e.target.dataset.action;
+      const accountId = document.getElementById('contextMenu').dataset.accountId;
+      const account = accounts.find(a => a.id === accountId);
+
+      if (!account) return;
+
+      switch (action) {
+        case 'rename':
+          const newName = prompt('Neuer Name:', account.name);
+          if (newName && newName !== account.name) {
+            renameAccount(accountId, newName);
+          }
+          break;
+        case 'color':
+          // Simple color picker
+          const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+          const color = prompt('Farbe (z.B. #14b8a6):', account.color);
+          if (color) changeAccountColor(accountId, color);
+          break;
+        case 'remove':
+          if (confirm(`Konto "${account.name}" wirklich entfernen?`)) {
+            removeAccount(accountId);
+          }
+          break;
+      }
+    }
+
+    async function renameAccount(accountId, newName) {
+      try {
+        await ipcRenderer.invoke('imap:updateAccount', accountId, { name: newName });
+        await loadAccounts();
+        showToast('Konto umbenannt', 'success');
+      } catch (err) {
+        showToast('Fehler: ' + err.message, 'error');
+      }
+    }
+
+    async function changeAccountColor(accountId, color) {
+      try {
+        await ipcRenderer.invoke('imap:updateAccount', accountId, { color });
+        await loadAccounts();
+        showToast('Farbe geändert', 'success');
+      } catch (err) {
+        showToast('Fehler: ' + err.message, 'error');
+      }
+    }
+
+    async function removeAccount(accountId) {
+      try {
+        await ipcRenderer.invoke('imap:removeAccount', accountId);
+
+        if (currentAccountId === accountId) {
+          currentAccountId = null;
+          currentEmail = null;
+          emails = [];
+          emailList.innerHTML = '<div class="empty-state"><p>Wähle ein Konto aus</p></div>';
+          emailDetail.innerHTML = '<div class="detail-placeholder"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg><p>Wähle eine E-Mail aus</p></div>';
+        }
+
+        await loadAccounts();
+        showToast('Konto entfernt', 'success');
+      } catch (err) {
+        showToast('Fehler: ' + err.message, 'error');
+      }
+    }
+
+    // Google OAuth functions
+    async function checkGoogleStatus() {
+      try {
+        const status = await ipcRenderer.invoke('google-auth-status');
+        const statusEl = document.getElementById('googleStatus');
+        const btnEl = document.getElementById('googleConnectBtn');
+
+        if (status.isAuthenticated) {
+          statusEl.textContent = `✓ Verbunden als ${status.email || 'Google-Konto'}`;
+          statusEl.style.display = 'block';
+          btnEl.textContent = 'Gmail hinzufügen';
+          btnEl.style.background = '#22c55e';
+        } else {
+          statusEl.style.display = 'none';
+          btnEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg> Mit Google verbinden`;
+          btnEl.style.background = '#4285f4';
+        }
+      } catch (err) {
+        console.error('Error checking Google status:', err);
+      }
+    }
+
+    async function connectGoogle() {
+      const btn = document.getElementById('googleConnectBtn');
+      const statusEl = document.getElementById('googleStatus');
+
+      try {
+        // Check if already connected
+        const status = await ipcRenderer.invoke('google-auth-status');
+
+        if (status.isAuthenticated) {
+          // Already connected - add as Gmail account
+          closeAddAccountModal();
+          showToast('Gmail-Konto verbunden!', 'success');
+          // Gmail uses the existing Google auth, not IMAP accounts list
+          // Just close the modal - Gmail emails are accessed via the google API
+          await loadAccounts();
+        } else {
+          // Start OAuth flow
+          btn.disabled = true;
+          btn.textContent = 'Verbinde...';
+
+          const result = await ipcRenderer.invoke('google-auth-connect');
+
+          if (result.success) {
+            statusEl.textContent = `✓ Verbunden als ${result.email || 'Google-Konto'}`;
+            statusEl.style.display = 'block';
+            btn.textContent = 'Gmail hinzufügen';
+            btn.style.background = '#22c55e';
+            btn.disabled = false;
+            showToast('Mit Google verbunden!', 'success');
+          } else {
+            showToast(result.error || 'Verbindung fehlgeschlagen', 'error');
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg> Mit Google verbinden`;
+          }
+        }
+      } catch (err) {
+        showToast('Fehler: ' + err.message, 'error');
+        btn.disabled = false;
+      }
+    }
+
+    // Add account modal
+    function openAddAccountModal() {
+      document.getElementById('addAccountModal').classList.add('visible');
+      document.getElementById('providerSelect').value = 'gmail';
+      document.getElementById('gmailOAuthSection').style.display = 'block';
+      document.getElementById('standardImapSection').style.display = 'none';
+      document.getElementById('imapModalFooter').style.display = 'none';
+      document.getElementById('customServerFields').style.display = 'none';
+      document.getElementById('accountName').value = '';
+      document.getElementById('emailAddress').value = '';
+      document.getElementById('emailPassword').value = '';
+      checkGoogleStatus();
+    }
+
+    function closeAddAccountModal() {
+      document.getElementById('addAccountModal').classList.remove('visible');
+    }
+
+    function getFormSettings() {
+      const provider = document.getElementById('providerSelect').value;
+      const preset = PRESETS[provider] || {};
+
+      return {
+        provider,
+        host: provider === 'custom' ? document.getElementById('imapHost').value : preset.host,
+        port: provider === 'custom' ? parseInt(document.getElementById('imapPort').value) : preset.port,
+        tls: true,
+        name: document.getElementById('accountName').value.trim(),
+        user: document.getElementById('emailAddress').value.trim(),
+        password: document.getElementById('emailPassword').value
+      };
+    }
+
+    async function testConnection() {
+      const settings = getFormSettings();
+
+      if (!settings.user || !settings.password) {
+        showToast('Bitte E-Mail und Passwort eingeben', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('testConnectionBtn');
+      btn.disabled = true;
+      btn.textContent = 'Teste...';
+
+      try {
+        const result = await ipcRenderer.invoke('imap:testConnection', settings);
+        showToast(result.message || 'Verbindung erfolgreich!', 'success');
+      } catch (err) {
+        showToast(err.message || 'Verbindung fehlgeschlagen', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Testen';
+      }
+    }
+
+    async function addAccount() {
+      const settings = getFormSettings();
+
+      if (!settings.user || !settings.password) {
+        showToast('Bitte E-Mail und Passwort eingeben', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('addAccountSubmit');
+      btn.disabled = true;
+      btn.textContent = 'Verbinde...';
+
+      try {
+        const result = await ipcRenderer.invoke('imap:addAccount', settings);
+
+        if (result.success) {
+          closeAddAccountModal();
+          await loadAccounts();
+          selectAccount(result.account.id);
+          showToast('Konto hinzugefügt!', 'success');
+        } else {
+          showToast(result.error || 'Fehler', 'error');
+        }
+      } catch (err) {
+        showToast(err.message || 'Fehler beim Hinzufügen', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Hinzufügen';
+      }
+    }
+
+    // =============================================================================
+    // ANALYSIS FUNCTIONS
+    // =============================================================================
+
+    async function analyzeCurrentEmail() {
+      if (!currentEmail) {
+        showToast('Bitte wähle erst eine E-Mail aus', 'error');
+        return;
+      }
+
+      const analysisPanel = document.getElementById('analysisPanel');
+      const analysisContent = document.getElementById('analysisContent');
+
+      analysisPanel.classList.remove('hidden');
+      document.getElementById('replyPanel').classList.add('hidden');
+
+      analysisContent.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Analysiere E-Mail...</span></div>';
+
+      try {
+        const result = await ipcRenderer.invoke('email:analyze', {
+          text: currentEmail.body || currentEmail.subject,
+          subject: currentEmail.subject,
+          sender: currentEmail.from
+        });
+
+        if (result.success && result.analysis) {
+          renderAnalysis(result.analysis);
+        } else {
+          analysisContent.innerHTML = `<div class="empty-state"><p>Analyse fehlgeschlagen: ${result.error || 'Unbekannter Fehler'}</p></div>`;
+        }
+      } catch (error) {
+        console.error('Analysis error:', error);
+        analysisContent.innerHTML = `<div class="empty-state"><p>Fehler bei der Analyse</p></div>`;
+      }
+    }
+
+    function renderAnalysis(analysis) {
+      const analysisContent = document.getElementById('analysisContent');
+      const urgencyClass = `urgency-${(analysis.urgency || 'mittel').toLowerCase()}`;
+      const sentimentClass = `sentiment-${(analysis.sentiment || 'neutral').toLowerCase()}`;
+
+      let keyPointsHtml = '';
+      if (analysis.keyPoints && analysis.keyPoints.length > 0) {
+        keyPointsHtml = `
+          <div class="analysis-section">
+            <div class="analysis-label">Kernpunkte</div>
+            <ul class="key-points">
+              ${analysis.keyPoints.map(p => `<li>${escapeHtml(p)}</li>`).join('')}
+            </ul>
+          </div>
+        `;
+      }
+
+      analysisContent.innerHTML = `
+        <div class="analysis-section">
+          <div class="analysis-label">Zusammenfassung</div>
+          <div class="analysis-value">${escapeHtml(analysis.summary || 'Keine Zusammenfassung')}</div>
+        </div>
+
+        ${keyPointsHtml}
+
+        <div class="analysis-section">
+          <div class="analysis-label">Dringlichkeit</div>
+          <span class="analysis-badge ${urgencyClass}">${analysis.urgency || 'Mittel'}</span>
+        </div>
+
+        <div class="analysis-section">
+          <div class="analysis-label">Stimmung</div>
+          <span class="analysis-badge ${sentimentClass}">${analysis.sentiment || 'Neutral'}</span>
+        </div>
+
+        <div class="analysis-section">
+          <div class="analysis-label">Absicht des Absenders</div>
+          <div class="analysis-value">${escapeHtml(analysis.intent || 'Unklar')}</div>
+        </div>
+
+        <div class="analysis-section">
+          <div class="analysis-label">Empfohlene Aktion</div>
+          <div class="analysis-value">${escapeHtml(analysis.suggestedAction || 'Keine')}</div>
+        </div>
+      `;
+    }
+
+    // =============================================================================
+    // BRIEFING FUNCTIONS
+    // =============================================================================
+
+    async function showBriefing() {
+      const briefingModal = document.getElementById('briefingModal');
+      const briefingContent = document.getElementById('briefingContent');
+
+      briefingModal.classList.remove('hidden');
+      briefingContent.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Erstelle Briefing...</span></div>';
+
+      try {
+        // Get emails for briefing - use all emails from all accounts
+        const allEmails = [];
+        for (const account of accounts) {
+          try {
+            const result = await ipcRenderer.invoke('imap:getAccountEmails', account.id, 'INBOX', 20);
+            if (result.success && result.emails) {
+              allEmails.push(...result.emails.map(e => ({
+                ...e,
+                accountName: account.name
+              })));
+            }
+          } catch (e) {
+            console.log('Skipping account:', account.email);
+          }
+        }
+
+        if (allEmails.length === 0) {
+          briefingContent.innerHTML = '<div class="empty-state"><p>Keine E-Mails zum Analysieren</p></div>';
+          return;
+        }
+
+        // Request briefing from server
+        const briefingData = allEmails.map(e => ({
+          subject: e.subject,
+          from: e.from,
+          date: e.date,
+          preview: e.preview || '',
+          isRead: e.isRead
+        }));
+
+        const result = await ipcRenderer.invoke('email:briefing', briefingData);
+
+        if (result.success) {
+          renderBriefing(result, allEmails);
+        } else {
+          briefingContent.innerHTML = `<div class="empty-state"><p>Briefing fehlgeschlagen: ${result.error}</p></div>`;
+        }
+      } catch (error) {
+        console.error('Briefing error:', error);
+        briefingContent.innerHTML = `<div class="empty-state"><p>Fehler beim Erstellen des Briefings</p></div>`;
+      }
+    }
+
+    function renderBriefing(result, allEmails) {
+      const briefingContent = document.getElementById('briefingContent');
+      const unreadCount = allEmails.filter(e => !e.isRead).length;
+      const stats = result.stats || { total: allEmails.length, unread: unreadCount, urgent: 0 };
+      const highlights = result.highlights || [];
+
+      let highlightsHtml = '';
+      if (highlights.length > 0) {
+        highlightsHtml = `
+          <div class="highlights-section">
+            <div class="highlights-title">Wichtige E-Mails</div>
+            ${highlights.map(h => `
+              <div class="highlight-item">
+                <div class="highlight-sender">${escapeHtml(h.sender)}</div>
+                <div class="highlight-subject">${escapeHtml(h.subject)}</div>
+                <div class="highlight-reason">${escapeHtml(h.reason)}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      briefingContent.innerHTML = `
+        <div class="briefing-text">${escapeHtml(result.briefing || 'Kein Briefing verfügbar')}</div>
+
+        <div class="briefing-stats">
+          <div class="stat-item">
+            <div class="stat-value">${stats.total}</div>
+            <div class="stat-label">Gesamt</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${stats.unread}</div>
+            <div class="stat-label">Ungelesen</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${stats.urgent}</div>
+            <div class="stat-label">Dringend</div>
+          </div>
+        </div>
+
+        ${highlightsHtml}
+      `;
+    }
+
+    // =============================================================================
+    // REPLY FUNCTIONS
+    // =============================================================================
+
+    function openReplyPanel() {
+      if (!currentEmail) {
+        showToast('Bitte wähle erst eine E-Mail aus', 'error');
+        return;
+      }
+
+      document.getElementById('replyPanel').classList.remove('hidden');
+      document.getElementById('analysisPanel').classList.add('hidden');
+
+      document.getElementById('replyToAddress').textContent = currentEmail.from;
+      document.getElementById('replyText').value = '';
+
+      loadQuickReplies();
+    }
+
+    function closeReplyPanel() {
+      document.getElementById('replyPanel').classList.add('hidden');
+      document.getElementById('replyText').value = '';
+      document.getElementById('quickRepliesList').innerHTML = '';
+    }
+
+    async function loadQuickReplies() {
+      if (!currentEmail) return;
+
+      const quickRepliesList = document.getElementById('quickRepliesList');
+      quickRepliesList.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Lade Vorschläge...</span></div>';
+
+      try {
+        const result = await ipcRenderer.invoke('email:getQuickReplies', {
+          originalText: currentEmail.body || currentEmail.subject,
+          originalSubject: currentEmail.subject,
+          originalSender: currentEmail.from
+        });
+
+        if (result.success && result.quick_replies) {
+          quickRepliesList.innerHTML = result.quick_replies.map((reply, index) => `
+            <button class="quick-reply-btn" onclick="useQuickReply(${index})">${escapeHtml(reply)}</button>
+          `).join('');
+          window._quickReplies = result.quick_replies;
+        } else {
+          quickRepliesList.innerHTML = '<div style="color: #6b7280; font-size: 13px;">Keine Vorschläge verfügbar</div>';
+        }
+      } catch (error) {
+        console.error('Quick replies error:', error);
+        quickRepliesList.innerHTML = '<div style="color: #ef4444; font-size: 13px;">Fehler beim Laden</div>';
+      }
+    }
+
+    function useQuickReply(index) {
+      if (window._quickReplies && window._quickReplies[index]) {
+        document.getElementById('replyText').value = window._quickReplies[index];
+      }
+    }
+
+    async function generateKiReply() {
+      if (!currentEmail || isGeneratingReply) return;
+
+      isGeneratingReply = true;
+      const generateBtn = document.getElementById('generateReplyBtn');
+      generateBtn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Generiere...';
+      generateBtn.disabled = true;
+
+      try {
+        const result = await ipcRenderer.invoke('email:generateReply', {
+          originalText: currentEmail.body || currentEmail.subject,
+          originalSubject: currentEmail.subject,
+          originalSender: currentEmail.from,
+          replyType: currentReplyType,
+          context: document.getElementById('replyText').value || ''
+        });
+
+        if (result.success && result.reply) {
+          document.getElementById('replyText').value = result.reply;
+        } else {
+          showToast('Fehler beim Generieren: ' + (result.error || 'Unbekannt'), 'error');
+        }
+      } catch (error) {
+        console.error('Generate reply error:', error);
+        showToast('Fehler beim Generieren der Antwort', 'error');
+      } finally {
+        isGeneratingReply = false;
+        generateBtn.innerHTML = '✨ KI-Antwort';
+        generateBtn.disabled = false;
+      }
+    }
+
+    async function sendReply() {
+      if (!currentEmail) return;
+
+      const replyText = document.getElementById('replyText').value.trim();
+      if (!replyText) {
+        showToast('Bitte schreibe zuerst eine Antwort', 'error');
+        return;
+      }
+
+      const sendBtn = document.getElementById('sendReplyBtn');
+      sendBtn.textContent = 'Sende...';
+      sendBtn.disabled = true;
+
+      try {
+        const result = await ipcRenderer.invoke('email:sendReply', currentEmail.id || currentEmail.uid, replyText);
+
+        if (result.success) {
+          closeReplyPanel();
+          showToast('Antwort gesendet!', 'success');
+        } else {
+          showToast('Fehler beim Senden: ' + (result.error || 'Unbekannt'), 'error');
+        }
+      } catch (error) {
+        console.error('Send reply error:', error);
+        showToast('Fehler beim Senden der Antwort', 'error');
+      } finally {
+        sendBtn.textContent = '📤 Senden';
+        sendBtn.disabled = false;
+      }
+    }
+
+    // =============================================================================
+    // COMPOSE EMAIL FUNCTIONS
+    // =============================================================================
+
+    function openComposeModal() {
+      console.log('[EMAIL] Opening compose modal, accounts:', accounts.length);
+
+      // Falls keine Konten vorhanden
+      if (!accounts || accounts.length === 0) {
+        showToast('Bitte füge zuerst ein E-Mail-Konto hinzu', 'error');
+        return;
+      }
+
+      const modal = document.getElementById('composeModal');
+      const fromSelect = document.getElementById('composeFrom');
+
+      if (!modal || !fromSelect) {
+        console.error('[EMAIL] Compose modal or fromSelect not found');
+        showToast('Fehler: Modal nicht gefunden', 'error');
+        return;
+      }
+
+      // Absender-Dropdown mit allen Konten füllen
+      fromSelect.innerHTML = '';
+      accounts.forEach(acc => {
+        const option = document.createElement('option');
+        option.value = acc.id;
+        option.textContent = `${acc.name} <${acc.email}>`;
+        option.style.color = acc.color || '#e5e7eb';
+        if (acc.id === currentAccountId) {
+          option.selected = true;
+        }
+        fromSelect.appendChild(option);
+      });
+
+      // Felder zurücksetzen
+      document.getElementById('composeTo').value = '';
+      document.getElementById('composeCc').value = '';
+      document.getElementById('composeSubject').value = '';
+      document.getElementById('composeBody').value = '';
+      document.getElementById('aiPromptInput').value = '';
+      document.getElementById('composeCcRow').style.display = 'none';
+      document.getElementById('showCcBtn').textContent = '+ CC';
+
+      // Anhänge zurücksetzen
+      composeAttachments = [];
+      renderComposeAttachments();
+
+      modal.classList.add('visible');
+      console.log('[EMAIL] Compose modal opened and visible');
+    }
+
+    function closeComposeModal() {
+      document.getElementById('composeModal').classList.remove('visible');
+    }
+
+    function renderComposeAttachments() {
+      const list = document.getElementById('composeAttachmentsList');
+      if (composeAttachments.length === 0) {
+        list.innerHTML = '';
+        return;
+      }
+
+      list.innerHTML = composeAttachments.map((att, idx) => `
+        <div class="compose-attachment-item">
+          <span>${getFileIcon(att.filename)}</span>
+          <span class="filename">${escapeHtml(att.filename)}</span>
+          <span class="size">(${formatSize(att.size)})</span>
+          <button class="remove-btn" onclick="removeComposeAttachment(${idx})">×</button>
+        </div>
+      `).join('');
+    }
+
+    function removeComposeAttachment(index) {
+      composeAttachments.splice(index, 1);
+      renderComposeAttachments();
+    }
+
+    async function addComposeAttachment() {
+      try {
+        const result = await ipcRenderer.invoke('email:selectAttachment');
+
+        if (result.success && result.attachment) {
+          composeAttachments.push(result.attachment);
+          renderComposeAttachments();
+          showToast(`Anhang hinzugefügt: ${result.attachment.filename}`, 'success');
+        }
+      } catch (error) {
+        console.error('Add attachment error:', error);
+        showToast('Fehler beim Hinzufügen', 'error');
+      }
+    }
+
+    function toggleCcField() {
+      const ccRow = document.getElementById('composeCcRow');
+      const btn = document.getElementById('showCcBtn');
+
+      if (ccRow.style.display === 'none') {
+        ccRow.style.display = 'flex';
+        btn.textContent = '- CC';
+      } else {
+        ccRow.style.display = 'none';
+        btn.textContent = '+ CC';
+      }
+    }
+
+    async function sendComposedEmail() {
+      const accountId = document.getElementById('composeFrom').value;
+      const to = document.getElementById('composeTo').value.trim();
+      const cc = document.getElementById('composeCc').value.trim();
+      const subject = document.getElementById('composeSubject').value.trim();
+      const body = document.getElementById('composeBody').value.trim();
+
+      // Validierung
+      if (!to) {
+        showToast('Bitte gib einen Empfänger ein', 'error');
+        return;
+      }
+
+      if (!subject) {
+        showToast('Bitte gib einen Betreff ein', 'error');
+        return;
+      }
+
+      if (!body) {
+        showToast('Bitte schreibe eine Nachricht', 'error');
+        return;
+      }
+
+      const sendBtn = document.getElementById('sendComposeBtn');
+      sendBtn.textContent = 'Sende...';
+      sendBtn.disabled = true;
+
+      // Debug logging
+      console.log('[EMAIL] ========== SENDING EMAIL ==========');
+      console.log('[EMAIL] To:', to);
+      console.log('[EMAIL] Subject:', subject);
+      console.log('[EMAIL] composeAttachments array:', composeAttachments);
+      console.log('[EMAIL] composeAttachments.length:', composeAttachments.length);
+      if (composeAttachments.length > 0) {
+        composeAttachments.forEach((att, i) => {
+          console.log(`[EMAIL] Attachment ${i+1}:`, att.filename, 'size:', att.size, 'content length:', att.content?.length || 0);
+        });
+      }
+
+      try {
+        const attachmentsToSend = composeAttachments.length > 0 ? composeAttachments : undefined;
+        console.log('[EMAIL] Sending with attachments:', attachmentsToSend ? 'YES' : 'NO');
+
+        const result = await ipcRenderer.invoke('email:sendNew', {
+          accountId,
+          to,
+          cc: cc || undefined,
+          subject,
+          body,
+          attachments: attachmentsToSend
+        });
+        console.log('[EMAIL] Send result:', result);
+        if (result.debug) {
+          console.log('[EMAIL] === BACKEND DEBUG ===');
+          result.debug.forEach(line => console.log('[BACKEND]', line));
+        }
+
+        if (result.success) {
+          closeComposeModal();
+          showToast('E-Mail gesendet!', 'success');
+        } else {
+          showToast('Fehler: ' + (result.error || 'Unbekannt'), 'error');
+        }
+      } catch (error) {
+        console.error('Send email error:', error);
+        showToast('Fehler beim Senden', 'error');
+      } finally {
+        sendBtn.textContent = '📤 Senden';
+        sendBtn.disabled = false;
+      }
+    }
+
+    async function aiComposeEmail() {
+      const prompt = document.getElementById('aiPromptInput').value.trim();
+      const subject = document.getElementById('composeSubject').value.trim();
+
+      if (!prompt) {
+        showToast('Bitte beschreibe, was du schreiben möchtest', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('aiComposeBtn');
+      btn.innerHTML = '⏳ Generiere...';
+      btn.disabled = true;
+
+      try {
+        const result = await ipcRenderer.invoke('email:aiCompose', {
+          prompt,
+          subject
+        });
+
+        if (result.success) {
+          document.getElementById('composeBody').value = result.text;
+          if (result.subject && !subject) {
+            document.getElementById('composeSubject').value = result.subject;
+          }
+          showToast('E-Mail generiert!', 'success');
+        } else {
+          showToast('Fehler: ' + (result.error || 'Unbekannt'), 'error');
+        }
+      } catch (error) {
+        console.error('AI compose error:', error);
+        showToast('Fehler bei KI-Generierung', 'error');
+      } finally {
+        btn.innerHTML = '✨ KI schreiben';
+        btn.disabled = false;
+      }
+    }
+
+    async function aiImproveEmail() {
+      const body = document.getElementById('composeBody').value.trim();
+
+      if (!body) {
+        showToast('Schreibe zuerst einen Text zum Verbessern', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('aiImproveBtn');
+      btn.innerHTML = '⏳ Verbessere...';
+      btn.disabled = true;
+
+      try {
+        const result = await ipcRenderer.invoke('email:aiImprove', {
+          text: body
+        });
+
+        if (result.success) {
+          document.getElementById('composeBody').value = result.text;
+          showToast('Text verbessert!', 'success');
+        } else {
+          showToast('Fehler: ' + (result.error || 'Unbekannt'), 'error');
+        }
+      } catch (error) {
+        console.error('AI improve error:', error);
+        showToast('Fehler bei KI-Verbesserung', 'error');
+      } finally {
+        btn.innerHTML = '🔧 Verbessern';
+        btn.disabled = false;
+      }
+    }
+
+    // =============================================================================
+    // HELPERS
+    // =============================================================================
+
+    function extractName(from) {
+      if (!from) return 'Unbekannt';
+      const match = from.match(/^"?([^"<]+)"?\s*</);
+      if (match) return match[1].trim();
+      return from.split('@')[0];
+    }
+
+    function formatDate(date) {
+      if (!date) return '';
+      const d = new Date(date);
+      const now = new Date();
+
+      if (d.toDateString() === now.toDateString()) {
+        return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (d.toDateString() === yesterday.toDateString()) {
+        return 'Gestern';
+      }
+
+      return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    }
+
+    function formatDateFull(date) {
+      if (!date) return '';
+      return new Date(date).toLocaleString('de-DE', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function formatSize(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + sizes[i];
+    }
+
+    function getFileIcon(filename) {
+      if (!filename) return '📄';
+      const ext = filename.split('.').pop().toLowerCase();
+      const icons = {
+        pdf: '📕', doc: '📘', docx: '📘', xls: '📗', xlsx: '📗',
+        ppt: '📙', pptx: '📙', txt: '📄', csv: '📊',
+        jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', bmp: '🖼️', webp: '🖼️',
+        mp3: '🎵', wav: '🎵', mp4: '🎬', avi: '🎬', mov: '🎬',
+        zip: '📦', rar: '📦', '7z': '📦', tar: '📦', gz: '📦',
+        html: '🌐', js: '📜', css: '🎨', json: '📋', xml: '📋'
+      };
+      return icons[ext] || '📎';
+    }
+
+    async function downloadAttachment(index) {
+      if (!currentEmail || !currentEmail.attachments) return;
+
+      // Get real attachments (filtered same way as display - deduplicated by filename)
+      const seen = new Set();
+      const realAttachments = currentEmail.attachments.filter(a => {
+        if (seen.has(a.filename)) return false;
+        seen.add(a.filename);
+        return true;
+      });
+      const attachment = realAttachments[index];
+
+      if (!attachment || !attachment.content) {
+        console.log('[EMAIL] Download failed - attachment:', attachment, 'hasContent:', !!attachment?.content);
+        showToast('Anhang nicht verfügbar', 'error');
+        return;
+      }
+
+      try {
+        const result = await ipcRenderer.invoke('email:saveAttachment', {
+          filename: attachment.filename,
+          content: attachment.content,
+          contentType: attachment.contentType
+        });
+
+        if (result.success) {
+          showToast(`Gespeichert: ${attachment.filename}`, 'success');
+        } else {
+          showToast(result.error || 'Fehler beim Speichern', 'error');
+        }
+      } catch (err) {
+        showToast('Fehler: ' + err.message, 'error');
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function showToast(message, type = '') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'toast show ' + type;
+
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+
+    // ========================================
+    // DASHBOARD FUNKTIONEN
+    // ========================================
+
+    // Store für klassifizierte E-Mails
+    let classifiedEmails = new Map(); // uid -> classification
+    let autoReplyEnabled = false;
+    let currentCategoryFilter = 'all';
+
+    // Dashboard Stats aktualisieren
+    function updateDashboardStats() {
+      // Alle E-Mails zählen
+      const total = emails.length;
+      document.getElementById('statReceived').textContent = total;
+      document.getElementById('countAll').textContent = total;
+
+      // Kategorien zählen
+      let counts = { important: 0, action: 0, normal: 0, newsletter: 0, spam: 0 };
+
+      emails.forEach(email => {
+        const classification = classifiedEmails.get(email.uid);
+        if (classification) {
+          const cat = classification.category;
+          if (cat === 'important') counts.important++;
+          else if (cat === 'action' || classification.action === 'reply') counts.action++;
+          else if (cat === 'newsletter') counts.newsletter++;
+          else if (cat === 'spam') counts.spam++;
+          else counts.normal++;
+        } else {
+          counts.normal++;
+        }
+      });
+
+      document.getElementById('countImportant').textContent = counts.important;
+      document.getElementById('countAction').textContent = counts.action;
+      document.getElementById('countNormal').textContent = counts.normal;
+      document.getElementById('countNewsletter').textContent = counts.newsletter;
+      document.getElementById('countSpam').textContent = counts.spam;
+    }
+
+    // KI-Analyse für alle E-Mails
+    async function analyzeAllEmails() {
+      if (emails.length === 0) {
+        showToast('Keine E-Mails zu analysieren', 'error');
+        return;
+      }
+
+      const analyzeBtn = document.getElementById('analyzeAllBtn');
+      analyzeBtn.disabled = true;
+      analyzeBtn.innerHTML = '<span>⏳</span> Analysiere...';
+
+      // Progress anzeigen
+      const progressDiv = document.getElementById('analysisProgress');
+      progressDiv.classList.add('active');
+
+      let analyzed = 0;
+      const total = Math.min(emails.length, 30); // Max 30 auf einmal
+
+      for (let i = 0; i < total; i++) {
+        const email = emails[i];
+
+        // Skip wenn schon klassifiziert
+        if (classifiedEmails.has(email.uid)) {
+          analyzed++;
+          continue;
+        }
+
+        try {
+          // KI-Klassifizierung aufrufen
+          const result = await ipcRenderer.invoke('email:classify', {
+            from: email.from,
+            subject: email.subject,
+            preview: email.preview || ''
+          });
+
+          if (result.success) {
+            classifiedEmails.set(email.uid, result.classification);
+            email.classification = result.classification;
+          }
+        } catch (err) {
+          console.error('Klassifizierung fehlgeschlagen:', err);
+        }
+
+        analyzed++;
+
+        // Progress aktualisieren
+        const percent = Math.round((analyzed / total) * 100);
+        document.getElementById('analysisProgressBar').style.width = percent + '%';
+        document.getElementById('analysisCount').textContent = `${analyzed}/${total}`;
+      }
+
+      // Fertig
+      progressDiv.classList.remove('active');
+      analyzeBtn.disabled = false;
+      analyzeBtn.innerHTML = '<span>🤖</span> KI-Analyse starten';
+
+      // Dashboard aktualisieren
+      updateDashboardStats();
+      renderEmailList();
+
+      showToast(`${analyzed} E-Mails analysiert`, 'success');
+    }
+
+    // Nach Kategorie filtern
+    function filterByCategory(category) {
+      currentCategoryFilter = category;
+      renderEmailList();
+    }
+
+    // Newsletter archivieren
+    async function archiveNewsletters() {
+      const newsletters = emails.filter(e => {
+        const c = classifiedEmails.get(e.uid);
+        return c && c.category === 'newsletter';
+      });
+
+      if (newsletters.length === 0) {
+        showToast('Keine Newsletter gefunden', 'error');
+        return;
+      }
+
+      showToast(`${newsletters.length} Newsletter werden archiviert...`);
+
+      // TODO: Implementierung (IMAP Archive)
+      showToast('Newsletter-Archivierung noch nicht implementiert', 'error');
+    }
+
+    // Spam löschen
+    async function deleteAllSpam() {
+      const spamEmails = emails.filter(e => {
+        const c = classifiedEmails.get(e.uid);
+        return c && c.category === 'spam';
+      });
+
+      if (spamEmails.length === 0) {
+        showToast('Kein Spam gefunden', 'error');
+        return;
+      }
+
+      if (!confirm(`${spamEmails.length} Spam-E-Mails löschen?`)) return;
+
+      showToast(`${spamEmails.length} Spam-E-Mails werden gelöscht...`);
+
+      for (const email of spamEmails) {
+        try {
+          await ipcRenderer.invoke('imap:deleteEmail', currentAccountId, email.uid, currentFolder);
+        } catch (err) {
+          console.error('Fehler beim Löschen:', err);
+        }
+      }
+
+      await loadEmails(currentAccountId, currentFolder);
+      showToast('Spam gelöscht', 'success');
+    }
+
+    // Auto-Antwort Toggle
+    function toggleAutoReply() {
+      autoReplyEnabled = !autoReplyEnabled;
+      const toggle = document.getElementById('autoReplyToggle');
+      toggle.classList.toggle('active', autoReplyEnabled);
+      showToast(autoReplyEnabled ? 'Auto-Antworten aktiviert' : 'Auto-Antworten deaktiviert');
+    }
+
+    // Erweiterte E-Mail-Liste rendern (mit Kategorien/Prioritäten)
+    const originalRenderEmailList = typeof renderEmailList === 'function' ? renderEmailList : null;
+
+    // Überschreibe renderEmailList um Kategorien anzuzeigen
+    window.renderEmailListWithCategories = function() {
+      if (!emailList) return;
+      if (emails.length === 0) {
+        emailList.innerHTML = '<div class="empty-state"><p>Keine E-Mails</p></div>';
+        return;
+      }
+
+      const account = accounts.find(a => a.id === currentAccountId);
+
+      // Filtern nach Kategorie
+      let filteredEmails = emails;
+      if (currentCategoryFilter !== 'all') {
+        filteredEmails = emails.filter(e => {
+          const c = classifiedEmails.get(e.uid);
+          if (!c) return currentCategoryFilter === 'normal';
+
+          if (currentCategoryFilter === 'important') return c.category === 'important';
+          if (currentCategoryFilter === 'action') return c.action === 'reply' || c.category === 'action';
+          if (currentCategoryFilter === 'newsletter') return c.category === 'newsletter';
+          if (currentCategoryFilter === 'spam') return c.category === 'spam';
+          return c.category === 'normal' || !c.category;
+        });
+      }
+
+      emailList.innerHTML = filteredEmails.map(email => {
+        const classification = classifiedEmails.get(email.uid);
+        let priorityBadge = '';
+        let categoryTag = '';
+
+        if (classification) {
+          // Priority Badge
+          if (classification.priority === 'urgent') {
+            priorityBadge = '<span class="priority-badge urgent">🔴 Dringend</span>';
+          } else if (classification.priority === 'high') {
+            priorityBadge = '<span class="priority-badge high">🟠 Hoch</span>';
+          }
+
+          // Category Tag
+          if (classification.category === 'spam') {
+            categoryTag = '<span class="category-tag spam">🗑️ Spam</span>';
+          } else if (classification.category === 'newsletter') {
+            categoryTag = '<span class="category-tag newsletter">📰</span>';
+          } else if (classification.category === 'important') {
+            categoryTag = '<span class="category-tag important">🔴</span>';
+          } else if (classification.action === 'reply') {
+            categoryTag = '<span class="category-tag action">⚡</span>';
+          }
+        }
+
+        return `
+          <div class="email-item ${email.isRead ? '' : 'unread'} ${currentEmail?.uid === email.uid ? 'active' : ''}"
+               data-uid="${email.uid}" onclick="selectEmail(${email.uid})">
+            <div class="email-top-row">
+              <span class="email-from">
+                <span class="email-account-dot" style="background: ${account?.color || '#666'}"></span>
+                ${escapeHtml(extractName(email.from))}
+                ${categoryTag}
+              </span>
+              <span class="email-date">${formatDate(email.date)}</span>
+            </div>
+            <div class="email-subject">${email.hasAttachments ? '📎 ' : ''}${escapeHtml(email.subject)}${priorityBadge}</div>
+            <div class="email-preview">${escapeHtml(email.preview || '')}</div>
+            ${email.isStarred ? '<div class="email-flags"><span class="flag-star">★</span></div>' : ''}
+          </div>
+        `;
+      }).join('');
+
+      // Dashboard Stats aktualisieren
+      updateDashboardStats();
+    };
+  </script>
 </body>
 </html>

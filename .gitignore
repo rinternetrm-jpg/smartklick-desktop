@@ -3,4 +3,3 @@ build/
 *.exe
 *.blockmap
 *.AppImage
-.env

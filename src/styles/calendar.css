@@ -376,7 +376,7 @@ body {
 }
 
 .time-column {
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .time-slot-label {
@@ -387,20 +387,64 @@ body {
   padding-right: 8px;
   padding-top: 0;
   transform: translateY(-6px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.week-day-column {
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  position: relative;
+}
+
+.week-day-column.today-column {
+  background: rgba(20, 184, 166, 0.03);
+}
+
+.time-slot {
+  height: 48px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.time-slot:hover {
+  background: rgba(20, 184, 166, 0.1);
+}
+
+/* Drag selection for creating events */
+.time-slot.drag-start,
+.time-slot.drag-over {
+  background: rgba(20, 184, 166, 0.25);
+}
+
+.time-slot.drag-preview {
+  background: rgba(20, 184, 166, 0.3);
+  border-left: 3px solid #14b8a6;
+}
+
+/* Half-hour lines (subtle) */
+.time-slot::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Legacy support */
 .day-column {
-  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
   position: relative;
 }
 
 .hour-slot {
   height: 48px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .hour-slot:hover {
-  background: rgba(20, 184, 166, 0.05);
+  background: rgba(20, 184, 166, 0.1);
 }
 
 /* Events */
