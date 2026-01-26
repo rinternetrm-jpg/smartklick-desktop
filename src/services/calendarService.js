@@ -156,13 +156,64 @@ class CalendarService {
     };
   }
 
+  // Convert German date/time words to English for Google API
+  convertGermanToEnglish(text) {
+    const replacements = {
+      // Days
+      'morgen': 'tomorrow',
+      'heute': 'today',
+      'übermorgen': 'day after tomorrow',
+      'gestern': 'yesterday',
+      // Time
+      'uhr': '',
+      // Weekdays
+      'montag': 'Monday',
+      'dienstag': 'Tuesday',
+      'mittwoch': 'Wednesday',
+      'donnerstag': 'Thursday',
+      'freitag': 'Friday',
+      'samstag': 'Saturday',
+      'sonntag': 'Sunday',
+      // Relative
+      'nächste woche': 'next week',
+      'nächsten': 'next',
+      'nächster': 'next',
+      'nächstes': 'next',
+      // Time of day
+      'vormittag': 'morning',
+      'nachmittag': 'afternoon',
+      'abend': 'evening',
+      'mittag': 'noon'
+    };
+
+    let result = text.toLowerCase();
+    for (const [german, english] of Object.entries(replacements)) {
+      result = result.replace(new RegExp(german, 'gi'), english);
+    }
+
+    // Fix time format: "18" alone or "18:00" → "at 18:00"
+    result = result.replace(/(\d{1,2})[:.]?(\d{2})?\s*(tomorrow|today|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/gi,
+      '$3 at $1:$2');
+    result = result.replace(/(tomorrow|today|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(\d{1,2})[:.]?(\d{2})?/gi,
+      '$1 at $2:$3');
+
+    // Clean up empty minutes
+    result = result.replace(/:undefined/g, ':00').replace(/:\s/g, ':00 ').replace(/:$/g, ':00');
+
+    console.log('[Calendar] German→English:', text, '→', result);
+    return result;
+  }
+
   // Quick add event using natural language
   async quickAddEvent(text) {
     const calendar = this.getCalendar();
 
+    // Convert German to English for Google API
+    const englishText = this.convertGermanToEnglish(text);
+
     const response = await calendar.events.quickAdd({
       calendarId: 'primary',
-      text: text
+      text: englishText
     });
 
     return {
