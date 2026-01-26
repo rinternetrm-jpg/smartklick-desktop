@@ -581,9 +581,15 @@ class CalendarApp {
 
   // Event Element
   createEventElement(event, viewType) {
-    const start = new Date(event.start.dateTime || event.start.date);
-    const end = new Date(event.end.dateTime || event.end.date);
+    const startStr = event.start.dateTime || event.start.date;
+    const endStr = event.end.dateTime || event.end.date;
+    const start = new Date(startStr);
+    const end = new Date(endStr);
     const isAllDay = !event.start.dateTime;
+
+    // Debug logging
+    console.log(`[Calendar Event] "${event.summary}": raw=${startStr}, parsed=${start.toISOString()}, hours=${start.getHours()}`);
+
 
     if (isAllDay) {
       return `
@@ -596,8 +602,8 @@ class CalendarApp {
 
     const startHour = start.getHours() + start.getMinutes() / 60;
     const duration = (end - start) / (1000 * 60 * 60);
-    const top = startHour * 60; // 60px per hour
-    const height = Math.max(duration * 60, 20);
+    const top = startHour * 48; // 48px per hour (matches CSS .time-slot height)
+    const height = Math.max(duration * 48, 24);
 
     return `
       <div class="event-block"
